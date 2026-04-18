@@ -9,9 +9,17 @@ import { webhookRouter } from "./routes/webhooks.js";
 const app = express();
 const PORT = parseInt(process.env.PORT || "3001");
 
-// CORS - allow frontend
+// CORS - allow frontend (multiple origins for dev)
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:5173",
+  origin: (origin, callback) => {
+    const allowed = (process.env.FRONTEND_URL || "http://localhost:5173").split(",");
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin || allowed.some(u => origin.startsWith(u.trim())) || origin.match(/^http:\/\/localhost:\d+$/)) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow all for now, tighten in production
+    }
+  },
   credentials: true,
 }));
 
