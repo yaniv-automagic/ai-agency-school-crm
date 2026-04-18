@@ -129,29 +129,30 @@ export default function ProductsPage() {
           {products.map(product => {
             const cat = PRODUCT_CATEGORIES.find(c => c.value === product.category);
             return (
-              <div key={product.id} className={cn("bg-card border rounded-xl p-5 transition-shadow group relative", product.is_active ? "border-border hover:shadow-md" : "border-border/50 opacity-60")}>
-                {/* Actions */}
-                <div className="absolute top-3 left-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => openEdit(product)}
-                    className="p-1.5 rounded-lg bg-white border border-border shadow-sm hover:bg-secondary text-muted-foreground">
-                    <Pencil size={13} />
-                  </button>
-                  <button onClick={() => toggleActive.mutate({ id: product.id, is_active: !product.is_active })}
-                    className="p-1.5 rounded-lg bg-white border border-border shadow-sm hover:bg-secondary text-muted-foreground"
-                    title={product.is_active ? "השבת" : "הפעל"}>
-                    {product.is_active ? <ToggleRight size={13} className="text-green-500" /> : <ToggleLeft size={13} />}
-                  </button>
-                  <button onClick={() => handleDelete(product.id, product.name)}
-                    className="p-1.5 rounded-lg bg-white border border-border shadow-sm hover:bg-red-50 text-muted-foreground hover:text-destructive">
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-
+              <div key={product.id} className={cn("bg-card border rounded-xl p-5 transition-shadow group", product.is_active ? "border-border hover:shadow-md" : "border-border/50 opacity-60")}>
                 <div className="flex items-start justify-between mb-3">
                   <div className="p-2.5 rounded-xl bg-primary/10">
                     <Package size={20} className="text-primary" />
                   </div>
-                  <span className="text-xs bg-secondary px-2.5 py-1 rounded-full">{cat?.label}</span>
+                  <div className="flex items-center gap-1.5">
+                    {/* Actions - visible on hover */}
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => openEdit(product)}
+                        className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground" title="עריכה">
+                        <Pencil size={13} />
+                      </button>
+                      <button onClick={() => toggleActive.mutate({ id: product.id, is_active: !product.is_active })}
+                        className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground"
+                        title={product.is_active ? "השבת" : "הפעל"}>
+                        {product.is_active ? <ToggleRight size={13} className="text-green-500" /> : <ToggleLeft size={13} />}
+                      </button>
+                      <button onClick={() => handleDelete(product.id, product.name)}
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-destructive" title="מחיקה">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                    <span className="text-xs bg-secondary px-2.5 py-1 rounded-full">{cat?.label}</span>
+                  </div>
                 </div>
                 <h3 className="font-semibold text-lg mb-1">{product.name}</h3>
                 {product.description && (
