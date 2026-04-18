@@ -1,0 +1,135 @@
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap');
+
+/* react-grid-layout */
+.react-grid-item.react-grid-placeholder {
+  background: hsl(var(--primary) / 0.15) !important;
+  border: 2px dashed hsl(var(--primary) / 0.4) !important;
+  border-radius: 12px !important;
+  opacity: 1 !important;
+}
+.react-grid-item > .react-resizable-handle::after {
+  border-color: hsl(var(--muted-foreground) / 0.3) !important;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  overflow-x: clip;
+}
+body {
+  overflow-x: clip;
+  width: 100%;
+}
+
+@layer base {
+  :root {
+    --background: 280 30% 99%;
+    --foreground: 263 25% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 263 25% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 263 25% 12%;
+
+    --primary: 263 70% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 280 20% 96%;
+    --secondary-foreground: 263 25% 15%;
+
+    --muted: 280 20% 96%;
+    --muted-foreground: 263 10% 45%;
+
+    --accent: 280 75% 60%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 280 15% 90%;
+    --input: 280 15% 90%;
+    --ring: 263 70% 55%;
+
+    --radius: 0.75rem;
+
+    --shadow-xs: 0 1px 2px hsl(263 30% 20% / 0.04);
+    --shadow-sm: 0 1px 3px hsl(263 30% 20% / 0.06), 0 1px 2px hsl(263 30% 20% / 0.04);
+    --shadow-md: 0 4px 12px -2px hsl(263 30% 20% / 0.08), 0 2px 6px -2px hsl(263 30% 20% / 0.05);
+    --shadow-lg: 0 12px 24px -6px hsl(263 30% 20% / 0.10), 0 4px 10px -4px hsl(263 30% 20% / 0.06);
+    --shadow-xl: 0 20px 40px -8px hsl(263 30% 20% / 0.12), 0 8px 16px -6px hsl(263 30% 20% / 0.06);
+    --shadow-glow: 0 0 24px hsl(263 70% 55% / 0.25);
+    --shadow-glow-lg: 0 0 40px hsl(263 70% 55% / 0.35);
+
+    --sidebar-background: 263 65% 18%;
+    --sidebar-foreground: 280 20% 95%;
+    --sidebar-primary: 280 75% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 263 50% 25%;
+    --sidebar-accent-foreground: 280 20% 95%;
+    --sidebar-border: 263 40% 25%;
+    --sidebar-ring: 280 75% 65%;
+  }
+
+  .dark {
+    --background: 263 25% 8%;
+    --foreground: 280 20% 95%;
+
+    --card: 263 25% 10%;
+    --card-foreground: 280 20% 95%;
+
+    --popover: 263 25% 10%;
+    --popover-foreground: 280 20% 95%;
+
+    --primary: 263 70% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 263 20% 15%;
+    --secondary-foreground: 280 20% 90%;
+
+    --muted: 263 20% 15%;
+    --muted-foreground: 280 10% 55%;
+
+    --accent: 280 75% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 60% 40%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 80% 45%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 263 20% 20%;
+    --input: 263 20% 20%;
+    --ring: 263 70% 60%;
+
+    --sidebar-background: 263 30% 6%;
+    --sidebar-foreground: 280 20% 90%;
+    --sidebar-primary: 280 75% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 263 30% 12%;
+    --sidebar-accent-foreground: 280 20% 90%;
+    --sidebar-border: 263 20% 15%;
+    --sidebar-ring: 280 75% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}

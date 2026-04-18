@@ -1,0 +1,281 @@
+export interface Contact {
+  id: string;
+  tenant_id: string;
+  account_id: string | null;
+  portal_user_id: string | null;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  whatsapp_phone: string | null;
+  company: string | null;
+  job_title: string | null;
+  source: ContactSource;
+  status: ContactStatus;
+  tags: string[];
+  custom_fields: Record<string, any>;
+  notes: string | null;
+  avatar_url: string | null;
+  city: string | null;
+  assigned_to: string | null;
+  last_activity_at: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+  // Joined
+  account?: Account;
+  assigned_member?: TeamMember;
+}
+
+export type ContactStatus = "new" | "contacted" | "qualified" | "student" | "alumni" | "inactive";
+export type ContactSource = "website" | "whatsapp" | "referral" | "facebook_ad" | "instagram" | "google_ad" | "workshop" | "manual" | "import";
+
+export interface Account {
+  id: string;
+  tenant_id: string;
+  name: string;
+  website: string | null;
+  industry: string | null;
+  size: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  city: string | null;
+  notes: string | null;
+  custom_fields: Record<string, any>;
+  assigned_to: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
+
+export interface Deal {
+  id: string;
+  tenant_id: string;
+  contact_id: string;
+  account_id: string | null;
+  pipeline_id: string;
+  stage_id: string;
+  title: string;
+  value: number;
+  currency: string;
+  expected_close: string | null;
+  actual_close: string | null;
+  status: DealStatus;
+  loss_reason: string | null;
+  product_id: string | null;
+  assigned_to: string | null;
+  custom_fields: Record<string, any>;
+  notes: string | null;
+  probability: number;
+  stage_entered_at: string;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+  // Joined
+  contact?: Contact;
+  stage?: PipelineStage;
+  product?: Product;
+}
+
+export type DealStatus = "open" | "won" | "lost";
+
+export interface Pipeline {
+  id: string;
+  tenant_id: string;
+  name: string;
+  is_default: boolean;
+  created_at: string;
+  stages?: PipelineStage[];
+}
+
+export interface PipelineStage {
+  id: string;
+  pipeline_id: string;
+  name: string;
+  order_index: number;
+  color: string | null;
+  probability: number;
+  is_won: boolean;
+  is_lost: boolean;
+  created_at: string;
+}
+
+export interface Product {
+  id: string;
+  tenant_id: string;
+  portal_course_id: string | null;
+  name: string;
+  description: string | null;
+  price: number;
+  currency: string;
+  category: ProductCategory;
+  is_active: boolean;
+  duration_description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ProductCategory = "course" | "workshop" | "mentoring" | "bundle";
+
+export interface Activity {
+  id: string;
+  tenant_id: string;
+  contact_id: string;
+  deal_id: string | null;
+  type: ActivityType;
+  direction: "inbound" | "outbound" | null;
+  subject: string | null;
+  body: string | null;
+  metadata: Record<string, any>;
+  performed_by: string | null;
+  performed_at: string;
+  created_at: string;
+  // Joined
+  performer?: TeamMember;
+}
+
+export type ActivityType = "note" | "call" | "email" | "meeting" | "whatsapp" | "sms" | "stage_change" | "system";
+
+export interface Task {
+  id: string;
+  tenant_id: string;
+  contact_id: string | null;
+  deal_id: string | null;
+  title: string;
+  description: string | null;
+  type: TaskType;
+  priority: TaskPriority;
+  status: TaskStatus;
+  due_date: string | null;
+  completed_at: string | null;
+  assigned_to: string | null;
+  created_by: string | null;
+  google_event_id: string | null;
+  reminder_at: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  contact?: Contact;
+  deal?: Deal;
+  assigned_member?: TeamMember;
+}
+
+export type TaskType = "task" | "call" | "meeting" | "follow_up" | "email";
+export type TaskPriority = "low" | "medium" | "high" | "urgent";
+export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
+
+export interface TeamMember {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  display_name: string;
+  email: string;
+  role: TeamRole;
+  avatar_url: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export type TeamRole = "owner" | "admin" | "sales" | "marketing" | "viewer";
+
+export interface Campaign {
+  id: string;
+  tenant_id: string;
+  name: string;
+  type: "email" | "sms" | "whatsapp";
+  status: "draft" | "scheduled" | "sending" | "sent" | "cancelled";
+  subject: string | null;
+  body_html: string | null;
+  body_text: string | null;
+  template_id: string | null;
+  segment_filter: Record<string, any>;
+  scheduled_at: string | null;
+  sent_at: string | null;
+  stats: CampaignStats;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CampaignStats {
+  sent_count?: number;
+  delivered?: number;
+  opened?: number;
+  clicked?: number;
+  bounced?: number;
+}
+
+export interface MessageTemplate {
+  id: string;
+  tenant_id: string;
+  name: string;
+  channel: "email" | "sms" | "whatsapp";
+  subject: string | null;
+  body_html: string | null;
+  body_text: string | null;
+  variables: string[];
+  wa_template_name: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Automation {
+  id: string;
+  tenant_id: string;
+  name: string;
+  description: string | null;
+  trigger_type: AutomationTriggerType;
+  trigger_config: Record<string, any>;
+  conditions: AutomationConditionGroup[];
+  actions: AutomationAction[];
+  is_active: boolean;
+  run_count: number;
+  last_run_at: string | null;
+  error_count: number;
+  last_error: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AutomationTriggerType =
+  | "record_created"
+  | "record_updated"
+  | "record_created_or_updated"
+  | "relative_time"
+  | "scheduled"
+  | "webhook_received"
+  | "form_submitted";
+
+export interface AutomationConditionGroup {
+  logic: "AND" | "OR";
+  conditions: AutomationCondition[];
+}
+
+export interface AutomationCondition {
+  field: string;
+  operator: string;
+  value: any;
+}
+
+export interface AutomationAction {
+  type: string;
+  config: Record<string, any>;
+}
+
+export interface SavedView {
+  id: string;
+  tenant_id: string;
+  entity_type: string;
+  name: string;
+  filters: Record<string, any>;
+  columns: string[] | null;
+  sort_by: string | null;
+  sort_direction: "asc" | "desc" | null;
+  is_default: boolean;
+  created_by: string | null;
+  is_shared: boolean;
+  created_at: string;
+}
