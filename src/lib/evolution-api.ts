@@ -48,10 +48,10 @@ export interface WhatsAppInstance {
   created_at: string;
 }
 
-export async function createInstance(evoBaseUrl: string, evoApiKey: string, displayName?: string): Promise<WhatsAppInstance> {
+export async function createInstance(displayName?: string): Promise<WhatsAppInstance> {
   return apiFetch("/instances", {
     method: "POST",
-    body: JSON.stringify({ evoBaseUrl, evoApiKey, displayName }),
+    body: JSON.stringify({ displayName }),
   });
 }
 

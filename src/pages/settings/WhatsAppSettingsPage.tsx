@@ -10,10 +10,10 @@ export default function WhatsAppSettingsPage() {
   const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
   const [teamInstances, setTeamInstances] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
   const [showTeam, setShowTeam] = useState(false);
-  const [createForm, setCreateForm] = useState({ evoBaseUrl: "", evoApiKey: "", displayName: "" });
   const [creating, setCreating] = useState(false);
+  const [displayName, setDisplayName] = useState("");
+  const [showNameInput, setShowNameInput] = useState(false);
   const [qrData, setQrData] = useState<{ instanceId: string; base64: string } | null>(null);
   const [polling, setPolling] = useState<string | null>(null);
 
@@ -47,27 +47,16 @@ export default function WhatsAppSettingsPage() {
     return () => clearInterval(interval);
   }, [polling, loadInstances]);
 
-  const handleCreate = async () => {
-    if (!createForm.evoBaseUrl || !createForm.evoApiKey) {
-      toast.error("יש למלא את כתובת ה-API ואת ה-API Key");
-      return;
-    }
+  const handleConnect = async () => {
     setCreating(true);
     try {
-      const instance = await evo.createInstance(
-        createForm.evoBaseUrl,
-        createForm.evoApiKey,
-        createForm.displayName || undefined
-      );
-      toast.success("Instance נוצר! סרוק את ה-QR כדי לחבר.");
-      setShowCreate(false);
-      setCreateForm({ evoBaseUrl: "", evoApiKey: "", displayName: "" });
+      const instance = await evo.createInstance(displayName || undefined);
+      setDisplayName("");
+      setShowNameInput(false);
       await loadInstances();
-
-      // Auto-show QR
       handleShowQR(instance.id);
     } catch (err: any) {
-      toast.error(err.message || "שגיאה ביצירת instance");
+      toast.error(err.message || "שגיאה בחיבור. ודא שהגדרות Evolution API מוגדרות באינטגרציות.");
     } finally {
       setCreating(false);
     }
@@ -108,16 +97,6 @@ export default function WhatsAppSettingsPage() {
     }
   };
 
-  const handleLoadTeam = async () => {
-    try {
-      const data = await evo.listTeamInstances();
-      setTeamInstances(data);
-      setShowTeam(true);
-    } catch (err: any) {
-      toast.error(err.message);
-    }
-  };
-
   const statusLabel = (status: string) => {
     switch (status) {
       case "connected": return { text: "מחובר", color: "bg-green-100 text-green-700", icon: Wifi };
@@ -136,10 +115,16 @@ export default function WhatsAppSettingsPage() {
         </button>
         <div className="flex-1">
           <h1 className="text-2xl font-bold">חיבור WhatsApp</h1>
-          <p className="text-muted-foreground text-sm">כל משתמש יכול לחבר את חשבון ה-WhatsApp האישי שלו</p>
+          <p className="text-muted-foreground text-sm">כל משתמש מחבר את ה-WhatsApp האישי שלו</p>
         </div>
         <button
-          onClick={handleLoadTeam}
+          onClick={async () => {
+            try {
+              const data = await evo.listTeamInstances();
+              setTeamInstances(data);
+              setShowTeam(true);
+            } catch (err: any) { toast.error(err.message); }
+          }}
           className="flex items-center gap-2 px-3 py-2 text-sm border rounded-lg hover:bg-muted/50"
         >
           <Users size={16} />
@@ -155,7 +140,9 @@ export default function WhatsAppSettingsPage() {
               <QrCode size={28} className="text-[#25d366]" />
             </div>
             <h3 className="text-lg font-bold mb-2">סרוק את ה-QR</h3>
-            <p className="text-sm text-muted-foreground mb-4">פתח את WhatsApp בטלפון → הגדרות → מכשירים מקושרים → קישור מכשיר</p>
+            <p className="text-sm text-muted-foreground mb-4">
+              פתח WhatsApp בטלפון ← הגדרות ← מכשירים מקושרים ← קישור מכשיר
+            </p>
             <img src={qrData.base64} alt="QR Code" className="w-64 h-64 mx-auto mb-4" />
             {polling && (
               <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
@@ -163,17 +150,14 @@ export default function WhatsAppSettingsPage() {
                 ממתין לסריקה...
               </div>
             )}
-            <button
-              onClick={() => handleShowQR(qrData.instanceId)}
-              className="mt-3 text-sm text-primary hover:underline"
-            >
+            <button onClick={() => handleShowQR(qrData.instanceId)} className="mt-3 text-sm text-primary hover:underline">
               רענן QR
             </button>
           </div>
         </div>
       )}
 
-      {/* My Instances */}
+      {/* Instances List */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 size={24} className="animate-spin text-muted-foreground" />
@@ -199,36 +183,19 @@ export default function WhatsAppSettingsPage() {
                   {instance.phone_number && (
                     <p className="text-xs text-muted-foreground mt-0.5" dir="ltr">+{instance.phone_number}</p>
                   )}
-                  {instance.last_connected_at && (
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      חיבור אחרון: {new Date(instance.last_connected_at).toLocaleDateString("he-IL")}
-                    </p>
-                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   {instance.status !== "connected" && (
-                    <button
-                      onClick={() => handleShowQR(instance.id)}
-                      className="p-2 rounded-lg hover:bg-muted text-[#25d366]"
-                      title="חבר עם QR"
-                    >
+                    <button onClick={() => handleShowQR(instance.id)} className="p-2 rounded-lg hover:bg-muted text-[#25d366]" title="חבר">
                       <QrCode size={18} />
                     </button>
                   )}
                   {instance.status === "connected" && (
-                    <button
-                      onClick={() => handleDisconnect(instance.id)}
-                      className="p-2 rounded-lg hover:bg-muted text-orange-500"
-                      title="נתק"
-                    >
+                    <button onClick={() => handleDisconnect(instance.id)} className="p-2 rounded-lg hover:bg-muted text-orange-500" title="נתק">
                       <LogOut size={18} />
                     </button>
                   )}
-                  <button
-                    onClick={() => handleDelete(instance.id)}
-                    className="p-2 rounded-lg hover:bg-muted text-red-500"
-                    title="מחק"
-                  >
+                  <button onClick={() => handleDelete(instance.id)} className="p-2 rounded-lg hover:bg-muted text-red-500" title="מחק">
                     <Trash2 size={18} />
                   </button>
                 </div>
@@ -236,16 +203,17 @@ export default function WhatsAppSettingsPage() {
             );
           })}
 
-          {instances.length === 0 && !showCreate && (
+          {/* Empty state / Connect button */}
+          {instances.length === 0 && !showNameInput && (
             <div className="text-center py-12 border-2 border-dashed rounded-xl">
               <div className="w-16 h-16 rounded-full bg-[#25d366]/10 flex items-center justify-center mx-auto mb-4">
                 <MessageCircle size={28} className="text-[#25d366]" />
               </div>
               <h3 className="font-semibold mb-1">אין חשבון WhatsApp מחובר</h3>
-              <p className="text-sm text-muted-foreground mb-4">חבר את ה-WhatsApp האישי שלך כדי לשלוח ולקבל הודעות</p>
+              <p className="text-sm text-muted-foreground mb-4">חבר את ה-WhatsApp שלך כדי לשלוח ולקבל הודעות מלידים</p>
               <button
-                onClick={() => setShowCreate(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-[#25d366] text-white rounded-lg font-medium text-sm hover:bg-[#1da851]"
+                onClick={() => setShowNameInput(true)}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#25d366] text-white rounded-lg font-medium text-sm hover:bg-[#1da851]"
               >
                 <Plus size={16} />
                 חבר WhatsApp
@@ -255,70 +223,39 @@ export default function WhatsAppSettingsPage() {
         </div>
       )}
 
-      {/* Add button (when instances exist) */}
-      {instances.length > 0 && !showCreate && (
+      {/* Connect button (when instances exist) */}
+      {instances.length > 0 && !showNameInput && (
         <button
-          onClick={() => setShowCreate(true)}
+          onClick={() => setShowNameInput(true)}
           className="flex items-center gap-2 px-4 py-2 border border-dashed rounded-xl w-full justify-center text-sm text-muted-foreground hover:text-foreground hover:border-primary/30"
         >
           <Plus size={16} />
-          חבר WhatsApp נוסף
+          חבר מספר נוסף
         </button>
       )}
 
-      {/* Create Form */}
-      {showCreate && (
+      {/* Display name input before connecting */}
+      {showNameInput && (
         <div className="border rounded-xl p-5 space-y-4 bg-muted/30">
-          <h3 className="font-semibold flex items-center gap-2">
-            <Plus size={16} />
-            חיבור WhatsApp חדש
-          </h3>
-          <p className="text-xs text-muted-foreground">הזן את פרטי שרת ה-Evolution API. אם אין לך שרת, פנה למנהל המערכת.</p>
-          <div>
-            <label className="text-xs font-medium mb-1 block">Evolution API URL</label>
-            <input
-              type="text"
-              value={createForm.evoBaseUrl}
-              onChange={e => setCreateForm(f => ({ ...f, evoBaseUrl: e.target.value }))}
-              placeholder="https://evo.example.com"
-              className="w-full px-3 py-2 text-sm border rounded-lg bg-background outline-none focus:ring-2 focus:ring-ring"
-              dir="ltr"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-medium mb-1 block">API Key</label>
-            <input
-              type="password"
-              value={createForm.evoApiKey}
-              onChange={e => setCreateForm(f => ({ ...f, evoApiKey: e.target.value }))}
-              placeholder="your-api-key"
-              className="w-full px-3 py-2 text-sm border rounded-lg bg-background outline-none focus:ring-2 focus:ring-ring"
-              dir="ltr"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-medium mb-1 block">שם תצוגה (אופציונלי)</label>
-            <input
-              type="text"
-              value={createForm.displayName}
-              onChange={e => setCreateForm(f => ({ ...f, displayName: e.target.value }))}
-              placeholder="הוואטסאפ של יניב"
-              className="w-full px-3 py-2 text-sm border rounded-lg bg-background outline-none focus:ring-2 focus:ring-ring"
-            />
-          </div>
+          <h3 className="font-semibold">שם תצוגה לחיבור</h3>
+          <input
+            type="text"
+            value={displayName}
+            onChange={e => setDisplayName(e.target.value)}
+            placeholder="למשל: הוואטסאפ של יניב"
+            className="w-full px-3 py-2 text-sm border rounded-lg bg-background outline-none focus:ring-2 focus:ring-ring"
+            autoFocus
+          />
           <div className="flex gap-2">
             <button
-              onClick={handleCreate}
+              onClick={handleConnect}
               disabled={creating}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#25d366] rounded-lg hover:bg-[#1da851] disabled:opacity-50"
+              className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-[#25d366] rounded-lg hover:bg-[#1da851] disabled:opacity-50"
             >
-              {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-              צור וחבר
+              {creating ? <Loader2 size={14} className="animate-spin" /> : <QrCode size={14} />}
+              קבל QR לסריקה
             </button>
-            <button
-              onClick={() => setShowCreate(false)}
-              className="px-4 py-2 text-sm border rounded-lg hover:bg-muted"
-            >
+            <button onClick={() => { setShowNameInput(false); setDisplayName(""); }} className="px-4 py-2 text-sm border rounded-lg hover:bg-muted">
               ביטול
             </button>
           </div>
@@ -329,25 +266,22 @@ export default function WhatsAppSettingsPage() {
       {showTeam && (
         <div className="border rounded-xl p-5 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold flex items-center gap-2">
-              <Users size={16} />
-              חיבורי WhatsApp של הצוות
-            </h3>
+            <h3 className="font-semibold flex items-center gap-2"><Users size={16} /> חיבורי הצוות</h3>
             <button onClick={() => setShowTeam(false)} className="text-xs text-muted-foreground hover:text-foreground">סגור</button>
           </div>
           {teamInstances.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">אין חיבורים בצוות</p>
           ) : (
-            teamInstances.map(inst => {
+            teamInstances.map((inst: any) => {
               const s = statusLabel(inst.status);
-              const memberName = inst.team_member?.display_name || "משתמש";
+              const name = inst.team_member?.display_name || "משתמש";
               return (
                 <div key={inst.id} className="flex items-center gap-3 py-2 border-b last:border-0">
                   <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium shrink-0">
-                    {memberName.charAt(0)}
+                    {name.charAt(0)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{memberName}</p>
+                    <p className="text-sm font-medium">{inst.instance_display_name || name}</p>
                     <p className="text-xs text-muted-foreground" dir="ltr">{inst.phone_number || "לא מחובר"}</p>
                   </div>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full ${s.color}`}>{s.text}</span>
