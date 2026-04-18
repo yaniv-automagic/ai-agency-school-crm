@@ -23,7 +23,7 @@ export default function MigrationPage() {
   const [apiToken, setApiToken] = useState("");
   const [running, setRunning] = useState(false);
   const [steps, setSteps] = useState<MigrationStep[]>([
-    { id: "contacts", label: "אנשי קשר (Contacts)", icon: Users, status: "pending" },
+    { id: "contacts", label: "לידים (Contacts)", icon: Users, status: "pending" },
     { id: "accounts", label: "חשבונות (Accounts)", icon: Database, status: "pending" },
     { id: "deals", label: "עסקאות (Opportunities)", icon: Kanban, status: "pending" },
     { id: "activities", label: "פעילויות (Activities)", icon: FileText, status: "pending" },
@@ -294,7 +294,7 @@ export default function MigrationPage() {
         <p className="font-medium text-foreground mb-1">שים לב:</p>
         <ul className="space-y-1 list-disc pr-5">
           <li>הייבוא לא מוחק נתונים קיימים - הרשומות מתווספות</li>
-          <li>אנשי קשר, חשבונות ועסקאות מיובאים עם שדה fireberry_id לקישור</li>
+          <li>לידים, חשבונות ועסקאות מיובאים עם שדה fireberry_id לקישור</li>
           <li>הרצת ייבוא כפולה תיצור רשומות כפולות</li>
           <li>מומלץ לבדוק עם כמות קטנה של נתונים קודם</li>
         </ul>

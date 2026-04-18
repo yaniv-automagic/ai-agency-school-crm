@@ -38,15 +38,17 @@ export interface Contact {
   created_at: string;
   updated_at: string;
   created_by: string | null;
+  stage_id: string | null;
   // Joined
   account?: Account;
   assigned_member?: TeamMember;
+  stage?: PipelineStage;
 }
 
 export type EntryType = "vsl" | "webinar" | "organic" | "direct";
 export type AdPlatform = "facebook" | "instagram" | "youtube" | "google" | "organic";
 
-export type ContactStatus = "new" | "contacted" | "qualified" | "student" | "alumni" | "inactive";
+export type ContactStatus = string;
 export type ContactSource = "website" | "whatsapp" | "referral" | "facebook_ad" | "instagram" | "google_ad" | "workshop" | "manual" | "import";
 
 export interface Account {
@@ -95,6 +97,7 @@ export interface Deal {
   contact?: Contact;
   stage?: PipelineStage;
   product?: Product;
+  assigned_member?: TeamMember;
 }
 
 export type DealStatus = "open" | "won" | "lost";
@@ -104,6 +107,7 @@ export interface Pipeline {
   tenant_id: string;
   name: string;
   is_default: boolean;
+  default_stage_id: string | null;
   created_at: string;
   stages?: PipelineStage[];
 }
@@ -190,6 +194,7 @@ export interface TeamMember {
   user_id: string;
   display_name: string;
   email: string;
+  phone: string | null;
   role: TeamRole;
   avatar_url: string | null;
   is_active: boolean;
@@ -301,7 +306,7 @@ export interface SavedView {
 
 // ── Meetings ──
 
-export type MeetingType = "sales_consultation" | "mentoring_1on1" | "mastermind_group" | "trial_lesson";
+export type MeetingType = "sales_consultation" | "mentoring_1on1" | "mastermind_group" | "other";
 export type MeetingStatus = "scheduled" | "confirmed" | "completed" | "no_show" | "cancelled" | "rescheduled";
 export type MeetingOutcome = "won" | "lost" | "follow_up" | "no_show";
 
@@ -353,6 +358,7 @@ export interface ProgramEnrollment {
   portal_access_granted: boolean;
   portal_access_granted_at: string | null;
   mentor_name: string | null;
+  assigned_to: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -360,6 +366,7 @@ export interface ProgramEnrollment {
   contact?: Contact;
   product?: Product;
   sessions?: ProgramSession[];
+  assigned_member?: TeamMember;
 }
 
 export interface ProgramSession {
@@ -475,6 +482,42 @@ export interface AdDailyStat {
 
 // ── Fillout Integration ──
 
+// ── RBAC Permissions ──
+
+export type CrmEntity =
+  | "contacts"
+  | "deals"
+  | "meetings"
+  | "tasks"
+  | "enrollments"
+  | "contracts"
+  | "campaigns"
+  | "automations"
+  | "products"
+  | "events"
+  | "finance"
+  | "settings"
+  | "users";
+
+export type CrmAction = "create" | "read" | "update" | "delete";
+
+export interface RolePermission {
+  id: string;
+  tenant_id: string | null;
+  role: TeamRole;
+  entity: CrmEntity;
+  can_create: boolean;
+  can_read: boolean;
+  can_update: boolean;
+  can_delete: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PermissionsMap = Record<CrmEntity, Record<CrmAction, boolean>>;
+
+// ── Fillout ──
+
 export interface FilloutFormMapping {
   id: string;
   tenant_id: string;
@@ -491,4 +534,68 @@ export interface FilloutFormMapping {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+// ── Workshops ──
+
+export type WorkshopStatus = "draft" | "active" | "completed" | "cancelled";
+
+export interface Workshop {
+  id: string;
+  tenant_id: string;
+  name: string;
+  description: string | null;
+  product_id: string | null;
+  status: WorkshopStatus;
+  start_date: string | null;
+  end_date: string | null;
+  total_sessions: number;
+  max_participants: number | null;
+  meeting_url: string | null;
+  mentor_name: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  product?: Product;
+  sessions?: WorkshopSession[];
+  participants?: WorkshopParticipant[];
+}
+
+export interface WorkshopSession {
+  id: string;
+  tenant_id: string;
+  workshop_id: string;
+  session_number: number;
+  title: string;
+  description: string | null;
+  scheduled_at: string | null;
+  duration_minutes: number;
+  meeting_url: string | null;
+  recording_url: string | null;
+  status: "planned" | "scheduled" | "completed" | "cancelled";
+  created_at: string;
+  updated_at: string;
+  // Joined
+  attendance?: SessionAttendance[];
+}
+
+export interface WorkshopParticipant {
+  id: string;
+  tenant_id: string;
+  workshop_id: string;
+  contact_id: string;
+  enrollment_id: string | null;
+  status: "active" | "completed" | "dropped" | "paused";
+  joined_at: string;
+  notes: string | null;
+  // Joined
+  contact?: Contact;
+}
+
+export interface SessionAttendance {
+  id: string;
+  session_id: string;
+  participant_id: string;
+  attended: boolean;
+  notes: string | null;
 }

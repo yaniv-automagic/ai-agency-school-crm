@@ -3,7 +3,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { X } from "lucide-react";
 import { useCreateContact, useUpdateContact } from "@/hooks/useContacts";
-import { CONTACT_STATUSES, CONTACT_SOURCES } from "@/lib/constants";
+import { usePipelines } from "@/hooks/useDeals";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
+import { CONTACT_SOURCES } from "@/lib/constants";
 import type { Contact } from "@/types/crm";
 
 const contactSchema = z.object({
@@ -11,11 +13,11 @@ const contactSchema = z.object({
   last_name: z.string().min(1, "שם משפחה הוא שדה חובה"),
   email: z.string().email("מייל לא תקין").or(z.literal("")).optional(),
   phone: z.string().optional(),
-  whatsapp_phone: z.string().optional(),
   company: z.string().optional(),
   job_title: z.string().optional(),
   source: z.string().optional(),
-  status: z.string().default("new"),
+  stage_id: z.string().optional(),
+  assigned_to: z.string().optional(),
   city: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -30,7 +32,12 @@ interface ContactFormProps {
 export default function ContactForm({ contact, onClose }: ContactFormProps) {
   const createContact = useCreateContact();
   const updateContact = useUpdateContact();
+  const { data: pipelines } = usePipelines();
+  const { members } = useTeamMembers();
   const isEditing = !!contact;
+
+  const defaultPipeline = pipelines?.find(p => p.is_default) || pipelines?.[0];
+  const firstStageId = defaultPipeline?.default_stage_id || defaultPipeline?.stages?.[0]?.id || "";
 
   const {
     register,
@@ -44,22 +51,23 @@ export default function ContactForm({ contact, onClose }: ContactFormProps) {
           last_name: contact.last_name,
           email: contact.email || "",
           phone: contact.phone || "",
-          whatsapp_phone: contact.whatsapp_phone || "",
           company: contact.company || "",
           job_title: contact.job_title || "",
           source: contact.source || "",
-          status: contact.status || "new",
+          stage_id: contact.stage_id || firstStageId,
+          assigned_to: contact.assigned_to || "",
           city: contact.city || "",
           notes: contact.notes || "",
         }
-      : { status: "new" },
+      : { stage_id: firstStageId },
   });
 
   const onSubmit = async (data: ContactFormData) => {
+    const payload = { ...data, assigned_to: data.assigned_to || null };
     if (isEditing) {
-      await updateContact.mutateAsync({ id: contact.id, ...data } as any);
+      await updateContact.mutateAsync({ id: contact.id, ...payload } as any);
     } else {
-      await createContact.mutateAsync(data as any);
+      await createContact.mutateAsync({ ...payload, stage_id: data.stage_id || firstStageId } as any);
     }
     onClose();
   };
@@ -73,7 +81,7 @@ export default function ContactForm({ contact, onClose }: ContactFormProps) {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border sticky top-0 bg-card z-10">
           <h2 className="text-lg font-semibold">
-            {isEditing ? "עריכת איש קשר" : "איש קשר חדש"}
+            {isEditing ? "עריכת ליד" : "ליד חדש"}
           </h2>
           <button onClick={onClose} className="p-1 rounded hover:bg-secondary">
             <X size={20} />
@@ -123,27 +131,15 @@ export default function ContactForm({ contact, onClose }: ContactFormProps) {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium mb-1 block">טלפון</label>
-              <input
-                {...register("phone")}
-                type="tel"
-                className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                placeholder="050-000-0000"
-                dir="ltr"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">WhatsApp</label>
-              <input
-                {...register("whatsapp_phone")}
-                type="tel"
-                className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                placeholder="972501234567"
-                dir="ltr"
-              />
-            </div>
+          <div>
+            <label className="text-sm font-medium mb-1 block">טלפון</label>
+            <input
+              {...register("phone")}
+              type="tel"
+              className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+              placeholder="050-000-0000"
+              dir="ltr"
+            />
           </div>
 
           {/* Company */}
@@ -166,16 +162,20 @@ export default function ContactForm({ contact, onClose }: ContactFormProps) {
             </div>
           </div>
 
-          {/* Status & Source */}
+          {/* Stage & Source */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium mb-1 block">סטטוס</label>
+              <label className="text-sm font-medium mb-1 block">שלב</label>
               <select
-                {...register("status")}
+                {...register("stage_id")}
                 className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"
               >
-                {CONTACT_STATUSES.map(s => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
+                {pipelines?.map(p => (
+                  <optgroup key={p.id} label={pipelines.length > 1 ? p.name : undefined}>
+                    {p.stages?.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>
@@ -191,6 +191,20 @@ export default function ContactForm({ contact, onClose }: ContactFormProps) {
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Assigned To */}
+          <div>
+            <label className="text-sm font-medium mb-1 block">אחראי</label>
+            <select
+              {...register("assigned_to")}
+              className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"
+            >
+              <option value="">ללא שיוך</option>
+              {members.map(m => (
+                <option key={m.id} value={m.id}>{m.display_name}</option>
+              ))}
+            </select>
           </div>
 
           {/* City */}
@@ -221,7 +235,7 @@ export default function ContactForm({ contact, onClose }: ContactFormProps) {
               disabled={isSubmitting}
               className="flex-1 px-4 py-2.5 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
-              {isSubmitting ? "שומר..." : isEditing ? "עדכון" : "צור איש קשר"}
+              {isSubmitting ? "שומר..." : isEditing ? "עדכון" : "צור ליד"}
             </button>
             <button
               type="button"

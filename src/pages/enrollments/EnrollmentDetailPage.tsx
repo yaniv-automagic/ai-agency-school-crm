@@ -285,7 +285,7 @@ export default function EnrollmentDetailPage() {
           {/* Contact Card */}
           {enrollment.contact && (
             <div className="bg-card border border-border rounded-xl p-4">
-              <h3 className="font-semibold text-sm mb-3">איש קשר</h3>
+              <h3 className="font-semibold text-sm mb-3">ליד</h3>
               <div
                 onClick={() => navigate(`/contacts/${enrollment.contact!.id}`)}
                 className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/50 cursor-pointer"

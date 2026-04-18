@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
-import { ArrowRight, MessageCircle, Calendar, Webhook, Mail, Key, ExternalLink, Check, Save, Loader2 } from "lucide-react";
+import { ArrowRight, MessageCircle, Calendar, Webhook, Mail, Key, ExternalLink, Check, Save, Loader2, Send } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
+import { sendTestEmail } from "@/lib/email-api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -70,9 +72,11 @@ const INTEGRATIONS: IntegrationCard[] = [
 
 export default function IntegrationSettingsPage() {
   const navigate = useNavigate();
+  const { teamMember } = useAuth();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [formValues, setFormValues] = useState<Record<string, Record<string, string>>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [testing, setTesting] = useState<string | null>(null);
 
   // Load saved values
   useEffect(() => {
@@ -117,6 +121,18 @@ export default function IntegrationSettingsPage() {
       ...prev,
       [integrationId]: { ...(prev[integrationId] || {}), [fieldKey]: value },
     }));
+  };
+
+  const handleTestEmail = async () => {
+    setTesting("email");
+    try {
+      const result = await sendTestEmail(teamMember?.tenant_id || "");
+      toast.success(result.message || "מייל בדיקה נשלח בהצלחה!");
+    } catch (err: any) {
+      toast.error(err.message || "שגיאה בשליחת מייל בדיקה");
+    } finally {
+      setTesting(null);
+    }
   };
 
   const isConfigured = (integrationId: string) => {
@@ -189,14 +205,26 @@ export default function IntegrationSettingsPage() {
                       />
                     </div>
                   ))}
-                  <button
-                    onClick={() => handleSave(integration.id)}
-                    disabled={saving === integration.id}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50"
-                  >
-                    {saving === integration.id ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                    שמור הגדרות
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleSave(integration.id)}
+                      disabled={saving === integration.id}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      {saving === integration.id ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                      שמור הגדרות
+                    </button>
+                    {integration.id === "email" && isConfigured("email") && (
+                      <button
+                        onClick={handleTestEmail}
+                        disabled={testing === "email"}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-blue-200 text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 disabled:opacity-50"
+                      >
+                        {testing === "email" ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                        שלח מייל בדיקה
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

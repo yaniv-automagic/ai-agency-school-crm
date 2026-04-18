@@ -1,7 +1,21 @@
 import { useNavigate } from "react-router-dom";
-import { Database, Webhook, FileText, Upload, FileSignature, Target, FormInput, MessageCircle } from "lucide-react";
+import { Database, Webhook, FileText, Upload, FileSignature, Target, FormInput, MessageCircle, Users, Shield } from "lucide-react";
 
 const settingsSections = [
+  {
+    title: "ניהול משתמשים",
+    description: "הוספה, עריכה והשבתת משתמשים במערכת",
+    icon: Users,
+    path: "/settings/users",
+    color: "bg-cyan-50 text-cyan-500",
+  },
+  {
+    title: "הרשאות תפקידים",
+    description: "הגדרת הרשאות יצירה, צפייה, עריכה ומחיקה פר תפקיד",
+    icon: Shield,
+    path: "/settings/permissions",
+    color: "bg-amber-50 text-amber-500",
+  },
   {
     title: "חיבור WhatsApp",
     description: "חיבור חשבון WhatsApp אישי לשליחה וקבלת הודעות",

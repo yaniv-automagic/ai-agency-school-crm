@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { whatsappRouter } from "./routes/whatsapp.js";
 import { campaignRouter } from "./routes/campaigns.js";
+import { emailRouter } from "./routes/email.js";
 import { formRouter } from "./routes/forms.js";
 import { integrationRouter } from "./routes/integrations.js";
 import { webhookRouter } from "./routes/webhooks.js";
@@ -33,6 +34,7 @@ app.get("/health", (_req, res) => {
 // Routes
 app.use("/api/whatsapp", whatsappRouter);
 app.use("/api/campaigns", campaignRouter);
+app.use("/api/email", emailRouter);
 app.use("/api/forms", formRouter);
 app.use("/api/integrations", integrationRouter);
 app.use("/api/webhooks", webhookRouter);

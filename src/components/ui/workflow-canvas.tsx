@@ -29,7 +29,7 @@ const NODE_W = 240;
 const NODE_H = 84;
 
 export const TRIGGER_TEMPLATES: Omit<WorkflowNode, "id" | "position">[] = [
-  { type: "trigger", title: "איש קשר נוצר", description: "כשנוצר איש קשר חדש במערכת", icon: UserPlus, color: "emerald" },
+  { type: "trigger", title: "ליד נוצר", description: "כשנוצר ליד חדש במערכת", icon: UserPlus, color: "emerald" },
   { type: "trigger", title: "עסקה עודכנה", description: "כששלב עסקה משתנה בצנרת", icon: Database, color: "emerald" },
   { type: "trigger", title: "טופס נשלח", description: "כשמישהו ממלא טופס ליד", icon: Webhook, color: "emerald" },
   { type: "trigger", title: "מתוזמן", description: "הרצה בזמן קבוע (יומי/שבועי)", icon: Clock, color: "emerald" },
@@ -40,7 +40,7 @@ export const ACTION_TEMPLATES: Omit<WorkflowNode, "id" | "position">[] = [
   { type: "action", title: "שלח WhatsApp", description: "שליחת הודעת WhatsApp", icon: MessageCircle, color: "green" },
   { type: "action", title: "עדכן רשומה", description: "שינוי שדה ברשומה", icon: Database, color: "violet" },
   { type: "action", title: "צור משימה", description: "יצירת משימה לאיש צוות", icon: Zap, color: "indigo" },
-  { type: "action", title: "הוסף תגית", description: "הוספת תגית לאיש קשר", icon: Tag, color: "pink" },
+  { type: "action", title: "הוסף תגית", description: "הוספת תגית לליד", icon: Tag, color: "pink" },
   { type: "action", title: "Webhook", description: "שליחת HTTP request", icon: Webhook, color: "gray" },
   { type: "action", title: "התראה", description: "שליחת התראה לאיש צוות", icon: Bell, color: "amber" },
 ];
@@ -174,7 +174,7 @@ interface WorkflowCanvasProps {
 
 export function WorkflowCanvas({ initialNodes, initialConnections, onNodesChange, onConnectionsChange, onNodeClick, readOnly = false }: WorkflowCanvasProps) {
   const [nodes, setNodes] = useState<WorkflowNode[]>(
-    initialNodes || [{ id: "node-1", type: "trigger", title: "איש קשר נוצר", description: "כשנוצר איש קשר חדש", icon: UserPlus, color: "emerald", position: { x: 60, y: 100 } }]
+    initialNodes || [{ id: "node-1", type: "trigger", title: "ליד נוצר", description: "כשנוצר ליד חדש", icon: UserPlus, color: "emerald", position: { x: 60, y: 100 } }]
   );
   const [conns, setConns] = useState<WorkflowConnection[]>(initialConnections || []);
   const [showGallery, setShowGallery] = useState(false);

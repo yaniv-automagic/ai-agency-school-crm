@@ -103,6 +103,12 @@ export default function DealDetailPage() {
                   <span>{deal.product.name}</span>
                 </div>
               )}
+              {deal.assigned_member && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">אחראי</span>
+                  <span className="font-medium">{deal.assigned_member.display_name}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">נוצר</span>
                 <span>{timeAgo(deal.created_at)}</span>

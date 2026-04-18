@@ -7,6 +7,7 @@ const CONTACTS_KEY = ["contacts"];
 
 export function useContacts(filters?: {
   status?: ContactStatus;
+  stage_id?: string;
   source?: ContactSource;
   search?: string;
   assigned_to?: string;
@@ -16,10 +17,12 @@ export function useContacts(filters?: {
     queryFn: async () => {
       let query = supabase
         .from("crm_contacts")
-        .select("*")
+        .select("*, stage:crm_pipeline_stages(*), assigned_member:crm_team_members!assigned_to(*)")
         .order("created_at", { ascending: false });
 
-      if (filters?.status) {
+      if (filters?.stage_id) {
+        query = query.eq("stage_id", filters.stage_id);
+      } else if (filters?.status) {
         query = query.eq("status", filters.status);
       }
       if (filters?.source) {
@@ -48,7 +51,7 @@ export function useContact(id: string | undefined) {
       if (!id) return null;
       const { data, error } = await supabase
         .from("crm_contacts")
-        .select("*")
+        .select("*, stage:crm_pipeline_stages(*), assigned_member:crm_team_members!assigned_to(*)")
         .eq("id", id)
         .single();
       if (error) throw error;
@@ -73,10 +76,10 @@ export function useCreateContact() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: CONTACTS_KEY });
-      toast.success("איש קשר נוצר בהצלחה");
+      toast.success("ליד נוצר בהצלחה");
     },
     onError: (error: Error) => {
-      toast.error(`שגיאה ביצירת איש קשר: ${error.message}`);
+      toast.error(`שגיאה ביצירת ליד: ${error.message}`);
     },
   });
 }
@@ -97,7 +100,7 @@ export function useUpdateContact() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: CONTACTS_KEY });
-      toast.success("איש קשר עודכן בהצלחה");
+      toast.success("ליד עודכן בהצלחה");
     },
     onError: (error: Error) => {
       toast.error(`שגיאה בעדכון: ${error.message}`);
@@ -118,7 +121,7 @@ export function useDeleteContact() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: CONTACTS_KEY });
-      toast.success("איש קשר נמחק");
+      toast.success("ליד נמחק");
     },
     onError: (error: Error) => {
       toast.error(`שגיאה במחיקה: ${error.message}`);

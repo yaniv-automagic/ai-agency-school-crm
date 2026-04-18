@@ -82,7 +82,7 @@ export default function NodeConfigPanel({ node, onSave, onClose }: Props) {
                   <div>
                     <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">אובייקט</label>
                     <select value={config.object_type || "contacts"} onChange={e => set("object_type", e.target.value)} className={inputCls}>
-                      <option value="contacts">אנשי קשר</option>
+                      <option value="contacts">לידים</option>
                       <option value="deals">עסקאות</option>
                       <option value="tasks">משימות</option>
                     </select>

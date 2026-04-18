@@ -26,6 +26,10 @@ const CalendarPage = lazy(() => import("./pages/calendar/CalendarPage"));
 const EnrollmentsPage = lazy(() => import("./pages/enrollments/EnrollmentsPage"));
 const EnrollmentDetailPage = lazy(() => import("./pages/enrollments/EnrollmentDetailPage"));
 
+// Workshops
+const WorkshopsPage = lazy(() => import("./pages/workshops/WorkshopsPage"));
+const WorkshopDetailPage = lazy(() => import("./pages/workshops/WorkshopDetailPage"));
+
 // Contracts
 const ContractsPage = lazy(() => import("./pages/contracts/ContractsPage"));
 const ContractDetailPage = lazy(() => import("./pages/contracts/ContractDetailPage"));
@@ -52,6 +56,8 @@ const IntegrationSettingsPage = lazy(() => import("./pages/settings/IntegrationS
 const FormsPage = lazy(() => import("./pages/settings/FormsPage"));
 const MigrationPage = lazy(() => import("./pages/settings/MigrationPage"));
 const WhatsAppSettingsPage = lazy(() => import("./pages/settings/WhatsAppSettingsPage"));
+const UsersPage = lazy(() => import("./pages/settings/UsersPage"));
+const PermissionsPage = lazy(() => import("./pages/settings/PermissionsPage"));
 
 function PageLoader() {
   return (
@@ -106,6 +112,10 @@ export default function App() {
           <Route path="/enrollments" element={<EnrollmentsPage />} />
           <Route path="/enrollments/:id" element={<EnrollmentDetailPage />} />
 
+          {/* Workshops */}
+          <Route path="/workshops" element={<WorkshopsPage />} />
+          <Route path="/workshops/:id" element={<WorkshopDetailPage />} />
+
           {/* Contracts */}
           <Route path="/contracts" element={<ContractsPage />} />
           <Route path="/contracts/:id" element={<ContractDetailPage />} />
@@ -131,6 +141,8 @@ export default function App() {
           <Route path="/settings/forms" element={<FormsPage />} />
           <Route path="/settings/migration" element={<MigrationPage />} />
           <Route path="/settings/whatsapp" element={<WhatsAppSettingsPage />} />
+          <Route path="/settings/users" element={<UsersPage />} />
+          <Route path="/settings/permissions" element={<PermissionsPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

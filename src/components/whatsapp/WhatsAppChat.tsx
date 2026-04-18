@@ -33,7 +33,7 @@ export default function WhatsAppChat({ contact, onClose }: WhatsAppChatProps) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  const phone = contact.whatsapp_phone || contact.phone || "";
+  const phone = contact.phone || "";
   const formattedPhone = formatPhoneForApi(phone);
 
   // Load custom templates from localStorage

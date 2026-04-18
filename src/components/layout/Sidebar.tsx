@@ -3,7 +3,6 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   Users,
-  Kanban,
   CheckSquare,
   Settings,
   ChevronRight,
@@ -17,6 +16,7 @@ import {
   FileSignature,
   Radio,
   DollarSign,
+  BookOpen,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -26,12 +26,12 @@ interface SidebarProps {
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "דשבורד" },
-  { to: "/contacts", icon: Users, label: "אנשי קשר" },
-  { to: "/pipeline", icon: Kanban, label: "צנרת מכירות" },
+  { to: "/contacts", icon: Users, label: "לידים" },
   { to: "/meetings", icon: Video, label: "פגישות" },
   { to: "/tasks", icon: CheckSquare, label: "משימות" },
   { to: "/calendar", icon: Calendar, label: "לוח שנה" },
   { to: "/enrollments", icon: GraduationCap, label: "תלמידים" },
+  { to: "/workshops", icon: BookOpen, label: "סדנאות" },
   { to: "/contracts", icon: FileSignature, label: "חוזים" },
   { to: "/finance", icon: DollarSign, label: "פיננסים" },
   { to: "/events", icon: Radio, label: "אירועים" },

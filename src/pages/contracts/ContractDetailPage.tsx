@@ -145,7 +145,7 @@ export default function ContractDetailPage() {
           {/* Contact Info */}
           {contract.contact && (
             <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-              <h3 className="font-semibold text-sm">איש קשר</h3>
+              <h3 className="font-semibold text-sm">ליד</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">שם</span>

@@ -248,7 +248,7 @@ function AttributionTab() {
         <thead>
           <tr className="border-b border-border bg-muted/50">
             <th className="text-right px-4 py-3 font-medium text-muted-foreground">מקור</th>
-            <th className="text-right px-4 py-3 font-medium text-muted-foreground">אנשי קשר</th>
+            <th className="text-right px-4 py-3 font-medium text-muted-foreground">לידים</th>
             <th className="text-right px-4 py-3 font-medium text-muted-foreground">עסקאות שנסגרו</th>
             <th className="text-right px-4 py-3 font-medium text-muted-foreground">הכנסה</th>
             <th className="text-right px-4 py-3 font-medium text-muted-foreground">ROAS</th>
@@ -288,7 +288,7 @@ function AttributionTab() {
             <tr>
               <td colSpan={5} className="px-4 py-16 text-center text-muted-foreground">
                 <p className="text-lg font-medium mb-1">אין נתוני שיוך</p>
-                <p className="text-sm">נתוני UTM יופיעו כאן כשיהיו אנשי קשר עם פרמטרים</p>
+                <p className="text-sm">נתוני UTM יופיעו כאן כשיהיו לידים עם פרמטרים</p>
               </td>
             </tr>
           )}

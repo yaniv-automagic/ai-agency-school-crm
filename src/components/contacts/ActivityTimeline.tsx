@@ -6,6 +6,8 @@ import {
 import { useActivities, useCreateActivity } from "@/hooks/useActivities";
 import { useCreateTask } from "@/hooks/useTasks";
 import { useContact } from "@/hooks/useContacts";
+import { useAuth } from "@/contexts/AuthContext";
+import { sendEmail } from "@/lib/email-api";
 import { ACTIVITY_TYPES, TASK_PRIORITIES } from "@/lib/constants";
 import { cn, timeAgo } from "@/lib/utils";
 import { toast } from "sonner";
@@ -36,6 +38,7 @@ type ActionType = "note" | "call" | "email" | "task";
 export default function ActivityTimeline({ contactId, dealId }: ActivityTimelineProps) {
   const { data: activities, isLoading } = useActivities({ contact_id: contactId, deal_id: dealId });
   const { data: contact } = useContact(contactId);
+  const { teamMember } = useAuth();
   const createActivity = useCreateActivity();
   const createTask = useCreateTask();
   const [activeAction, setActiveAction] = useState<ActionType | null>(null);
@@ -84,21 +87,34 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
     resetForm();
   };
 
+  const [sendingEmail, setSendingEmail] = useState(false);
+
   const handleSubmitEmail = async () => {
     if (!emailBody.trim() || !emailSubject.trim()) return;
-    // Log the email as activity
-    await createActivity.mutateAsync({
-      contact_id: contactId,
-      deal_id: dealId || null,
-      type: "email",
-      direction: "outbound",
-      subject: emailSubject,
-      body: emailBody,
-      metadata: { to: emailTo || contact?.email, sent_via: "crm" },
-    });
-    // TODO: Actually send email via Resend when backend is configured
-    toast.success("מייל נשמר בטיימליין");
-    resetForm();
+    const recipient = emailTo || contact?.email;
+    if (!recipient) {
+      toast.error("לא נמצא מייל לאיש הקשר");
+      return;
+    }
+
+    setSendingEmail(true);
+    try {
+      // Send via Resend through the backend
+      await sendEmail({
+        tenantId: teamMember?.tenant_id || "",
+        to: recipient,
+        subject: emailSubject,
+        html: emailBody.replace(/\n/g, "<br>"),
+        contactId,
+        dealId: dealId || undefined,
+      });
+      toast.success("מייל נשלח בהצלחה");
+      resetForm();
+    } catch (err: any) {
+      toast.error(err.message || "שגיאה בשליחת מייל");
+    } finally {
+      setSendingEmail(false);
+    }
   };
 
   const handleSubmitTask = async () => {
@@ -229,9 +245,10 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
               <p className="text-[10px] text-muted-foreground">Ctrl+Enter לשליחה</p>
               <div className="flex gap-2">
                 <button onClick={resetForm} className="px-3 py-1.5 text-xs border border-border rounded-lg hover:bg-secondary">ביטול</button>
-                <button onClick={handleSubmitEmail} disabled={!emailSubject.trim() || !emailBody.trim() || createActivity.isPending}
+                <button onClick={handleSubmitEmail} disabled={!emailSubject.trim() || !emailBody.trim() || sendingEmail}
                   className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                  <Send size={12} /> שלח מייל
+                  {sendingEmail ? <span className="h-3 w-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send size={12} />}
+                  {sendingEmail ? "שולח..." : "שלח מייל"}
                 </button>
               </div>
             </div>

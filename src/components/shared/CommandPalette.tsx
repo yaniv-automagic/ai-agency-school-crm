@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Command } from "cmdk";
 import {
-  Users, Building2, Kanban, CheckSquare, Settings,
+  Users, Building2, CheckSquare, Settings,
   LayoutDashboard, Plus, Search
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -72,7 +72,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
             <Command.Input
               value={search}
               onValueChange={setSearch}
-              placeholder="חפש אנשי קשר, עמודים..."
+              placeholder="חפש לידים, עמודים..."
               className="flex-1 py-4 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
               autoFocus
             />
@@ -88,9 +88,8 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
             <Command.Group heading="ניווט מהיר" className="text-xs text-muted-foreground px-2 py-1.5">
               {[
                 { label: "דשבורד", icon: LayoutDashboard, path: "/" },
-                { label: "אנשי קשר", icon: Users, path: "/contacts" },
+                { label: "לידים", icon: Users, path: "/contacts" },
                 { label: "חשבונות", icon: Building2, path: "/accounts" },
-                { label: "צנרת מכירות", icon: Kanban, path: "/pipeline" },
                 { label: "משימות", icon: CheckSquare, path: "/tasks" },
                 { label: "הגדרות", icon: Settings, path: "/settings" },
               ].map(({ label, icon: Icon, path }) => (
@@ -108,17 +107,17 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
             <Command.Group heading="פעולות" className="text-xs text-muted-foreground px-2 py-1.5">
               <Command.Item
-                value="איש קשר חדש"
+                value="ליד חדש"
                 onSelect={() => go("/contacts?new=true")}
                 className="flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg cursor-pointer data-[selected=true]:bg-secondary"
               >
                 <Plus size={16} className="text-primary shrink-0" />
-                איש קשר חדש
+                ליד חדש
               </Command.Item>
             </Command.Group>
 
             {contacts.length > 0 && (
-              <Command.Group heading="אנשי קשר" className="text-xs text-muted-foreground px-2 py-1.5">
+              <Command.Group heading="לידים" className="text-xs text-muted-foreground px-2 py-1.5">
                 {contacts.map((c) => (
                   <Command.Item
                     key={c.id}

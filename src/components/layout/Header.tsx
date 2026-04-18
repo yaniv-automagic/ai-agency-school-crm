@@ -48,9 +48,17 @@ export default function Header() {
 
           {/* User menu */}
           <div className="flex items-center gap-2 border-r border-border pr-3 mr-1">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-medium">
-              {teamMember?.display_name?.charAt(0) || user?.email?.charAt(0) || "U"}
-            </div>
+            {teamMember?.avatar_url ? (
+              <img
+                src={teamMember.avatar_url}
+                alt={teamMember.display_name}
+                className="w-8 h-8 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-sm font-medium">
+                {teamMember?.display_name?.charAt(0) || user?.email?.charAt(0) || "U"}
+              </div>
+            )}
             <div className="hidden md:block">
               <p className="text-sm font-medium leading-tight">
                 {teamMember?.display_name || user?.email}

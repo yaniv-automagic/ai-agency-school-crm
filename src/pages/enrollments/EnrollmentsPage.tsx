@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus, GraduationCap } from "lucide-react";
 import { useEnrollments, useCreateEnrollment } from "@/hooks/useEnrollments";
 import { useContacts } from "@/hooks/useContacts";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { ENROLLMENT_STATUSES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import type { EnrollmentStatus } from "@/types/crm";
@@ -169,12 +170,14 @@ export default function EnrollmentsPage() {
 function EnrollmentForm({ onClose }: { onClose: () => void }) {
   const createEnrollment = useCreateEnrollment();
   const { data: contacts } = useContacts();
+  const { members } = useTeamMembers();
 
   const [formData, setFormData] = useState({
     contact_id: "",
     product_id: "",
     total_sessions: 12,
     mentor_name: "",
+    assigned_to: "",
     start_date: "",
     notes: "",
   });
@@ -189,6 +192,7 @@ function EnrollmentForm({ onClose }: { onClose: () => void }) {
       total_sessions: formData.total_sessions,
       completed_sessions: 0,
       mentor_name: formData.mentor_name || null,
+      assigned_to: formData.assigned_to || null,
       start_date: formData.start_date || null,
       notes: formData.notes || null,
     });
@@ -213,14 +217,14 @@ function EnrollmentForm({ onClose }: { onClose: () => void }) {
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="text-sm font-medium mb-1 block">איש קשר *</label>
+            <label className="text-sm font-medium mb-1 block">ליד *</label>
             <select
               value={formData.contact_id}
               onChange={(e) => setFormData((p) => ({ ...p, contact_id: e.target.value }))}
               className={inputClass}
               required
             >
-              <option value="">בחר איש קשר</option>
+              <option value="">בחר ליד</option>
               {contacts?.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.first_name} {c.last_name}
@@ -266,14 +270,29 @@ function EnrollmentForm({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
-          <div>
-            <label className="text-sm font-medium mb-1 block">מנטור</label>
-            <input
-              value={formData.mentor_name}
-              onChange={(e) => setFormData((p) => ({ ...p, mentor_name: e.target.value }))}
-              className={inputClass}
-              placeholder="שם המנטור"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium mb-1 block">מנטור</label>
+              <input
+                value={formData.mentor_name}
+                onChange={(e) => setFormData((p) => ({ ...p, mentor_name: e.target.value }))}
+                className={inputClass}
+                placeholder="שם המנטור"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">אחראי</label>
+              <select
+                value={formData.assigned_to}
+                onChange={(e) => setFormData((p) => ({ ...p, assigned_to: e.target.value }))}
+                className={inputClass}
+              >
+                <option value="">ללא שיוך</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>{m.display_name}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div>

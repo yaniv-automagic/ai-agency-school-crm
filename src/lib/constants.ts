@@ -76,7 +76,7 @@ export const MEETING_TYPES = [
   { value: "sales_consultation", label: "פגישת מכירה", color: "text-blue-500" },
   { value: "mentoring_1on1", label: "ליווי אישי 1:1", color: "text-purple-500" },
   { value: "mastermind_group", label: "מאסטרמיינד קבוצתי", color: "text-orange-500" },
-  { value: "trial_lesson", label: "שיעור ניסיון", color: "text-green-500" },
+  { value: "other", label: "אחר", color: "text-gray-500" },
 ] as const;
 
 export const MEETING_STATUSES = [

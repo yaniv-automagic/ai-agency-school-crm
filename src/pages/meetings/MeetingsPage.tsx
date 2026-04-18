@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus, X, Calendar, Video, Users, TrendingUp } from "lucide-react";
 import { useMeetings, useMeetingStats, useCreateMeeting } from "@/hooks/useMeetings";
 import { useContacts } from "@/hooks/useContacts";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { MEETING_TYPES, MEETING_STATUSES, MEETING_OUTCOMES } from "@/lib/constants";
 import { cn, timeAgo } from "@/lib/utils";
 import type { MeetingType } from "@/types/crm";
@@ -107,7 +108,7 @@ export default function MeetingsPage() {
               <tr className="border-b border-border bg-muted/50">
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">סטטוס</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">סוג</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">איש קשר</th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">ליד</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">כותרת</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">תאריך</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">תוצאה</th>
@@ -209,6 +210,7 @@ export default function MeetingsPage() {
 function MeetingForm({ onClose }: { onClose: () => void }) {
   const createMeeting = useCreateMeeting();
   const { data: contacts } = useContacts();
+  const { members } = useTeamMembers();
 
   const [formData, setFormData] = useState({
     contact_id: "",
@@ -218,6 +220,7 @@ function MeetingForm({ onClose }: { onClose: () => void }) {
     duration_minutes: 60,
     meeting_url: "",
     description: "",
+    assigned_to: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -231,6 +234,7 @@ function MeetingForm({ onClose }: { onClose: () => void }) {
       duration_minutes: formData.duration_minutes,
       meeting_url: formData.meeting_url || null,
       description: formData.description || null,
+      assigned_to: formData.assigned_to || null,
       status: "scheduled",
     });
     onClose();
@@ -257,14 +261,14 @@ function MeetingForm({ onClose }: { onClose: () => void }) {
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {/* Contact */}
           <div>
-            <label className="text-sm font-medium mb-1 block">איש קשר *</label>
+            <label className="text-sm font-medium mb-1 block">ליד *</label>
             <select
               value={formData.contact_id}
               onChange={(e) => setFormData((p) => ({ ...p, contact_id: e.target.value }))}
               className={inputClass}
               required
             >
-              <option value="">בחר איש קשר</option>
+              <option value="">בחר ליד</option>
               {contacts?.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.first_name} {c.last_name} {c.email ? `(${c.email})` : ""}
@@ -341,6 +345,21 @@ function MeetingForm({ onClose }: { onClose: () => void }) {
               placeholder="https://zoom.us/j/..."
               dir="ltr"
             />
+          </div>
+
+          {/* Assigned To */}
+          <div>
+            <label className="text-sm font-medium mb-1 block">אחראי</label>
+            <select
+              value={formData.assigned_to}
+              onChange={(e) => setFormData((p) => ({ ...p, assigned_to: e.target.value }))}
+              className={inputClass}
+            >
+              <option value="">ללא שיוך</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>{m.display_name}</option>
+              ))}
+            </select>
           </div>
 
           {/* Description */}

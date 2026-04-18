@@ -59,7 +59,7 @@ export interface DashboardLayout {
 }
 
 export const CRM_DATA_SOURCES = [
-  { value: "crm_contacts", label: "אנשי קשר" },
+  { value: "crm_contacts", label: "לידים" },
   { value: "crm_deals", label: "עסקאות" },
   { value: "crm_tasks", label: "משימות" },
   { value: "crm_activities", label: "פעילויות" },
@@ -140,7 +140,7 @@ export const FIELD_LABELS: Record<string, Record<string, string>> = {
   priority: { low: "נמוכה", medium: "בינונית", high: "גבוהה", urgent: "דחוף" },
   type: { task: "משימה", call: "שיחה", meeting: "פגישה", follow_up: "מעקב", email: "מייל", note: "הערה", whatsapp: "WhatsApp", sms: "SMS", stage_change: "שינוי שלב", system: "מערכת" },
   category: { course: "קורס", workshop: "סדנה", mentoring: "ליווי", bundle: "חבילה" },
-  meeting_type: { sales_consultation: "פגישת מכירה", mentoring_1on1: "ליווי אישי", mastermind_group: "מאסטרמיינד", trial_lesson: "שיעור ניסיון" },
+  meeting_type: { sales_consultation: "פגישת מכירה", mentoring_1on1: "ליווי אישי", mastermind_group: "מאסטרמיינד", other: "אחר" },
   outcome: { won: "נסגר", lost: "לא סגר", follow_up: "מעקב", no_show: "לא הגיע" },
   ad_platform: { facebook: "פייסבוק", instagram: "אינסטגרם", youtube: "יוטיוב", google: "גוגל", organic: "אורגני" },
   entry_type: { vsl: "VSL", webinar: "וובינר", organic: "אורגני", direct: "ישיר" },

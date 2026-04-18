@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
+import { supabase, supabaseAdmin } from "@/lib/supabase";
 import type { Deal, DealStatus, Pipeline, PipelineStage } from "@/types/crm";
 import { toast } from "sonner";
 
@@ -17,7 +17,7 @@ export function useDeals(filters?: {
     queryFn: async () => {
       let query = supabase
         .from("crm_deals")
-        .select("*, contact:crm_contacts(*), stage:crm_pipeline_stages(*)")
+        .select("*, contact:crm_contacts(*), stage:crm_pipeline_stages(*), assigned_member:crm_team_members!assigned_to(*)")
         .order("created_at", { ascending: false });
 
       if (filters?.pipeline_id) query = query.eq("pipeline_id", filters.pipeline_id);
@@ -39,7 +39,7 @@ export function useDeal(id: string | undefined) {
       if (!id) return null;
       const { data, error } = await supabase
         .from("crm_deals")
-        .select("*, contact:crm_contacts(*), stage:crm_pipeline_stages(*), product:crm_products(*)")
+        .select("*, contact:crm_contacts(*), stage:crm_pipeline_stages(*), product:crm_products(*), assigned_member:crm_team_members!assigned_to(*)")
         .eq("id", id)
         .single();
       if (error) throw error;
@@ -98,7 +98,7 @@ export function usePipelines() {
   return useQuery({
     queryKey: PIPELINES_KEY,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from("crm_pipelines")
         .select("*, stages:crm_pipeline_stages(*)");
       if (error) throw error;

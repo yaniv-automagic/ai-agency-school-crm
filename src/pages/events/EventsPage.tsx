@@ -59,7 +59,7 @@ export default function EventsPage() {
       let q = supabase
         .from("crm_meetings")
         .select("*")
-        .in("meeting_type", ["mastermind_group", "trial_lesson"])
+        .in("meeting_type", ["mastermind_group", "other"])
         .order("scheduled_at", { ascending: false });
 
       // We'll also query activities tagged as events

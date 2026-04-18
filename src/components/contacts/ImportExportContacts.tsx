@@ -13,7 +13,7 @@ interface ImportExportProps {
 export function ExportButton({ contacts }: ImportExportProps) {
   const handleExport = () => {
     if (!contacts.length) {
-      toast.error("אין אנשי קשר לייצוא");
+      toast.error("אין לידים לייצוא");
       return;
     }
 
@@ -22,7 +22,6 @@ export function ExportButton({ contacts }: ImportExportProps) {
       "שם משפחה": c.last_name,
       "מייל": c.email || "",
       "טלפון": c.phone || "",
-      "WhatsApp": c.whatsapp_phone || "",
       "חברה": c.company || "",
       "תפקיד": c.job_title || "",
       "עיר": c.city || "",
@@ -35,9 +34,9 @@ export function ExportButton({ contacts }: ImportExportProps) {
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "אנשי קשר");
+    XLSX.utils.book_append_sheet(wb, ws, "לידים");
     XLSX.writeFile(wb, `crm_contacts_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    toast.success(`${contacts.length} אנשי קשר יוצאו בהצלחה`);
+    toast.success(`${contacts.length} לידים יוצאו בהצלחה`);
   };
 
   return (
@@ -64,7 +63,6 @@ export function ImportButton() {
     { key: "last_name", label: "שם משפחה" },
     { key: "email", label: "מייל" },
     { key: "phone", label: "טלפון" },
-    { key: "whatsapp_phone", label: "WhatsApp" },
     { key: "company", label: "חברה" },
     { key: "job_title", label: "תפקיד" },
     { key: "city", label: "עיר" },
@@ -97,8 +95,7 @@ export function ImportButton() {
         first_name: ["שם פרטי", "first name", "firstname", "first_name", "שם"],
         last_name: ["שם משפחה", "last name", "lastname", "last_name", "משפחה"],
         email: ["מייל", "email", "אימייל", "דוא\"ל"],
-        phone: ["טלפון", "phone", "tel", "telephone", "נייד", "mobile"],
-        whatsapp_phone: ["whatsapp", "וואטסאפ"],
+        phone: ["טלפון", "phone", "tel", "telephone", "נייד", "mobile", "whatsapp", "וואטסאפ"],
         company: ["חברה", "company", "ארגון", "organization"],
         job_title: ["תפקיד", "title", "job title", "job_title", "role"],
         city: ["עיר", "city"],
@@ -142,7 +139,7 @@ export function ImportButton() {
     if (error) {
       toast.error(`שגיאה בייבוא: ${error.message}`);
     } else {
-      toast.success(`${contacts.length} אנשי קשר יובאו בהצלחה`);
+      toast.success(`${contacts.length} לידים יובאו בהצלחה`);
       queryClient.invalidateQueries({ queryKey: ["contacts"] });
       setShowModal(false);
       setPreview([]);
@@ -172,7 +169,7 @@ export function ImportButton() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">
                 <FileSpreadsheet size={20} className="inline ml-2" />
-                ייבוא {preview.length} אנשי קשר
+                ייבוא {preview.length} לידים
               </h2>
               <button onClick={() => setShowModal(false)} className="p-1 rounded hover:bg-secondary">
                 <X size={20} />
@@ -230,7 +227,7 @@ export function ImportButton() {
                 disabled={importing || !mapping.first_name || !mapping.last_name}
                 className="flex-1 px-4 py-2.5 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50"
               >
-                {importing ? "מייבא..." : `ייבוא ${preview.length} אנשי קשר`}
+                {importing ? "מייבא..." : `ייבוא ${preview.length} לידים`}
               </button>
               <button
                 onClick={() => setShowModal(false)}

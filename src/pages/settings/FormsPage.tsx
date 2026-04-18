@@ -44,7 +44,6 @@ const CRM_FIELD_MAPPINGS = [
   { value: "last_name", label: "שם משפחה" },
   { value: "email", label: "מייל" },
   { value: "phone", label: "טלפון" },
-  { value: "whatsapp_phone", label: "WhatsApp" },
   { value: "company", label: "חברה" },
   { value: "job_title", label: "תפקיד" },
   { value: "city", label: "עיר" },

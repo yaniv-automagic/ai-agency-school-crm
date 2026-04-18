@@ -4,19 +4,21 @@ import { z } from "zod";
 import { X } from "lucide-react";
 import { useCreateDeal, usePipelines } from "@/hooks/useDeals";
 import { useContacts } from "@/hooks/useContacts";
+import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Product } from "@/types/crm";
 
 const dealSchema = z.object({
   title: z.string().min(1, "כותרת העסקה חובה"),
-  contact_id: z.string().min(1, "יש לבחור איש קשר"),
+  contact_id: z.string().min(1, "יש לבחור ליד"),
   pipeline_id: z.string().min(1, "יש לבחור צנרת"),
   stage_id: z.string().min(1, "יש לבחור שלב"),
   value: z.coerce.number().min(0).default(0),
   product_id: z.string().optional(),
   expected_close: z.string().optional(),
   notes: z.string().optional(),
+  assigned_to: z.string().optional(),
 });
 
 type DealFormData = z.infer<typeof dealSchema>;
@@ -30,6 +32,7 @@ export default function DealForm({ onClose, defaultContactId }: DealFormProps) {
   const createDeal = useCreateDeal();
   const { data: pipelines } = usePipelines();
   const { data: contacts } = useContacts();
+  const { members } = useTeamMembers();
   const { data: products } = useQuery({
     queryKey: ["products"],
     queryFn: async () => {
@@ -72,6 +75,7 @@ export default function DealForm({ onClose, defaultContactId }: DealFormProps) {
       probability: stage?.probability || 0,
       status: "open",
       product_id: data.product_id || null,
+      assigned_to: data.assigned_to || null,
     } as any);
     onClose();
   };
@@ -105,12 +109,12 @@ export default function DealForm({ onClose, defaultContactId }: DealFormProps) {
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
           {/* Contact */}
           <div>
-            <label className="text-sm font-medium mb-1 block">איש קשר *</label>
+            <label className="text-sm font-medium mb-1 block">ליד *</label>
             <select
               {...register("contact_id")}
               className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"
             >
-              <option value="">בחר איש קשר</option>
+              <option value="">בחר ליד</option>
               {contacts?.map(c => (
                 <option key={c.id} value={c.id}>
                   {c.first_name} {c.last_name} {c.email ? `(${c.email})` : ""}
@@ -201,6 +205,20 @@ export default function DealForm({ onClose, defaultContactId }: DealFormProps) {
                 className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"
               />
             </div>
+          </div>
+
+          {/* Assigned To */}
+          <div>
+            <label className="text-sm font-medium mb-1 block">אחראי</label>
+            <select
+              {...register("assigned_to")}
+              className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"
+            >
+              <option value="">ללא שיוך</option>
+              {members.map(m => (
+                <option key={m.id} value={m.id}>{m.display_name}</option>
+              ))}
+            </select>
           </div>
 
           {/* Notes */}

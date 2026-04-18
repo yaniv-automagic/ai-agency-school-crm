@@ -3,7 +3,7 @@ import { X, Tag, UserCheck, Trash2, Download, Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CONTACT_STATUSES } from "@/lib/constants";
+import { usePipelines } from "@/hooks/useDeals";
 
 interface BulkActionsProps {
   selectedIds: string[];
@@ -13,22 +13,26 @@ interface BulkActionsProps {
 
 export default function BulkActions({ selectedIds, onClear, totalCount }: BulkActionsProps) {
   const queryClient = useQueryClient();
+  const { data: pipelines } = usePipelines();
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [showTagInput, setShowTagInput] = useState(false);
   const [tagValue, setTagValue] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const allStages = pipelines?.flatMap(p => p.stages || []) || [];
+
   const count = selectedIds.length;
 
-  const updateStatus = async (status: string) => {
+  const updateStage = async (stageId: string) => {
     setLoading(true);
+    const stageName = allStages.find(s => s.id === stageId)?.name;
     const { error } = await supabase
       .from("crm_contacts")
-      .update({ status, updated_at: new Date().toISOString() })
+      .update({ stage_id: stageId, updated_at: new Date().toISOString() })
       .in("id", selectedIds);
     setLoading(false);
     if (error) { toast.error(error.message); return; }
-    toast.success(`${count} אנשי קשר עודכנו ל-"${CONTACT_STATUSES.find(s => s.value === status)?.label}"`);
+    toast.success(`${count} לידים עודכנו ל-"${stageName}"`);
     queryClient.invalidateQueries({ queryKey: ["contacts"] });
     setShowStatusPicker(false);
     onClear();
@@ -37,7 +41,6 @@ export default function BulkActions({ selectedIds, onClear, totalCount }: BulkAc
   const addTag = async () => {
     if (!tagValue.trim()) return;
     setLoading(true);
-    // Fetch current tags, append new one
     const { data: contacts } = await supabase
       .from("crm_contacts")
       .select("id, tags")
@@ -55,7 +58,7 @@ export default function BulkActions({ selectedIds, onClear, totalCount }: BulkAc
     }
 
     setLoading(false);
-    toast.success(`תגית "${tagValue}" נוספה ל-${count} אנשי קשר`);
+    toast.success(`תגית "${tagValue}" נוספה ל-${count} לידים`);
     queryClient.invalidateQueries({ queryKey: ["contacts"] });
     setTagValue("");
     setShowTagInput(false);
@@ -63,12 +66,12 @@ export default function BulkActions({ selectedIds, onClear, totalCount }: BulkAc
   };
 
   const deleteSelected = async () => {
-    if (!confirm(`למחוק ${count} אנשי קשר? פעולה זו לא ניתנת לביטול.`)) return;
+    if (!confirm(`למחוק ${count} לידים? פעולה זו לא ניתנת לביטול.`)) return;
     setLoading(true);
     const { error } = await supabase.from("crm_contacts").delete().in("id", selectedIds);
     setLoading(false);
     if (error) { toast.error(error.message); return; }
-    toast.success(`${count} אנשי קשר נמחקו`);
+    toast.success(`${count} לידים נמחקו`);
     queryClient.invalidateQueries({ queryKey: ["contacts"] });
     onClear();
   };
@@ -85,26 +88,35 @@ export default function BulkActions({ selectedIds, onClear, totalCount }: BulkAc
           <span className="text-xs text-white/60">נבחרו</span>
         </div>
 
-        {/* Status */}
+        {/* Stage */}
         <div className="relative">
           <button
             onClick={() => { setShowStatusPicker(!showStatusPicker); setShowTagInput(false); }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors"
           >
             <UserCheck size={13} />
-            שנה סטטוס
+            שנה שלב
           </button>
           {showStatusPicker && (
-            <div className="absolute bottom-full mb-2 right-0 bg-white text-gray-900 rounded-xl shadow-xl border border-gray-200 py-1 w-40 overflow-hidden" dir="rtl">
-              {CONTACT_STATUSES.map(s => (
-                <button
-                  key={s.value}
-                  onClick={() => updateStatus(s.value)}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-right"
-                >
-                  <span className={`w-2 h-2 rounded-full ${s.color}`} />
-                  {s.label}
-                </button>
+            <div className="absolute bottom-full mb-2 right-0 bg-white text-gray-900 rounded-xl shadow-xl border border-gray-200 py-1 w-48 max-h-72 overflow-y-auto" dir="rtl">
+              {pipelines?.map(pipeline => (
+                <div key={pipeline.id}>
+                  {pipelines.length > 1 && (
+                    <div className="px-3 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-50">
+                      {pipeline.name}
+                    </div>
+                  )}
+                  {pipeline.stages?.map(s => (
+                    <button
+                      key={s.id}
+                      onClick={() => updateStage(s.id)}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-right"
+                    >
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color || "#6b7280" }} />
+                      {s.name}
+                    </button>
+                  ))}
+                </div>
               ))}
             </div>
           )}

@@ -69,7 +69,7 @@ export default function ContractsPage() {
             <thead>
               <tr className="border-b border-border bg-muted/50">
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">כותרת</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">איש קשר</th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">ליד</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">סטטוס</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">נשלח</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">נחתם</th>

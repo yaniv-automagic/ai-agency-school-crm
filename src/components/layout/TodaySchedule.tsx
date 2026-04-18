@@ -79,7 +79,7 @@ const TYPE_ICONS: Record<string, any> = {
   sales_consultation: Video,
   mentoring_1on1: Users,
   mastermind_group: Users,
-  trial_lesson: Calendar,
+  other: Calendar,
   call: Phone,
   meeting: Video,
 };

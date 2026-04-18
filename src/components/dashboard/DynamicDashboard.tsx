@@ -142,13 +142,13 @@ function ltrToRtl(layout: any[], existingWidgets: GridWidget[]): GridWidget[] {
 // ── Default Widgets ──
 
 const DEFAULT_WIDGETS: GridWidget[] = [
-  { i: "w1", x: 9, y: 0, w: 3, h: 2, config: { title: "אנשי קשר", type: "number", dataSource: "crm_contacts" } },
+  { i: "w1", x: 9, y: 0, w: 3, h: 2, config: { title: "לידים", type: "number", dataSource: "crm_contacts" } },
   { i: "w2", x: 6, y: 0, w: 3, h: 2, config: { title: "עסקאות פתוחות", type: "number", dataSource: "crm_deals", filters: [{ field: "status", operator: "eq", value: "open" }] } },
   { i: "w3", x: 3, y: 0, w: 3, h: 2, config: { title: "ערך צנרת", type: "number", dataSource: "crm_deals", metric: "value", filters: [{ field: "status", operator: "eq", value: "open" }] } },
   { i: "w4", x: 0, y: 0, w: 3, h: 2, config: { title: "משימות פתוחות", type: "number", dataSource: "crm_tasks", filters: [{ field: "status", operator: "ne", value: "completed" }] } },
   { i: "w5", x: 6, y: 2, w: 6, h: 4, config: { title: "לידים לפי מקור", type: "pie", dataSource: "crm_contacts", groupBy: "source" } },
-  { i: "w6", x: 0, y: 2, w: 6, h: 4, config: { title: "אנשי קשר לפי סטטוס", type: "bar", dataSource: "crm_contacts", groupBy: "status" } },
-  { i: "w7", x: 0, y: 6, w: 12, h: 4, config: { title: "אנשי קשר לפי חודש", type: "line", dataSource: "crm_contacts", groupBy: "created_month" } },
+  { i: "w6", x: 0, y: 2, w: 6, h: 4, config: { title: "לידים לפי שלב", type: "bar", dataSource: "crm_contacts", groupBy: "stage_id" } },
+  { i: "w7", x: 0, y: 6, w: 12, h: 4, config: { title: "לידים לפי חודש", type: "line", dataSource: "crm_contacts", groupBy: "created_month" } },
 ];
 
 // ── Main Component ──
