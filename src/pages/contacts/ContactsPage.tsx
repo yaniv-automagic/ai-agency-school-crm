@@ -1,21 +1,37 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Plus, Search, Filter, Download, Upload, LayoutGrid, List } from "lucide-react";
-import { useContacts } from "@/hooks/useContacts";
-import { CONTACT_STATUSES, CONTACT_SOURCES } from "@/lib/constants";
+import { useContacts, useUpdateContact } from "@/hooks/useContacts";
+import { usePipelines } from "@/hooks/useDeals";
+import { CONTACT_SOURCES } from "@/lib/constants";
 import { cn, formatPhone, timeAgo } from "@/lib/utils";
 import ContactForm from "@/components/contacts/ContactForm";
 import { ExportButton, ImportButton } from "@/components/contacts/ImportExportContacts";
 import BulkActions from "@/components/contacts/BulkActions";
+import type { PipelineStage } from "@/types/crm";
 
 export default function ContactsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [stageFilter, setStageFilter] = useState<string>("");
   const [showForm, setShowForm] = useState(searchParams.get("new") === "true");
   const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [statusPickerId, setStatusPickerId] = useState<string | null>(null);
+  const [pickerPos, setPickerPos] = useState<{ top: number; right: number } | null>(null);
+  const [selectedPipelineId, setSelectedPipelineId] = useState<string>("");
   const navigate = useNavigate();
+  const updateContact = useUpdateContact();
+  const { data: pipelines } = usePipelines();
+
+  const activePipeline = selectedPipelineId
+    ? pipelines?.find(p => p.id === selectedPipelineId)
+    : pipelines?.find(p => p.is_default) || pipelines?.[0];
+  const stages = activePipeline?.stages || [];
+
+  // All stages across all pipelines - for display lookups
+  const allStages = pipelines?.flatMap(p => p.stages || []) || [];
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -27,17 +43,22 @@ export default function ContactsPage() {
 
   const { data: contacts, isLoading } = useContacts({
     search: search || undefined,
-    status: (statusFilter || undefined) as any,
+    stage_id: stageFilter || undefined,
   });
+
+  const getContactStage = (contact: { stage_id: string | null; stage?: PipelineStage }) => {
+    if (contact.stage) return contact.stage;
+    return allStages.find(s => s.id === contact.stage_id);
+  };
 
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">אנשי קשר</h1>
+          <h1 className="text-2xl font-bold">לידים</h1>
           <p className="text-muted-foreground text-sm">
-            {contacts?.length || 0} אנשי קשר
+            {contacts?.length || 0} לידים
           </p>
         </div>
         <button
@@ -45,7 +66,7 @@ export default function ContactsPage() {
           className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors"
         >
           <Plus size={16} />
-          איש קשר חדש
+          ליד חדש
         </button>
       </div>
 
@@ -62,14 +83,26 @@ export default function ContactsPage() {
           />
         </div>
 
+        {pipelines && pipelines.length > 1 && (
+          <select
+            value={selectedPipelineId}
+            onChange={(e) => { setSelectedPipelineId(e.target.value); setStageFilter(""); }}
+            className="px-3 py-2 text-sm border border-input rounded-lg bg-background"
+          >
+            {pipelines.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        )}
+
         <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          value={stageFilter}
+          onChange={(e) => setStageFilter(e.target.value)}
           className="px-3 py-2 text-sm border border-input rounded-lg bg-background"
         >
-          <option value="">כל הסטטוסים</option>
-          {CONTACT_STATUSES.map(s => (
-            <option key={s.value} value={s.value}>{s.label}</option>
+          <option value="">כל השלבים</option>
+          {stages.map(s => (
+            <option key={s.id} value={s.id}>{s.name}</option>
           ))}
         </select>
 
@@ -104,7 +137,7 @@ export default function ContactsPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
         </div>
       ) : viewMode === "table" ? (
-        <div className="border border-border rounded-xl overflow-hidden bg-card">
+        <div className="border border-border rounded-xl bg-card">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
@@ -114,7 +147,8 @@ export default function ContactsPage() {
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">שם</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">מייל</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">טלפון</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">סטטוס</th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">שלב</th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">אחראי</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">מקור</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">נוצר</th>
               </tr>
@@ -122,7 +156,7 @@ export default function ContactsPage() {
             <tbody>
               {contacts && contacts.length > 0 ? (
                 contacts.map(contact => {
-                  const status = CONTACT_STATUSES.find(s => s.value === contact.status);
+                  const stage = getContactStage(contact);
                   const source = CONTACT_SOURCES.find(s => s.value === contact.source);
                   return (
                     <tr
@@ -135,9 +169,13 @@ export default function ContactsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-xs">
-                            {contact.first_name?.charAt(0)}{contact.last_name?.charAt(0)}
-                          </div>
+                          {contact.avatar_url ? (
+                            <img src={contact.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-xs">
+                              {contact.first_name?.charAt(0)}{contact.last_name?.charAt(0)}
+                            </div>
+                          )}
                           <span className="font-medium">
                             {contact.first_name} {contact.last_name}
                           </span>
@@ -145,14 +183,45 @@ export default function ContactsPage() {
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{contact.email || "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground" dir="ltr">{formatPhone(contact.phone || "")}</td>
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={(e) => {
+                            if (statusPickerId === contact.id) {
+                              setStatusPickerId(null);
+                              setPickerPos(null);
+                            } else {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setPickerPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+                              setStatusPickerId(contact.id);
+                            }
+                          }}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium",
+                            "bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+                          )}
+                        >
+                          <span
+                            className="w-1.5 h-1.5 rounded-full"
+                            style={{ backgroundColor: stage?.color || "#6b7280" }}
+                          />
+                          {stage?.name || "ללא שלב"}
+                        </button>
+                      </td>
                       <td className="px-4 py-3">
-                        <span className={cn(
-                          "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium",
-                          "bg-secondary text-secondary-foreground"
-                        )}>
-                          <span className={cn("w-1.5 h-1.5 rounded-full", status?.color)} />
-                          {status?.label}
-                        </span>
+                        {contact.assigned_member ? (
+                          <div className="flex items-center gap-2">
+                            {contact.assigned_member.avatar_url ? (
+                              <img src={contact.assigned_member.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover" />
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-[10px] font-medium text-muted-foreground">
+                                {contact.assigned_member.display_name?.charAt(0)}
+                              </div>
+                            )}
+                            <span className="text-xs text-muted-foreground">{contact.assigned_member.display_name}</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">{source?.label || "—"}</td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">{timeAgo(contact.created_at)}</td>
@@ -161,9 +230,9 @@ export default function ContactsPage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-4 py-16 text-center text-muted-foreground">
-                    <p className="text-lg font-medium mb-1">אין אנשי קשר</p>
-                    <p className="text-sm">התחל להוסיף אנשי קשר למערכת</p>
+                  <td colSpan={8} className="px-4 py-16 text-center text-muted-foreground">
+                    <p className="text-lg font-medium mb-1">אין לידים</p>
+                    <p className="text-sm">התחל להוסיף לידים למערכת</p>
                   </td>
                 </tr>
               )}
@@ -171,30 +240,39 @@ export default function ContactsPage() {
           </table>
         </div>
       ) : (
-        /* Kanban View */
+        /* Kanban View - grouped by pipeline stages */
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {CONTACT_STATUSES.map(status => {
-            const statusContacts = contacts?.filter(c => c.status === status.value) || [];
+          {stages.map(stage => {
+            const stageContacts = contacts?.filter(c => c.stage_id === stage.id) || [];
             return (
-              <div key={status.value} className="flex-shrink-0 w-72">
+              <div key={stage.id} className="flex-shrink-0 w-72">
                 <div className="flex items-center gap-2 mb-3 px-1">
-                  <span className={cn("w-2.5 h-2.5 rounded-full", status.color)} />
-                  <span className="text-sm font-medium">{status.label}</span>
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: stage.color || "#6b7280" }} />
+                  <span className="text-sm font-medium">{stage.name}</span>
                   <span className="text-xs text-muted-foreground mr-auto">
-                    {statusContacts.length}
+                    {stageContacts.length}
                   </span>
                 </div>
                 <div className="space-y-2">
-                  {statusContacts.map(contact => (
+                  {stageContacts.map(contact => (
                     <div
                       key={contact.id}
                       onClick={() => navigate(`/contacts/${contact.id}`)}
                       className="p-3 bg-card border border-border rounded-lg hover:shadow-md cursor-pointer transition-all"
                     >
-                      <p className="font-medium text-sm">
-                        {contact.first_name} {contact.last_name}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        {contact.avatar_url ? (
+                          <img src={contact.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px] font-medium">
+                            {contact.first_name?.charAt(0)}{contact.last_name?.charAt(0)}
+                          </div>
+                        )}
+                        <p className="font-medium text-sm">
+                          {contact.first_name} {contact.last_name}
+                        </p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
                         {contact.email || contact.phone || "—"}
                       </p>
                       {contact.tags?.length > 0 && (
@@ -212,6 +290,32 @@ export default function ContactsPage() {
               </div>
             );
           })}
+          {/* Unassigned column for contacts without a stage */}
+          {(() => {
+            const noStage = contacts?.filter(c => !c.stage_id) || [];
+            if (noStage.length === 0) return null;
+            return (
+              <div className="flex-shrink-0 w-72">
+                <div className="flex items-center gap-2 mb-3 px-1">
+                  <span className="w-2.5 h-2.5 rounded-full bg-gray-400" />
+                  <span className="text-sm font-medium text-muted-foreground">ללא שלב</span>
+                  <span className="text-xs text-muted-foreground mr-auto">{noStage.length}</span>
+                </div>
+                <div className="space-y-2">
+                  {noStage.map(contact => (
+                    <div
+                      key={contact.id}
+                      onClick={() => navigate(`/contacts/${contact.id}`)}
+                      className="p-3 bg-card border border-border rounded-lg hover:shadow-md cursor-pointer transition-all"
+                    >
+                      <p className="font-medium text-sm">{contact.first_name} {contact.last_name}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{contact.email || contact.phone || "—"}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -228,6 +332,46 @@ export default function ContactsPage() {
 
       {/* Bulk Actions */}
       <BulkActions selectedIds={selectedIds} onClear={() => setSelectedIds([])} totalCount={contacts?.length || 0} />
+
+      {/* Stage picker portal */}
+      {statusPickerId && pickerPos && createPortal(
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => { setStatusPickerId(null); setPickerPos(null); }} />
+          <div
+            className="fixed bg-card border border-border rounded-xl shadow-xl py-1 w-48 z-50 max-h-80 overflow-y-auto"
+            style={{ top: pickerPos.top, right: pickerPos.right }}
+            dir="rtl"
+          >
+            {pipelines?.map(pipeline => (
+              <div key={pipeline.id}>
+                {pipelines.length > 1 && (
+                  <div className="px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-muted/30">
+                    {pipeline.name}
+                  </div>
+                )}
+                {pipeline.stages?.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => {
+                      updateContact.mutate({ id: statusPickerId, stage_id: s.id } as any);
+                      setStatusPickerId(null);
+                      setPickerPos(null);
+                    }}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary text-right",
+                      contacts?.find(c => c.id === statusPickerId)?.stage_id === s.id && "bg-secondary/50 font-medium"
+                    )}
+                  >
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color || "#6b7280" }} />
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        </>,
+        document.body
+      )}
     </div>
   );
 }
