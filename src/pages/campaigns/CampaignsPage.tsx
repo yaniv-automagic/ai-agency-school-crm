@@ -68,13 +68,21 @@ export default function CampaignsPage() {
           <h1 className="text-2xl font-bold">קמפיינים</h1>
           <p className="text-muted-foreground text-sm">{campaigns?.length || 0} קמפיינים</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors"
-        >
-          <Plus size={16} />
-          קמפיין חדש
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate("/campaigns/ads")}
+            className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-lg hover:bg-secondary transition-colors"
+          >
+            📊 ממומנים
+          </button>
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors"
+          >
+            <Plus size={16} />
+            קמפיין חדש
+          </button>
+        </div>
       </div>
 
       {/* Stats cards */}

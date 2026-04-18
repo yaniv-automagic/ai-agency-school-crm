@@ -1,0 +1,98 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import type { Contract, ContractTemplate, ContractStatus } from "@/types/crm";
+import { toast } from "sonner";
+
+const KEY = ["contracts"];
+
+export function useContracts(filters?: { contact_id?: string; deal_id?: string; status?: ContractStatus }) {
+  return useQuery({
+    queryKey: [...KEY, filters],
+    queryFn: async () => {
+      let q = supabase
+        .from("crm_contracts")
+        .select("*, contact:crm_contacts(id, first_name, last_name, email)")
+        .order("created_at", { ascending: false });
+      if (filters?.contact_id) q = q.eq("contact_id", filters.contact_id);
+      if (filters?.deal_id) q = q.eq("deal_id", filters.deal_id);
+      if (filters?.status) q = q.eq("status", filters.status);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data as Contract[];
+    },
+  });
+}
+
+export function useContract(id: string | undefined) {
+  return useQuery({
+    queryKey: [...KEY, id],
+    queryFn: async () => {
+      if (!id) return null;
+      const { data, error } = await supabase.from("crm_contracts").select("*, contact:crm_contacts(*), deal:crm_deals(*)").eq("id", id).single();
+      if (error) throw error;
+      return data as Contract;
+    },
+    enabled: !!id,
+  });
+}
+
+export function useContractByToken(token: string | undefined) {
+  return useQuery({
+    queryKey: ["contract-sign", token],
+    queryFn: async () => {
+      if (!token) return null;
+      const { data, error } = await supabase.from("crm_contracts").select("*, contact:crm_contacts(first_name, last_name, email)").eq("sign_token", token).single();
+      if (error) throw error;
+      return data as Contract;
+    },
+    enabled: !!token,
+  });
+}
+
+export function useCreateContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (contract: Partial<Contract>) => {
+      const sign_token = crypto.randomUUID();
+      const { data, error } = await supabase.from("crm_contracts").insert({ ...contract, sign_token }).select().single();
+      if (error) throw error;
+      return data as Contract;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: KEY }); toast.success("חוזה נוצר"); },
+    onError: (e: Error) => toast.error(`שגיאה: ${e.message}`),
+  });
+}
+
+export function useUpdateContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<Contract> & { id: string }) => {
+      const { error } = await supabase.from("crm_contracts").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: KEY }); },
+  });
+}
+
+export function useContractTemplates() {
+  return useQuery({
+    queryKey: ["contract-templates"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("crm_contract_templates").select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as ContractTemplate[];
+    },
+  });
+}
+
+export function useCreateContractTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (template: Partial<ContractTemplate>) => {
+      const { data, error } = await supabase.from("crm_contract_templates").insert(template).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["contract-templates"] }); toast.success("תבנית חוזה נוצרה"); },
+  });
+}

@@ -19,6 +19,22 @@ export interface Contact {
   city: string | null;
   assigned_to: string | null;
   last_activity_at: string | null;
+  // Attribution
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_content: string | null;
+  utm_term: string | null;
+  entry_type: EntryType | null;
+  landing_page_url: string | null;
+  referrer_url: string | null;
+  ad_platform: AdPlatform | null;
+  ad_campaign_id: string | null;
+  ad_adset_id: string | null;
+  ad_id: string | null;
+  first_touch_at: string | null;
+  conversion_at: string | null;
+  //
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -26,6 +42,9 @@ export interface Contact {
   account?: Account;
   assigned_member?: TeamMember;
 }
+
+export type EntryType = "vsl" | "webinar" | "organic" | "direct";
+export type AdPlatform = "facebook" | "instagram" | "youtube" | "google" | "organic";
 
 export type ContactStatus = "new" | "contacted" | "qualified" | "student" | "alumni" | "inactive";
 export type ContactSource = "website" | "whatsapp" | "referral" | "facebook_ad" | "instagram" | "google_ad" | "workshop" | "manual" | "import";
@@ -278,4 +297,198 @@ export interface SavedView {
   created_by: string | null;
   is_shared: boolean;
   created_at: string;
+}
+
+// ── Meetings ──
+
+export type MeetingType = "sales_consultation" | "mentoring_1on1" | "mastermind_group" | "trial_lesson";
+export type MeetingStatus = "scheduled" | "confirmed" | "completed" | "no_show" | "cancelled" | "rescheduled";
+export type MeetingOutcome = "won" | "lost" | "follow_up" | "no_show";
+
+export interface Meeting {
+  id: string;
+  tenant_id: string;
+  contact_id: string;
+  deal_id: string | null;
+  task_id: string | null;
+  enrollment_id: string | null;
+  meeting_type: MeetingType;
+  status: MeetingStatus;
+  title: string;
+  description: string | null;
+  scheduled_at: string;
+  duration_minutes: number;
+  meeting_url: string | null;
+  recording_url: string | null;
+  outcome: MeetingOutcome | null;
+  outcome_notes: string | null;
+  outcome_deal_value: number | null;
+  assigned_to: string | null;
+  google_event_id: string | null;
+  fillout_submission_id: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  contact?: Contact;
+  deal?: Deal;
+}
+
+// ── Program Enrollment ──
+
+export type EnrollmentStatus = "pending" | "active" | "completed" | "paused" | "cancelled";
+export type SessionType = "personal" | "mastermind" | "course_access";
+export type SessionStatus = "planned" | "scheduled" | "completed" | "missed" | "cancelled";
+
+export interface ProgramEnrollment {
+  id: string;
+  tenant_id: string;
+  contact_id: string;
+  deal_id: string | null;
+  product_id: string;
+  status: EnrollmentStatus;
+  start_date: string | null;
+  end_date: string | null;
+  total_sessions: number;
+  completed_sessions: number;
+  portal_access_granted: boolean;
+  portal_access_granted_at: string | null;
+  mentor_name: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  contact?: Contact;
+  product?: Product;
+  sessions?: ProgramSession[];
+}
+
+export interface ProgramSession {
+  id: string;
+  tenant_id: string;
+  enrollment_id: string;
+  meeting_id: string | null;
+  session_number: number;
+  session_type: SessionType;
+  status: SessionStatus;
+  scheduled_at: string | null;
+  completed_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  meeting?: Meeting;
+}
+
+// ── Contracts ──
+
+export type ContractStatus = "draft" | "sent" | "viewed" | "signed" | "expired" | "cancelled";
+
+export interface ContractTemplate {
+  id: string;
+  tenant_id: string;
+  name: string;
+  body_html: string;
+  variables: string[];
+  product_id: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Contract {
+  id: string;
+  tenant_id: string;
+  contact_id: string;
+  deal_id: string | null;
+  template_id: string | null;
+  title: string;
+  body_html: string;
+  pdf_url: string | null;
+  status: ContractStatus;
+  sent_at: string | null;
+  viewed_at: string | null;
+  signed_at: string | null;
+  expires_at: string | null;
+  signature_data: string | null;
+  signature_type: "drawn" | "typed" | null;
+  signer_ip: string | null;
+  signed_pdf_url: string | null;
+  sign_token: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  contact?: Contact;
+  deal?: Deal;
+}
+
+// ── Facebook Ads ──
+
+export interface AdAccount {
+  id: string;
+  tenant_id: string;
+  platform: "facebook" | "google";
+  account_id: string;
+  account_name: string | null;
+  is_active: boolean;
+  last_sync_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdCampaign {
+  id: string;
+  tenant_id: string;
+  ad_account_id: string;
+  platform_campaign_id: string;
+  name: string;
+  status: string | null;
+  objective: string | null;
+  daily_budget: number | null;
+  lifetime_budget: number | null;
+  start_time: string | null;
+  stop_time: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdDailyStat {
+  id: string;
+  tenant_id: string;
+  ad_account_id: string;
+  campaign_id: string | null;
+  adset_id: string | null;
+  ad_id: string | null;
+  date: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  reach: number;
+  leads: number;
+  conversions: number;
+  cpl: number | null;
+  cpa: number | null;
+  ctr: number | null;
+  cpc: number | null;
+  created_at: string;
+}
+
+// ── Fillout Integration ──
+
+export interface FilloutFormMapping {
+  id: string;
+  tenant_id: string;
+  fillout_form_id: string;
+  name: string;
+  field_mappings: Record<string, string>;
+  utm_field_mappings: Record<string, string>;
+  auto_create_deal: boolean;
+  pipeline_id: string | null;
+  stage_id: string | null;
+  product_id: string | null;
+  source_tag: string;
+  entry_type: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }

@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Settings, Database, Zap, Users, Webhook, MessageCircle, FileText, Upload, Palette } from "lucide-react";
+import { Database, Webhook, FileText, Upload, FileSignature, Target, FormInput } from "lucide-react";
 
 const settingsSections = [
   {
@@ -11,7 +11,7 @@ const settingsSections = [
   },
   {
     title: "אינטגרציות",
-    description: "WhatsApp, Email, Google Calendar, Webhooks",
+    description: "WhatsApp, Email, Google Calendar, Facebook Ads, Webhooks",
     icon: Webhook,
     path: "/settings/integrations",
     color: "bg-purple-50 text-purple-500",
@@ -22,6 +22,20 @@ const settingsSections = [
     icon: FileText,
     path: "/settings/forms",
     color: "bg-green-50 text-green-500",
+  },
+  {
+    title: "תבניות חוזים",
+    description: "ניהול תבניות HTML לחוזים וחתימה דיגיטלית",
+    icon: FileSignature,
+    path: "/settings/contracts",
+    color: "bg-indigo-50 text-indigo-500",
+  },
+  {
+    title: "חשבון פייסבוק",
+    description: "חיבור Facebook Ads API לסנכרון קמפיינים",
+    icon: Target,
+    path: "/settings/ads",
+    color: "bg-sky-50 text-sky-500",
   },
   {
     title: "ייבוא מ-Fireberry",

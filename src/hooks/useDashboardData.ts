@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import type { WidgetConfig, ChartDataPoint, KpiData } from "@/types/dashboard";
+import type { WidgetConfig } from "@/types/dashboard";
 import { CHART_COLORS, MONTH_NAMES, FIELD_LABELS } from "@/types/dashboard";
 import { formatCurrency } from "@/lib/utils";
 
@@ -11,6 +11,11 @@ export async function fetchWidgetData(config: WidgetConfig): Promise<Partial<Wid
   if (!config.dataSource) return {};
 
   try {
+    // Date field depends on table
+    const dateField = config.dataSource === "crm_ad_daily_stats" ? "date"
+      : config.dataSource === "crm_meetings" ? "scheduled_at"
+      : "created_at";
+
     let query = supabase.from(config.dataSource).select("*");
 
     // Apply date filter
@@ -24,7 +29,7 @@ export async function fetchWidgetData(config: WidgetConfig): Promise<Partial<Wid
       } else {
         from = new Date(now.getFullYear(), 0, 1).toISOString();
       }
-      query = query.gte("created_at", from);
+      query = query.gte(dateField, config.dataSource === "crm_ad_daily_stats" ? from.slice(0, 10) : from);
     }
 
     // Apply filters
@@ -43,23 +48,81 @@ export async function fetchWidgetData(config: WidgetConfig): Promise<Partial<Wid
       }
     }
 
-    const { data: records, error, count } = await query;
+    const { data: records, error } = await query;
     if (error) throw error;
     if (!records) return {};
 
     const sourceLabel = config.title || config.dataSource;
 
-    // Number widget
+    // ── Number widget ──
     if (config.type === "number") {
-      const value = records.length;
+      let value = records.length;
       let formattedValue = value.toLocaleString();
       let subtitle = "רשומות";
 
-      // Special handling for deals - show total value
+      // Deals: sum value
       if (config.dataSource === "crm_deals" && config.metric === "value") {
         const totalValue = records.reduce((sum, r) => sum + (Number(r.value) || 0), 0);
         formattedValue = formatCurrency(totalValue);
         subtitle = `${value} עסקאות`;
+      }
+
+      // Ad spend: sum spend
+      if (config.dataSource === "crm_ad_daily_stats") {
+        if (config.metric === "spend") {
+          const totalSpend = records.reduce((sum, r) => sum + (Number(r.spend) || 0), 0);
+          formattedValue = formatCurrency(totalSpend);
+          subtitle = `${value} ימים`;
+          value = totalSpend;
+        } else if (config.metric === "clicks") {
+          const totalClicks = records.reduce((sum, r) => sum + (Number(r.clicks) || 0), 0);
+          formattedValue = totalClicks.toLocaleString();
+          subtitle = "קליקים";
+          value = totalClicks;
+        } else if (config.metric === "leads") {
+          const totalLeads = records.reduce((sum, r) => sum + (Number(r.leads) || 0), 0);
+          formattedValue = totalLeads.toLocaleString();
+          subtitle = "לידים מפרסום";
+          value = totalLeads;
+        } else if (config.metric === "cpl") {
+          const totalSpend = records.reduce((sum, r) => sum + (Number(r.spend) || 0), 0);
+          const totalLeads = records.reduce((sum, r) => sum + (Number(r.leads) || 0), 0);
+          const cpl = totalLeads > 0 ? totalSpend / totalLeads : 0;
+          formattedValue = formatCurrency(cpl);
+          subtitle = "עלות לליד";
+          value = cpl;
+        }
+      }
+
+      // Meetings: show rate
+      if (config.dataSource === "crm_meetings" && config.metric === "show_rate") {
+        const completed = records.filter(r => r.status === "completed").length;
+        const noShow = records.filter(r => r.status === "no_show").length;
+        const total = completed + noShow;
+        const rate = total > 0 ? (completed / total) * 100 : 0;
+        formattedValue = `${Math.round(rate)}%`;
+        subtitle = `${completed} מתוך ${total} הגיעו`;
+        value = rate;
+      }
+
+      // Meetings: close rate
+      if (config.dataSource === "crm_meetings" && config.metric === "close_rate") {
+        const sales = records.filter(r => r.meeting_type === "sales_consultation" && r.status === "completed");
+        const won = sales.filter(r => r.outcome === "won").length;
+        const rate = sales.length > 0 ? (won / sales.length) * 100 : 0;
+        formattedValue = `${Math.round(rate)}%`;
+        subtitle = `${won} מתוך ${sales.length} נסגרו`;
+        value = rate;
+      }
+
+      // Enrollments: completion rate
+      if (config.dataSource === "crm_program_enrollments" && config.metric === "completion") {
+        const totalSessions = records.reduce((sum, r) => sum + (Number(r.total_sessions) || 0), 0);
+        const completedSessions = records.reduce((sum, r) => sum + (Number(r.completed_sessions) || 0), 0);
+        const rate = totalSessions > 0 ? (completedSessions / totalSessions) * 100 : 0;
+        formattedValue = `${Math.round(rate)}%`;
+        subtitle = `${completedSessions} מתוך ${totalSessions} סשנים`;
+        value = rate;
       }
 
       return {
@@ -67,7 +130,7 @@ export async function fetchWidgetData(config: WidgetConfig): Promise<Partial<Wid
       };
     }
 
-    // Funnel
+    // ── Funnel ──
     if (config.type === "funnel" && config.funnelField && config.funnelStages?.length) {
       const chartData = config.funnelStages.map(stage => ({
         label: stage.label,
@@ -77,18 +140,18 @@ export async function fetchWidgetData(config: WidgetConfig): Promise<Partial<Wid
       return { chartData };
     }
 
-    // Charts with groupBy
-    if (config.groupBy === "created_month") {
+    // ── GroupBy: month ──
+    if (config.groupBy === "created_month" || config.groupBy === "date_month") {
       const counts = new Array(12).fill(0);
       for (const rec of records) {
-        const d = new Date(rec.created_at);
+        const d = new Date(rec[dateField]);
         if (!isNaN(d.getTime())) counts[d.getMonth()]++;
       }
       return { chartData: MONTH_NAMES.map((label, i) => ({ label, value: counts[i] })) };
     }
 
+    // ── GroupBy: stage_name (deals) ──
     if (config.groupBy === "stage_name") {
-      // For deals, fetch stage names
       const { data: stages } = await supabase.from("crm_pipeline_stages").select("id, name, color, order_index").order("order_index");
       const grouped: Record<string, { count: number; color: string }> = {};
       for (const rec of records) {
@@ -102,6 +165,17 @@ export async function fetchWidgetData(config: WidgetConfig): Promise<Partial<Wid
       };
     }
 
+    // ── GroupBy: ad spend by month (sum spend, not count) ──
+    if (config.dataSource === "crm_ad_daily_stats" && config.groupBy) {
+      const monthlySpend = new Array(12).fill(0);
+      for (const rec of records) {
+        const d = new Date(rec.date);
+        if (!isNaN(d.getTime())) monthlySpend[d.getMonth()] += Number(rec.spend) || 0;
+      }
+      return { chartData: MONTH_NAMES.map((label, i) => ({ label, value: Math.round(monthlySpend[i]) })) };
+    }
+
+    // ── GroupBy: generic field ──
     if (config.groupBy) {
       const grouped: Record<string, number> = {};
       for (const rec of records) {

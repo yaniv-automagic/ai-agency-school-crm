@@ -120,30 +120,29 @@ export default function WidgetConfigPanel({ config, onSave, onClose }: Props) {
             </select>
           </div>
 
-          {/* Metric (for number widgets on deals) */}
-          {widgetType === "number" && dataSource === "crm_deals" && (
-            <div>
-              <label className="block text-xs font-semibold mb-1.5 text-muted-foreground">מדד</label>
-              <div className="flex gap-1.5">
-                {[
-                  { value: "", label: "ספירה" },
-                  { value: "value", label: "סכום ₪" },
-                ].map(m => (
-                  <button
-                    key={m.value}
-                    onClick={() => setMetric(m.value)}
-                    className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                      metric === m.value
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "border-border text-muted-foreground"
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
+          {/* Metric options per data source */}
+          {widgetType === "number" && dataSource && (() => {
+            const metricOptions: { value: string; label: string }[] =
+              dataSource === "crm_deals" ? [{ value: "", label: "ספירה" }, { value: "value", label: "סכום ₪" }] :
+              dataSource === "crm_ad_daily_stats" ? [{ value: "spend", label: "הוצאה ₪" }, { value: "clicks", label: "קליקים" }, { value: "leads", label: "לידים" }, { value: "cpl", label: "עלות לליד" }] :
+              dataSource === "crm_meetings" ? [{ value: "", label: "ספירה" }, { value: "show_rate", label: "אחוז הגעה" }, { value: "close_rate", label: "אחוז סגירה" }] :
+              dataSource === "crm_program_enrollments" ? [{ value: "", label: "ספירה" }, { value: "completion", label: "אחוז השלמה" }] :
+              [];
+            if (metricOptions.length === 0) return null;
+            return (
+              <div>
+                <label className="block text-xs font-semibold mb-1.5 text-muted-foreground">מדד</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {metricOptions.map(m => (
+                    <button key={m.value} onClick={() => setMetric(m.value)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${metric === m.value ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground"}`}>
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Group by */}
           {["bar", "pie", "line"].includes(widgetType) && dataSource && (

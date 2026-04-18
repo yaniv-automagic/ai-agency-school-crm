@@ -3,7 +3,6 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   Users,
-  Building2,
   Kanban,
   CheckSquare,
   Settings,
@@ -13,6 +12,11 @@ import {
   Zap,
   Megaphone,
   Calendar,
+  Video,
+  GraduationCap,
+  FileSignature,
+  Radio,
+  DollarSign,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -23,13 +27,17 @@ interface SidebarProps {
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "דשבורד" },
   { to: "/contacts", icon: Users, label: "אנשי קשר" },
-  { to: "/accounts", icon: Building2, label: "חשבונות" },
   { to: "/pipeline", icon: Kanban, label: "צנרת מכירות" },
+  { to: "/meetings", icon: Video, label: "פגישות" },
   { to: "/tasks", icon: CheckSquare, label: "משימות" },
   { to: "/calendar", icon: Calendar, label: "לוח שנה" },
-  { to: "/products", icon: Package, label: "מוצרים" },
-  { to: "/automations", icon: Zap, label: "אוטומציות" },
+  { to: "/enrollments", icon: GraduationCap, label: "תלמידים" },
+  { to: "/contracts", icon: FileSignature, label: "חוזים" },
+  { to: "/finance", icon: DollarSign, label: "פיננסים" },
+  { to: "/events", icon: Radio, label: "אירועים" },
   { to: "/campaigns", icon: Megaphone, label: "קמפיינים" },
+  { to: "/automations", icon: Zap, label: "אוטומציות" },
+  { to: "/products", icon: Package, label: "מוצרים" },
   { to: "/settings", icon: Settings, label: "הגדרות" },
 ];
 

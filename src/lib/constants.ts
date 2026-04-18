@@ -71,3 +71,72 @@ export const CURRENCIES = [
   { value: "USD", label: "$", name: "דולר" },
   { value: "EUR", label: "€", name: "יורו" },
 ] as const;
+
+export const MEETING_TYPES = [
+  { value: "sales_consultation", label: "פגישת מכירה", color: "text-blue-500" },
+  { value: "mentoring_1on1", label: "ליווי אישי 1:1", color: "text-purple-500" },
+  { value: "mastermind_group", label: "מאסטרמיינד קבוצתי", color: "text-orange-500" },
+  { value: "trial_lesson", label: "שיעור ניסיון", color: "text-green-500" },
+] as const;
+
+export const MEETING_STATUSES = [
+  { value: "scheduled", label: "נקבעה", color: "bg-blue-100 text-blue-700" },
+  { value: "confirmed", label: "אושרה", color: "bg-green-100 text-green-700" },
+  { value: "completed", label: "התקיימה", color: "bg-emerald-100 text-emerald-700" },
+  { value: "no_show", label: "לא הגיע", color: "bg-red-100 text-red-700" },
+  { value: "cancelled", label: "בוטלה", color: "bg-gray-100 text-gray-600" },
+  { value: "rescheduled", label: "נדחתה", color: "bg-amber-100 text-amber-700" },
+] as const;
+
+export const MEETING_OUTCOMES = [
+  { value: "won", label: "נסגר בהצלחה", color: "text-green-600" },
+  { value: "lost", label: "לא סגר", color: "text-red-500" },
+  { value: "follow_up", label: "דורש מעקב", color: "text-amber-500" },
+  { value: "no_show", label: "לא הגיע", color: "text-gray-500" },
+] as const;
+
+export const ENROLLMENT_STATUSES = [
+  { value: "pending", label: "ממתין", color: "bg-gray-100 text-gray-600" },
+  { value: "active", label: "פעיל", color: "bg-green-100 text-green-700" },
+  { value: "completed", label: "הושלם", color: "bg-blue-100 text-blue-700" },
+  { value: "paused", label: "מושהה", color: "bg-amber-100 text-amber-700" },
+  { value: "cancelled", label: "בוטל", color: "bg-red-100 text-red-700" },
+] as const;
+
+export const SESSION_TYPES = [
+  { value: "personal", label: "פגישה אישית" },
+  { value: "mastermind", label: "מאסטרמיינד" },
+  { value: "course_access", label: "גישה לקורס" },
+] as const;
+
+export const SESSION_STATUSES = [
+  { value: "planned", label: "מתוכנן", color: "bg-gray-100 text-gray-600" },
+  { value: "scheduled", label: "נקבע", color: "bg-blue-100 text-blue-700" },
+  { value: "completed", label: "הושלם", color: "bg-green-100 text-green-700" },
+  { value: "missed", label: "לא התקיים", color: "bg-red-100 text-red-700" },
+  { value: "cancelled", label: "בוטל", color: "bg-gray-100 text-gray-500" },
+] as const;
+
+export const CONTRACT_STATUSES = [
+  { value: "draft", label: "טיוטה", color: "bg-gray-100 text-gray-600" },
+  { value: "sent", label: "נשלח", color: "bg-blue-100 text-blue-700" },
+  { value: "viewed", label: "נצפה", color: "bg-amber-100 text-amber-700" },
+  { value: "signed", label: "נחתם", color: "bg-green-100 text-green-700" },
+  { value: "expired", label: "פג תוקף", color: "bg-red-100 text-red-700" },
+  { value: "cancelled", label: "בוטל", color: "bg-gray-100 text-gray-500" },
+] as const;
+
+export const AD_PLATFORMS = [
+  { value: "facebook", label: "פייסבוק" },
+  { value: "instagram", label: "אינסטגרם" },
+  { value: "youtube", label: "יוטיוב" },
+  { value: "google", label: "גוגל" },
+  { value: "organic", label: "אורגני" },
+] as const;
+
+export const ENTRY_TYPES = [
+  { value: "vsl", label: "VSL" },
+  { value: "webinar", label: "וובינר" },
+  { value: "organic", label: "אורגני" },
+  { value: "direct", label: "ישיר" },
+] as const;
