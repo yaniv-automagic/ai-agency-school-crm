@@ -130,14 +130,47 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
       console.log(`[Fillout] Created new contact ${contactId}`);
     }
 
+    // Save form submission
     await supabase.from("crm_form_submissions").insert({ contact_id: contactId, data: payload, source_url: contact.landing_page_url, utm_params: urlParams });
 
-    if (mapping?.auto_create_deal && contactId && mapping.pipeline_id && mapping.stage_id) {
+    // Log as activity in timeline (visible in contact detail page)
+    if (contactId) {
+      const formName = mapping?.name || formId;
+      const isReturning = !!existingContact;
+      const utmInfo = [
+        urlParams.utm_source && `source: ${urlParams.utm_source}`,
+        urlParams.utm_campaign && `campaign: ${urlParams.utm_campaign}`,
+        contact.entry_type && `entry: ${contact.entry_type}`,
+      ].filter(Boolean).join(" | ");
+
+      await supabase.from("crm_activities").insert({
+        contact_id: contactId,
+        type: "system",
+        subject: isReturning ? `השלים טופס שוב — ${formName}` : `השלים טופס — ${formName}`,
+        body: [
+          isReturning ? "ליד חוזר — השאיר פרטים שוב" : "ליד חדש — השאיר פרטים לראשונה",
+          utmInfo && `שיוך: ${utmInfo}`,
+          contact.landing_page_url && `דף: ${contact.landing_page_url}`,
+        ].filter(Boolean).join("\n"),
+        metadata: {
+          form_type: "fillout",
+          form_id: formId,
+          form_name: formName,
+          is_returning: isReturning,
+          utm_source: urlParams.utm_source || null,
+          utm_campaign: urlParams.utm_campaign || null,
+          entry_type: contact.entry_type || null,
+        },
+      });
+    }
+
+    // Auto-create deal (only for NEW contacts, not returning)
+    if (!existingContact && mapping?.auto_create_deal && contactId && mapping.pipeline_id && mapping.stage_id) {
       await supabase.from("crm_deals").insert({ contact_id: contactId, pipeline_id: mapping.pipeline_id, stage_id: mapping.stage_id, title: `ליד מ-${mapping.name || "Fillout"}`, product_id: mapping.product_id || null, status: "open", probability: 10 });
     }
 
-    console.log(`[Fillout] Contact ${contactId} from form ${formId}`);
-    res.json({ success: true, contactId });
+    console.log(`[Fillout] Contact ${contactId} (${existingContact ? 'updated' : 'new'}) from form ${formId}`);
+    res.json({ success: true, contactId, isNew: !existingContact });
   } catch (err: any) {
     console.error("[Fillout] Error:", err);
     res.status(500).json({ error: err.message });
@@ -183,26 +216,64 @@ webhookRouter.post("/elementor", async (req, res) => {
     if (!contact.first_name) contact.first_name = "ליד";
     if (!contact.last_name) contact.last_name = "";
 
+    // Dedupe
     let contactId: string | null = null;
+    let isReturning = false;
     if (contact.email) {
-      const { data: ex } = await supabase.from("crm_contacts").select("id").eq("email", contact.email).single();
-      if (ex) { contactId = ex.id; await supabase.from("crm_contacts").update({ ...contact, updated_at: new Date().toISOString() }).eq("id", contactId); }
+      const { data: ex } = await supabase.from("crm_contacts").select("*").eq("email", contact.email).single();
+      if (ex) {
+        contactId = ex.id;
+        isReturning = true;
+        // Preserve first-touch attribution
+        const updates: Record<string, any> = { updated_at: new Date().toISOString(), conversion_at: new Date().toISOString() };
+        if (contact.first_name && contact.first_name !== "ליד") updates.first_name = contact.first_name;
+        if (contact.phone) { updates.phone = contact.phone; updates.whatsapp_phone = contact.phone; }
+        if (!ex.utm_source && contact.utm_source) updates.utm_source = contact.utm_source;
+        if (!ex.utm_medium && contact.utm_medium) updates.utm_medium = contact.utm_medium;
+        if (!ex.utm_campaign && contact.utm_campaign) updates.utm_campaign = contact.utm_campaign;
+        if (!ex.ad_platform && contact.ad_platform) updates.ad_platform = contact.ad_platform;
+        if (!ex.entry_type && contact.entry_type) updates.entry_type = contact.entry_type;
+        if (!ex.landing_page_url && contact.landing_page_url) updates.landing_page_url = contact.landing_page_url;
+        await supabase.from("crm_contacts").update(updates).eq("id", contactId);
+      }
     }
     if (!contactId) {
       const { data: nc } = await supabase.from("crm_contacts").insert(contact).select("id").single();
       contactId = nc?.id || null;
     }
 
+    // Save submission
     await supabase.from("crm_form_submissions").insert({ contact_id: contactId, data: payload, source_url: contact.landing_page_url, utm_params: { utm_source: contact.utm_source, utm_medium: contact.utm_medium, utm_campaign: contact.utm_campaign } });
 
-    const { data: dp } = await supabase.from("crm_pipelines").select("id").eq("is_default", true).single();
-    const { data: fs } = await supabase.from("crm_pipeline_stages").select("id").eq("pipeline_id", dp?.id).order("order_index").limit(1).single();
-    if (contactId && dp && fs) {
-      await supabase.from("crm_deals").insert({ contact_id: contactId, pipeline_id: dp.id, stage_id: fs.id, title: contact.entry_type === "webinar" ? "הרשמה לוובינר" : "ליד מדף נחיתה", status: "open", probability: 10 });
+    // Timeline activity
+    if (contactId) {
+      const pagePath = (contact.landing_page_url || "").replace("https://aiagencyschool.co.il", "");
+      const formType = pagePath.includes("vsl") ? "VSL" : pagePath.includes("webinar") ? "וובינר" : "דף נחיתה";
+      await supabase.from("crm_activities").insert({
+        contact_id: contactId,
+        type: "system",
+        subject: isReturning ? `השלים טופס שוב — ${formType}` : `השלים טופס — ${formType}`,
+        body: [
+          isReturning ? "ליד חוזר" : "ליד חדש",
+          contact.utm_source && `מקור: ${contact.utm_source}`,
+          contact.utm_campaign && `קמפיין: ${contact.utm_campaign}`,
+          pagePath && `דף: ${pagePath}`,
+        ].filter(Boolean).join("\n"),
+        metadata: { form_type: "elementor", is_returning: isReturning, utm_source: contact.utm_source },
+      });
     }
 
-    console.log(`[Elementor] Contact ${contactId}`);
-    res.json({ success: true, contactId });
+    // Auto-create deal only for new contacts
+    if (!isReturning) {
+      const { data: dp } = await supabase.from("crm_pipelines").select("id").eq("is_default", true).single();
+      const { data: fs } = await supabase.from("crm_pipeline_stages").select("id").eq("pipeline_id", dp?.id).order("order_index").limit(1).single();
+      if (contactId && dp && fs) {
+        await supabase.from("crm_deals").insert({ contact_id: contactId, pipeline_id: dp.id, stage_id: fs.id, title: contact.entry_type === "webinar" ? "הרשמה לוובינר" : "ליד מדף נחיתה", status: "open", probability: 10 });
+      }
+    }
+
+    console.log(`[Elementor] Contact ${contactId} (${isReturning ? 'returning' : 'new'})`);
+    res.json({ success: true, contactId, isNew: !isReturning });
   } catch (err: any) {
     console.error("[Elementor]", err);
     res.status(500).json({ error: err.message });
