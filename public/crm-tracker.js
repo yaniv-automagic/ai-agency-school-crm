@@ -1,193 +1,216 @@
 /**
- * AI Agency School CRM - WordPress Tracking Script
+ * AI Agency School CRM - WordPress Tracking Script v2
  *
- * Add this to your WordPress site (Elementor > Custom Code or wp_head)
- * It captures UTM params from the URL and stores them in cookies/localStorage
- * so they persist across pages and get sent with form submissions.
- *
- * Usage: Add this script tag to your WordPress header:
+ * Add to WordPress header:
  * <script src="https://crm-automation-backend.onrender.com/crm-tracker.js"></script>
  */
 (function() {
   'use strict';
 
   var CRM_BACKEND = 'https://crm-automation-backend.onrender.com';
-  var COOKIE_DAYS = 30;
   var STORAGE_KEY = 'crm_utm';
+  var COOKIE_DAYS = 30;
 
-  // ── Parse URL params ──
+  // ── URL params ──
   function getParams() {
     var params = {};
     var search = window.location.search.substring(1);
     if (!search) return params;
     search.split('&').forEach(function(pair) {
       var kv = pair.split('=');
-      params[decodeURIComponent(kv[0])] = decodeURIComponent(kv[1] || '');
+      if (kv[0]) params[decodeURIComponent(kv[0])] = decodeURIComponent(kv[1] || '');
     });
     return params;
   }
 
-  // ── Cookie helpers ──
+  // ── Cookies ──
   function setCookie(name, value, days) {
     var d = new Date();
     d.setTime(d.getTime() + days * 86400000);
     document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + d.toUTCString() + ';path=/;SameSite=Lax';
   }
 
-  function getCookie(name) {
-    var v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
-    return v ? decodeURIComponent(v.pop()) : '';
-  }
-
   // ── Capture & store UTMs ──
   var params = getParams();
-  var utmFields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'gclid', 'ad_id', 'adset_id', 'campaign_id'];
   var stored = {};
+  try { stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e) {}
 
-  try {
-    stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-  } catch(e) {}
-
-  // Only overwrite if we have new UTM params (first touch attribution)
-  var hasNewUtm = false;
+  var utmFields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'gclid', 'ad_id', 'adset_id', 'campaign_id'];
   utmFields.forEach(function(f) {
-    if (params[f]) {
-      stored[f] = params[f];
-      hasNewUtm = true;
-    }
+    if (params[f]) stored[f] = params[f];
   });
 
-  // Always track current page and referrer
   stored.page_url = window.location.href;
   stored.referrer = document.referrer || '';
 
-  // Detect entry type from URL path
   var path = window.location.pathname.toLowerCase();
-  if (path.includes('vsl')) stored.entry_type = 'vsl';
+  if (path.includes('vsl') || path.includes('שאלון')) stored.entry_type = 'vsl';
   else if (path.includes('webinar')) stored.entry_type = 'webinar';
-  else if (path.includes('meeting')) stored.entry_type = 'direct';
 
-  // Save
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-  } catch(e) {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(stored)); } catch(e) {}
+  if (stored.utm_source) setCookie('crm_utm_source', stored.utm_source, COOKIE_DAYS);
 
-  // Also store in cookie for cross-subdomain access
-  if (hasNewUtm) {
-    setCookie('crm_utm_source', stored.utm_source || '', COOKIE_DAYS);
-    setCookie('crm_utm_medium', stored.utm_medium || '', COOKIE_DAYS);
-    setCookie('crm_utm_campaign', stored.utm_campaign || '', COOKIE_DAYS);
-    setCookie('crm_utm_content', stored.utm_content || '', COOKIE_DAYS);
-    setCookie('crm_entry_type', stored.entry_type || '', COOKIE_DAYS);
+  // ── Send data to CRM ──
+  function sendToCRM(endpoint, data) {
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', CRM_BACKEND + endpoint, true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.send(JSON.stringify(data));
+    } catch(e) {}
   }
 
-  // ── Inject UTM params into Fillout embeds ──
-  // Fillout with data-fillout-inherit-parameters already handles this,
-  // but for links we need to append params
-  function appendUtmToLinks() {
+  // ── Append UTMs to Fillout links ──
+  function patchFilloutLinks() {
     var links = document.querySelectorAll('a[href*="fillout.com"]');
     links.forEach(function(link) {
       var href = link.getAttribute('href');
-      if (!href) return;
+      if (!href || href.includes('utm_source=')) return;
       var sep = href.includes('?') ? '&' : '?';
-      var utmString = '';
-      if (stored.utm_source) utmString += 'utm_source=' + encodeURIComponent(stored.utm_source) + '&';
-      if (stored.utm_medium) utmString += 'utm_medium=' + encodeURIComponent(stored.utm_medium) + '&';
-      if (stored.utm_campaign) utmString += 'utm_campaign=' + encodeURIComponent(stored.utm_campaign) + '&';
-      if (stored.utm_content) utmString += 'utm_content=' + encodeURIComponent(stored.utm_content) + '&';
-      if (stored.entry_type) utmString += 'entry_type=' + encodeURIComponent(stored.entry_type) + '&';
-      utmString += 'page_url=' + encodeURIComponent(window.location.href);
-      if (utmString && !href.includes('utm_source')) {
-        link.setAttribute('href', href + sep + utmString);
-      }
+      var qs = '';
+      if (stored.utm_source) qs += 'utm_source=' + encodeURIComponent(stored.utm_source) + '&';
+      if (stored.utm_medium) qs += 'utm_medium=' + encodeURIComponent(stored.utm_medium) + '&';
+      if (stored.utm_campaign) qs += 'utm_campaign=' + encodeURIComponent(stored.utm_campaign) + '&';
+      if (stored.utm_content) qs += 'utm_content=' + encodeURIComponent(stored.utm_content) + '&';
+      if (stored.entry_type) qs += 'entry_type=' + encodeURIComponent(stored.entry_type) + '&';
+      qs += 'page_url=' + encodeURIComponent(window.location.href);
+      link.setAttribute('href', href + sep + qs);
     });
   }
 
-  // ── Inject UTM as hidden fields into Elementor forms ──
-  function injectUtmIntoForms() {
-    var forms = document.querySelectorAll('.elementor-form');
-    forms.forEach(function(form) {
-      // Check if already injected
-      if (form.querySelector('input[name="utm_source"]')) return;
+  // ── Intercept Elementor form AJAX ──
+  // Elementor Pro sends forms via AJAX (jQuery.ajax or fetch).
+  // We intercept the XMLHttpRequest to catch the form data AFTER it's submitted.
+  function hookElementorAjax() {
+    var origOpen = XMLHttpRequest.prototype.open;
+    var origSend = XMLHttpRequest.prototype.send;
 
-      var fieldsToInject = {
-        'utm_source': stored.utm_source,
-        'utm_medium': stored.utm_medium,
-        'utm_campaign': stored.utm_campaign,
-        'utm_content': stored.utm_content,
-        'utm_term': stored.utm_term,
-        'entry_type': stored.entry_type,
-        'page_url': window.location.href,
-        'referrer': document.referrer,
-        'fbclid': stored.fbclid,
-        'gclid': stored.gclid,
-      };
+    XMLHttpRequest.prototype.open = function(method, url) {
+      this._crmUrl = url;
+      this._crmMethod = method;
+      return origOpen.apply(this, arguments);
+    };
 
-      for (var name in fieldsToInject) {
-        if (fieldsToInject[name]) {
-          var input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = name;
-          input.value = fieldsToInject[name];
-          form.appendChild(input);
-        }
-      }
-    });
-  }
+    XMLHttpRequest.prototype.send = function(body) {
+      var xhr = this;
+      var url = this._crmUrl || '';
 
-  // ── Hook into Elementor form submissions ──
-  // Add webhook action to send data to CRM
-  function hookElementorForms() {
-    document.addEventListener('submit', function(e) {
-      var form = e.target;
-      if (!form.classList || !form.classList.contains('elementor-form')) return;
+      // Elementor Pro sends to admin-ajax.php with action=elementor_pro_forms_send_form
+      if (url.includes('admin-ajax.php') && body && typeof body === 'string' && body.includes('elementor_pro_forms')) {
+        xhr.addEventListener('load', function() {
+          try {
+            // Parse the form data that was sent
+            var formData = {};
+            var pairs = body.split('&');
+            for (var i = 0; i < pairs.length; i++) {
+              var kv = pairs[i].split('=');
+              var key = decodeURIComponent(kv[0] || '');
+              var val = decodeURIComponent(kv[1] || '');
+              if (key.startsWith('form_fields[')) {
+                var fieldName = key.replace('form_fields[', '').replace(']', '');
+                formData[fieldName] = val;
+              }
+            }
 
-      // Collect form data
-      var data = { fields: {}, meta: {} };
-      var inputs = form.querySelectorAll('input, select, textarea');
-      inputs.forEach(function(input) {
-        var name = input.name || input.id || '';
-        if (name && input.value) {
-          if (name.startsWith('utm_') || name === 'entry_type' || name === 'page_url' || name === 'referrer' || name === 'fbclid' || name === 'gclid') {
-            data.meta[name] = input.value;
-          } else {
-            data.fields[name] = input.value;
+            // Only send to CRM if we got some data
+            if (Object.keys(formData).length > 0) {
+              var crmPayload = {
+                fields: formData,
+                meta: {
+                  utm_source: stored.utm_source || null,
+                  utm_medium: stored.utm_medium || null,
+                  utm_campaign: stored.utm_campaign || null,
+                  utm_content: stored.utm_content || null,
+                  utm_term: stored.utm_term || null,
+                  entry_type: stored.entry_type || null,
+                  page_url: window.location.href,
+                  referrer: document.referrer,
+                  fbclid: stored.fbclid || null,
+                  gclid: stored.gclid || null,
+                }
+              };
+
+              console.log('[CRM Tracker] Elementor form captured:', Object.keys(formData));
+              sendToCRM('/api/webhooks/elementor', crmPayload);
+            }
+          } catch(e) {
+            console.warn('[CRM Tracker] Error parsing form:', e);
           }
-        }
-      });
-
-      // Send to CRM backend (non-blocking)
-      try {
-        navigator.sendBeacon(CRM_BACKEND + '/api/webhooks/elementor', JSON.stringify(data));
-      } catch(err) {
-        // Fallback
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', CRM_BACKEND + '/api/webhooks/elementor', true);
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.send(JSON.stringify(data));
+        });
       }
-    }, true);
+
+      return origSend.apply(this, arguments);
+    };
+  }
+
+  // ── Also hook fetch() for newer Elementor versions ──
+  function hookFetchApi() {
+    var origFetch = window.fetch;
+    if (!origFetch) return;
+
+    window.fetch = function(url, opts) {
+      var urlStr = typeof url === 'string' ? url : (url && url.url) || '';
+
+      if (urlStr.includes('admin-ajax.php') && opts && opts.body) {
+        var bodyStr = '';
+        if (typeof opts.body === 'string') bodyStr = opts.body;
+        else if (opts.body instanceof FormData) {
+          // Convert FormData to check
+          opts.body.forEach(function(val, key) { bodyStr += key + '=' + val + '&'; });
+        }
+
+        if (bodyStr.includes('elementor') && bodyStr.includes('form_fields')) {
+          // Parse and send to CRM after fetch completes
+          origFetch.apply(this, arguments).then(function() {
+            try {
+              var formData = {};
+              var pairs = bodyStr.split('&');
+              for (var i = 0; i < pairs.length; i++) {
+                var kv = pairs[i].split('=');
+                var key = decodeURIComponent(kv[0] || '');
+                var val = decodeURIComponent(kv[1] || '');
+                if (key.startsWith('form_fields[')) {
+                  formData[key.replace('form_fields[', '').replace(']', '')] = val;
+                }
+              }
+              if (Object.keys(formData).length > 0) {
+                console.log('[CRM Tracker] Elementor form (fetch) captured:', Object.keys(formData));
+                sendToCRM('/api/webhooks/elementor', {
+                  fields: formData,
+                  meta: {
+                    utm_source: stored.utm_source || null,
+                    utm_medium: stored.utm_medium || null,
+                    utm_campaign: stored.utm_campaign || null,
+                    utm_content: stored.utm_content || null,
+                    page_url: window.location.href,
+                    referrer: document.referrer,
+                  }
+                });
+              }
+            } catch(e) {}
+          });
+        }
+      }
+
+      return origFetch.apply(this, arguments);
+    };
   }
 
   // ── Run ──
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
-      appendUtmToLinks();
-      injectUtmIntoForms();
-      hookElementorForms();
-    });
-  } else {
-    appendUtmToLinks();
-    injectUtmIntoForms();
-    hookElementorForms();
+  function init() {
+    patchFilloutLinks();
+    hookElementorAjax();
+    hookFetchApi();
   }
 
-  // Re-run after Elementor loads dynamically
-  var observer = new MutationObserver(function() {
-    appendUtmToLinks();
-    injectUtmIntoForms();
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 
-  console.log('[CRM Tracker] Loaded. UTM:', JSON.stringify(stored));
+  // Re-patch Fillout links when DOM changes (Elementor lazy loading)
+  new MutationObserver(function() { patchFilloutLinks(); }).observe(document.body, { childList: true, subtree: true });
+
+  console.log('[CRM Tracker v2] Loaded. UTM:', stored.utm_source || '(none)', '| Entry:', stored.entry_type || '(none)');
 })();
