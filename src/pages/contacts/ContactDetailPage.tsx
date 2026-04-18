@@ -180,17 +180,20 @@ export default function ContactDetailPage() {
               )}
             </div>
             <div className="flex items-center gap-2 mt-2">
+              {/* Source badge */}
+              {source && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-secondary text-secondary-foreground">
+                  {source.label}
+                </span>
+              )}
+
+              {/* Status/Stage picker */}
               <div className="relative">
                 <button
                   onClick={() => setShowStatusPicker(!showStatusPicker)}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer"
-                  )}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer"
                 >
-                  <span
-                    className="w-1.5 h-1.5 rounded-full"
-                    style={{ backgroundColor: stage?.color || "#6b7280" }}
-                  />
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: stage?.color || "#6b7280" }} />
                   {stage?.name || "ללא שלב"}
                 </button>
                 {showStatusPicker && (
@@ -223,23 +226,53 @@ export default function ContactDetailPage() {
                   </div>
                 )}
               </div>
-              {source && (
-                <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
-                  {source.label}
-                </span>
-              )}
-              {contact.assigned_member && (
-                <div className="flex items-center gap-1.5 bg-secondary px-2 py-0.5 rounded-full">
-                  {contact.assigned_member.avatar_url ? (
-                    <img src={contact.assigned_member.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
+
+              {/* Assignee picker */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowAssigneePicker(!showAssigneePicker)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer"
+                >
+                  {contact.assigned_member ? (
+                    <>
+                      {contact.assigned_member.avatar_url ? (
+                        <img src={contact.assigned_member.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center text-[8px] font-bold text-primary">
+                          {contact.assigned_member.display_name?.charAt(0)}
+                        </div>
+                      )}
+                      {contact.assigned_member.display_name}
+                    </>
                   ) : (
-                    <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center text-[8px] font-medium text-primary">
-                      {contact.assigned_member.display_name?.charAt(0)}
-                    </div>
+                    <span className="text-muted-foreground">לא משויך</span>
                   )}
-                  <span className="text-xs text-muted-foreground">{contact.assigned_member.display_name}</span>
-                </div>
-              )}
+                </button>
+                {showAssigneePicker && (
+                  <div className="absolute top-full mt-1 right-0 bg-card border border-border rounded-xl shadow-xl py-1 w-48 z-50" dir="rtl">
+                    <button
+                      onClick={() => { updateContact.mutate({ id: contact.id, assigned_to: null } as any); setShowAssigneePicker(false); }}
+                      className={cn("w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary text-right", !contact.assigned_to && "bg-secondary/50 font-medium")}
+                    >
+                      ללא שיוך
+                    </button>
+                    {members.map(m => (
+                      <button
+                        key={m.id}
+                        onClick={() => { updateContact.mutate({ id: contact.id, assigned_to: m.id } as any); setShowAssigneePicker(false); }}
+                        className={cn("w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary text-right", m.id === contact.assigned_to && "bg-secondary/50 font-medium")}
+                      >
+                        {m.avatar_url ? (
+                          <img src={m.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center text-[10px] font-medium">{m.display_name?.charAt(0)}</div>
+                        )}
+                        {m.display_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -326,51 +359,6 @@ export default function ContactDetailPage() {
               <p className="text-sm text-muted-foreground">{contact.job_title}</p>
             )}
 
-            {/* Assignee - inline edit */}
-            <div className="relative pt-2 border-t border-border">
-              <button
-                onClick={() => setShowAssigneePicker(!showAssigneePicker)}
-                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground w-full"
-              >
-                <UserCircle size={14} />
-                <span>
-                  אחראי: <span className="font-medium text-foreground">
-                    {contact.assigned_member?.display_name || "לא משויך"}
-                  </span>
-                </span>
-              </button>
-              {showAssigneePicker && (
-                <div className="absolute top-full mt-1 right-0 bg-card border border-border rounded-xl shadow-xl py-1 w-48 z-50" dir="rtl">
-                  <button
-                    onClick={() => {
-                      updateContact.mutate({ id: contact.id, assigned_to: null } as any);
-                      setShowAssigneePicker(false);
-                    }}
-                    className={cn(
-                      "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary text-right",
-                      !contact.assigned_to && "bg-secondary/50 font-medium"
-                    )}
-                  >
-                    ללא שיוך
-                  </button>
-                  {members.map(m => (
-                    <button
-                      key={m.id}
-                      onClick={() => {
-                        updateContact.mutate({ id: contact.id, assigned_to: m.id } as any);
-                        setShowAssigneePicker(false);
-                      }}
-                      className={cn(
-                        "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary text-right",
-                        m.id === contact.assigned_to && "bg-secondary/50 font-medium"
-                      )}
-                    >
-                      {m.display_name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Upcoming Meetings */}
