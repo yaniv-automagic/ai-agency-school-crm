@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ArrowRight, Search, Phone, MoreVertical, Paperclip, X } from "lucide-react";
+import { ArrowRight, Search, Phone, MoreVertical, Paperclip, X, WifiOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 import type { Contact } from "@/types/crm";
 import type { WhatsAppMessage, WhatsAppTemplate } from "@/types/whatsapp";
 import { DEFAULT_TEMPLATES, formatPhoneForApi, phoneToJid } from "@/types/whatsapp";
 import * as evo from "@/lib/evolution-api";
+import type { WhatsAppInstance } from "@/lib/evolution-api";
 import ChatBubble from "./ChatBubble";
 import ChatInput from "./ChatInput";
 
@@ -15,10 +17,11 @@ interface WhatsAppChatProps {
   onClose: () => void;
 }
 
-type ViewState = "checking" | "not-configured" | "qr" | "chat";
+type ViewState = "checking" | "no-instance" | "qr" | "chat";
 
 export default function WhatsAppChat({ contact, onClose }: WhatsAppChatProps) {
   const [view, setView] = useState<ViewState>("checking");
+  const [instance, setInstance] = useState<WhatsAppInstance | null>(null);
   const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [profilePic, setProfilePic] = useState<string | null>(null);
@@ -28,6 +31,7 @@ export default function WhatsAppChat({ contact, onClose }: WhatsAppChatProps) {
   const [replyTo, setReplyTo] = useState<WhatsAppMessage | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const phone = contact.whatsapp_phone || contact.phone || "";
   const formattedPhone = formatPhoneForApi(phone);
@@ -41,21 +45,43 @@ export default function WhatsAppChat({ contact, onClose }: WhatsAppChatProps) {
   });
   const allTemplates = [...DEFAULT_TEMPLATES, ...customTemplates];
 
-  // Check connection on mount
+  // Check connection on mount - find user's instance
   useEffect(() => {
-    if (!evo.isConfigured()) {
-      setView("not-configured");
-      return;
-    }
-
     let cancelled = false;
     (async () => {
       try {
-        const state = await evo.getConnectionState();
+        const instances = await evo.listInstances();
         if (cancelled) return;
-        setView(state.state === "open" ? "chat" : "qr");
+
+        if (!instances.length) {
+          setView("no-instance");
+          return;
+        }
+
+        // Use default or first connected instance
+        const connected = instances.find(i => i.status === "connected");
+        const defaultInst = instances.find(i => i.is_default) || instances[0];
+        const activeInstance = connected || defaultInst;
+        setInstance(activeInstance);
+
+        if (activeInstance.status === "connected") {
+          setView("chat");
+        } else {
+          // Try to get status from Evolution API
+          try {
+            const status = await evo.getConnectionStatus(activeInstance.id);
+            if (cancelled) return;
+            if (status.status === "connected") {
+              setView("chat");
+            } else {
+              setView("qr");
+            }
+          } catch {
+            if (!cancelled) setView("qr");
+          }
+        }
       } catch {
-        if (!cancelled) setView("qr");
+        if (!cancelled) setView("no-instance");
       }
     })();
     return () => { cancelled = true; };
@@ -63,14 +89,14 @@ export default function WhatsAppChat({ contact, onClose }: WhatsAppChatProps) {
 
   // Load messages when in chat view
   useEffect(() => {
-    if (view !== "chat" || !formattedPhone) return;
+    if (view !== "chat" || !formattedPhone || !instance) return;
     let cancelled = false;
 
     (async () => {
       setLoadingMessages(true);
       try {
         const jid = phoneToJid(phone);
-        const data = await evo.findMessages(jid, 50) as any;
+        const data = await evo.findMessages(jid, 50, instance.id) as any;
         if (cancelled) return;
 
         const records = data?.messages?.records || data?.messages || [];
@@ -101,10 +127,10 @@ export default function WhatsAppChat({ contact, onClose }: WhatsAppChatProps) {
     })();
 
     // Load profile picture
-    evo.fetchProfilePicture(formattedPhone).then(url => { if (url) setProfilePic(url); });
+    evo.fetchProfilePicture(formattedPhone, instance.id).then(url => { if (url) setProfilePic(url); });
 
     return () => { cancelled = true; };
-  }, [view, phone]);
+  }, [view, phone, instance]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -115,16 +141,31 @@ export default function WhatsAppChat({ contact, onClose }: WhatsAppChatProps) {
 
   // Load QR code
   useEffect(() => {
-    if (view !== "qr") return;
+    if (view !== "qr" || !instance) return;
     let cancelled = false;
     (async () => {
       try {
-        const qr = await evo.getQRCode();
+        const qr = await evo.getQRCode(instance.id);
         if (!cancelled && qr.base64) setQrBase64(qr.base64);
       } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
-  }, [view]);
+  }, [view, instance]);
+
+  // Poll for connection when showing QR
+  useEffect(() => {
+    if (view !== "qr" || !instance) return;
+    const interval = setInterval(async () => {
+      try {
+        const result = await evo.getConnectionStatus(instance.id);
+        if (result.status === "connected") {
+          setView("chat");
+          toast.success("WhatsApp מחובר!");
+        }
+      } catch { /* ignore */ }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [view, instance]);
 
   const handleSend = useCallback(async (text: string) => {
     const msg: WhatsAppMessage = {
@@ -141,6 +182,7 @@ export default function WhatsAppChat({ contact, onClose }: WhatsAppChatProps) {
     // Save to DB
     supabase.from("crm_whatsapp_messages").insert({
       contact_id: contact.id,
+      instance_id: instance?.id,
       direction: "outbound",
       content: text,
       message_type: "text",
@@ -153,16 +195,17 @@ export default function WhatsAppChat({ contact, onClose }: WhatsAppChatProps) {
       body: text,
     });
 
-    // Send via Evolution API
+    // Send via backend proxy
     try {
-      await evo.sendTextMessage(formattedPhone, text);
+      await evo.sendTextMessage(formattedPhone, text, instance?.id);
       setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, status: "delivered" as const } : m));
     } catch (e) {
       console.error("[CRM-WhatsApp] Send failed:", e);
+      toast.error("שגיאה בשליחת ההודעה");
     }
 
     queryClient.invalidateQueries({ queryKey: ["activities"] });
-  }, [contact.id, formattedPhone, replyTo, queryClient]);
+  }, [contact.id, formattedPhone, replyTo, queryClient, instance]);
 
   const handleSendFile = useCallback(async (file: File) => {
     const msg: WhatsAppMessage = {
@@ -176,12 +219,12 @@ export default function WhatsAppChat({ contact, onClose }: WhatsAppChatProps) {
     setMessages(prev => [...prev, msg]);
 
     try {
-      await evo.sendMedia(formattedPhone, file);
+      await evo.sendMedia(formattedPhone, file, undefined, instance?.id);
       setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, status: "delivered" as const } : m));
     } catch {
       toast.error("שגיאה בשליחת הקובץ");
     }
-  }, [formattedPhone]);
+  }, [formattedPhone, instance]);
 
   const handleSelectTemplate = useCallback((template: WhatsAppTemplate) => {
     const body = template.body
@@ -275,57 +318,21 @@ export default function WhatsAppChat({ contact, onClose }: WhatsAppChatProps) {
           </div>
         )}
 
-        {view === "not-configured" && (
+        {view === "no-instance" && (
           <div className="flex-1 flex flex-col items-center justify-center bg-white px-8" dir="rtl">
             <div className="w-20 h-20 rounded-full bg-[#25d366]/10 flex items-center justify-center mb-4">
-              <Phone size={32} className="text-[#25d366]" />
+              <WifiOff size={32} className="text-[#667781]" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">WhatsApp לא מוגדר</h3>
-            <p className="text-sm text-[#667781] text-center mb-4">
-              כדי להשתמש ב-WhatsApp, הגדר את Evolution API בהגדרות האינטגרציות
+            <h3 className="text-lg font-semibold mb-2">WhatsApp לא מחובר</h3>
+            <p className="text-sm text-[#667781] text-center mb-6">
+              כדי לשלוח הודעות WhatsApp, חבר את החשבון האישי שלך בהגדרות
             </p>
-            <div className="w-full space-y-3 bg-[#f0f2f5] rounded-xl p-4 text-sm">
-              <p className="font-medium">הגדרות נדרשות:</p>
-              <div>
-                <label className="text-xs text-[#667781]">Evolution API URL</label>
-                <input
-                  type="text"
-                  defaultValue={localStorage.getItem("evo-api-url") || ""}
-                  onChange={e => localStorage.setItem("evo-api-url", e.target.value)}
-                  placeholder="http://localhost:8081"
-                  className="w-full px-3 py-2 rounded-lg border text-sm mt-1 outline-none"
-                  dir="ltr"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-[#667781]">API Key</label>
-                <input
-                  type="text"
-                  defaultValue={localStorage.getItem("evo-api-key") || ""}
-                  onChange={e => localStorage.setItem("evo-api-key", e.target.value)}
-                  placeholder="your-api-key"
-                  className="w-full px-3 py-2 rounded-lg border text-sm mt-1 outline-none"
-                  dir="ltr"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-[#667781]">Instance Name</label>
-                <input
-                  type="text"
-                  defaultValue={localStorage.getItem("evo-api-instance") || "crm-whatsapp"}
-                  onChange={e => localStorage.setItem("evo-api-instance", e.target.value)}
-                  placeholder="crm-whatsapp"
-                  className="w-full px-3 py-2 rounded-lg border text-sm mt-1 outline-none"
-                  dir="ltr"
-                />
-              </div>
-              <button
-                onClick={() => window.location.reload()}
-                className="w-full py-2 bg-[#25d366] text-white rounded-lg font-medium text-sm"
-              >
-                שמור ונסה להתחבר
-              </button>
-            </div>
+            <button
+              onClick={() => { onClose(); navigate("/settings/whatsapp"); }}
+              className="px-6 py-2.5 bg-[#25d366] text-white rounded-lg font-medium text-sm hover:bg-[#1da851]"
+            >
+              חבר WhatsApp עכשיו
+            </button>
           </div>
         )}
 
@@ -340,12 +347,7 @@ export default function WhatsAppChat({ contact, onClose }: WhatsAppChatProps) {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#25d366]" />
               </div>
             )}
-            <button
-              onClick={() => setView("checking")}
-              className="px-6 py-2 bg-[#25d366] text-white rounded-lg font-medium text-sm"
-            >
-              כבר סרקתי, בדוק שוב
-            </button>
+            <p className="text-xs text-muted-foreground">ממתין לסריקה...</p>
           </div>
         )}
 

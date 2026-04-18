@@ -1,9 +1,11 @@
-import { Search, Plus, LogOut } from "lucide-react";
+import { Search, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import CommandPalette from "@/components/shared/CommandPalette";
 import NotificationCenter from "./NotificationCenter";
+import TodaySchedule from "./TodaySchedule";
+import TodayTasks from "./TodayTasks";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useRealtimeSubscription } from "@/hooks/useRealtimeSubscription";
 
@@ -40,15 +42,9 @@ export default function Header() {
 
         {/* Actions */}
         <div className="flex items-center gap-3">
+          <TodaySchedule />
+          <TodayTasks />
           <NotificationCenter />
-
-          <button
-            onClick={() => navigate("/contacts?new=true")}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors"
-          >
-            <Plus size={16} />
-            <span className="hidden sm:inline">איש קשר חדש</span>
-          </button>
 
           {/* User menu */}
           <div className="flex items-center gap-2 border-r border-border pr-3 mr-1">

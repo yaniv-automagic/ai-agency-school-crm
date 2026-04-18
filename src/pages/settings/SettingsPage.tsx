@@ -1,7 +1,14 @@
 import { useNavigate } from "react-router-dom";
-import { Database, Webhook, FileText, Upload, FileSignature, Target, FormInput } from "lucide-react";
+import { Database, Webhook, FileText, Upload, FileSignature, Target, FormInput, MessageCircle } from "lucide-react";
 
 const settingsSections = [
+  {
+    title: "חיבור WhatsApp",
+    description: "חיבור חשבון WhatsApp אישי לשליחה וקבלת הודעות",
+    icon: MessageCircle,
+    path: "/settings/whatsapp",
+    color: "bg-emerald-50 text-emerald-500",
+  },
   {
     title: "צנרות מכירות",
     description: "ניהול צנרות, שלבים, צבעים והסתברויות",
@@ -11,7 +18,7 @@ const settingsSections = [
   },
   {
     title: "אינטגרציות",
-    description: "WhatsApp, Email, Google Calendar, Facebook Ads, Webhooks",
+    description: "Email, Google Calendar, Facebook Ads, Webhooks",
     icon: Webhook,
     path: "/settings/integrations",
     color: "bg-purple-50 text-purple-500",

@@ -51,6 +51,7 @@ const PipelineSettingsPage = lazy(() => import("./pages/settings/PipelineSetting
 const IntegrationSettingsPage = lazy(() => import("./pages/settings/IntegrationSettingsPage"));
 const FormsPage = lazy(() => import("./pages/settings/FormsPage"));
 const MigrationPage = lazy(() => import("./pages/settings/MigrationPage"));
+const WhatsAppSettingsPage = lazy(() => import("./pages/settings/WhatsAppSettingsPage"));
 
 function PageLoader() {
   return (
@@ -129,6 +130,7 @@ export default function App() {
           <Route path="/settings/integrations" element={<IntegrationSettingsPage />} />
           <Route path="/settings/forms" element={<FormsPage />} />
           <Route path="/settings/migration" element={<MigrationPage />} />
+          <Route path="/settings/whatsapp" element={<WhatsAppSettingsPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
