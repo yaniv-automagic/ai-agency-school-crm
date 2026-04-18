@@ -1,6 +1,9 @@
 import express from "express";
 import cors from "cors";
 import cron from "node-cron";
+import { readFileSync } from "fs";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
 import { processAutomationQueue } from "./engine/processor.js";
 import { processScheduledAutomations } from "./engine/scheduled.js";
 import { webhookRouter } from "./routes/webhooks.js";
@@ -11,6 +14,19 @@ const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json({ limit: "5mb" }));
+
+// Serve tracking script
+const __dirname = dirname(fileURLToPath(import.meta.url));
+app.get("/crm-tracker.js", (_req, res) => {
+  try {
+    const script = readFileSync(resolve(__dirname, "../../public/crm-tracker.js"), "utf-8");
+    res.setHeader("Content-Type", "application/javascript");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.send(script);
+  } catch {
+    res.status(404).send("// tracker not found");
+  }
+});
 
 // Routes
 app.use("/api", healthRouter);
