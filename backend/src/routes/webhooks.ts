@@ -12,7 +12,10 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
   const payload = req.body;
 
   try {
+    // Log FULL raw payload for debugging
     console.log(`[Fillout] Webhook for form ${formId}`);
+    console.log(`[Fillout] Raw payload keys: ${Object.keys(payload).join(', ')}`);
+    console.log(`[Fillout] Raw payload: ${JSON.stringify(payload).substring(0, 1000)}`);
 
     const { data: mapping } = await supabase
       .from("crm_fillout_form_mappings")
@@ -76,19 +79,55 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
     if (!contact.first_name) contact.first_name = "ליד";
     if (!contact.last_name) contact.last_name = "חדש";
 
-    // Dedupe
+    // Dedupe: find existing contact by email or phone
     let contactId: string | null = null;
+    let existingContact: any = null;
+
     if (contact.email) {
-      const { data: ex } = await supabase.from("crm_contacts").select("id").eq("email", contact.email).single();
-      if (ex) { contactId = ex.id; await supabase.from("crm_contacts").update({ ...contact, updated_at: new Date().toISOString() }).eq("id", contactId); }
+      const { data: ex } = await supabase.from("crm_contacts").select("*").eq("email", contact.email).single();
+      if (ex) { contactId = ex.id; existingContact = ex; }
     }
     if (!contactId && contact.phone) {
-      const { data: ex } = await supabase.from("crm_contacts").select("id").eq("phone", contact.phone).single();
-      if (ex) { contactId = ex.id; await supabase.from("crm_contacts").update({ ...contact, updated_at: new Date().toISOString() }).eq("id", contactId); }
+      const { data: ex } = await supabase.from("crm_contacts").select("*").eq("phone", contact.phone).single();
+      if (ex) { contactId = ex.id; existingContact = ex; }
     }
-    if (!contactId) {
+
+    if (existingContact) {
+      // EXISTING contact: update info but PRESERVE first-touch attribution
+      // Only overwrite UTMs if the existing contact doesn't have them yet
+      const updates: Record<string, any> = { updated_at: new Date().toISOString() };
+
+      // Always update basic info
+      if (contact.first_name && contact.first_name !== "ליד") updates.first_name = contact.first_name;
+      if (contact.last_name && contact.last_name !== "חדש") updates.last_name = contact.last_name;
+      if (contact.phone) updates.phone = contact.phone;
+      if (contact.whatsapp_phone) updates.whatsapp_phone = contact.whatsapp_phone;
+      if (contact.company) updates.company = contact.company;
+
+      // First-touch attribution: only set if not already set
+      if (!existingContact.utm_source && contact.utm_source) updates.utm_source = contact.utm_source;
+      if (!existingContact.utm_medium && contact.utm_medium) updates.utm_medium = contact.utm_medium;
+      if (!existingContact.utm_campaign && contact.utm_campaign) updates.utm_campaign = contact.utm_campaign;
+      if (!existingContact.utm_content && contact.utm_content) updates.utm_content = contact.utm_content;
+      if (!existingContact.utm_term && contact.utm_term) updates.utm_term = contact.utm_term;
+      if (!existingContact.ad_platform && contact.ad_platform) updates.ad_platform = contact.ad_platform;
+      if (!existingContact.entry_type && contact.entry_type) updates.entry_type = contact.entry_type;
+      if (!existingContact.ad_campaign_id && contact.ad_campaign_id) updates.ad_campaign_id = contact.ad_campaign_id;
+      if (!existingContact.ad_adset_id && contact.ad_adset_id) updates.ad_adset_id = contact.ad_adset_id;
+      if (!existingContact.ad_id && contact.ad_id) updates.ad_id = contact.ad_id;
+      if (!existingContact.first_touch_at) updates.first_touch_at = contact.first_touch_at;
+      if (!existingContact.landing_page_url && contact.landing_page_url) updates.landing_page_url = contact.landing_page_url;
+
+      // Conversion timestamp: update on each submission (last touch)
+      updates.conversion_at = new Date().toISOString();
+
+      await supabase.from("crm_contacts").update(updates).eq("id", contactId);
+      console.log(`[Fillout] Updated existing contact ${contactId}`);
+    } else {
+      // NEW contact
       const { data: nc } = await supabase.from("crm_contacts").insert(contact).select("id").single();
       contactId = nc?.id || null;
+      console.log(`[Fillout] Created new contact ${contactId}`);
     }
 
     await supabase.from("crm_form_submissions").insert({ contact_id: contactId, data: payload, source_url: contact.landing_page_url, utm_params: urlParams });
@@ -198,6 +237,26 @@ webhookRouter.post("/track", async (req, res) => {
 
     res.json({ ok: true });
   } catch { res.json({ ok: true }); }
+});
+
+// ══════════════════════════════════════════════
+// Debug: log any payload (temporary)
+// URL: POST /api/webhooks/debug
+// ══════════════════════════════════════════════
+webhookRouter.post("/debug", async (req, res) => {
+  console.log("[Debug] Headers:", JSON.stringify(req.headers).substring(0, 300));
+  console.log("[Debug] Body:", JSON.stringify(req.body).substring(0, 2000));
+
+  // Save to webhook_logs for inspection
+  try {
+    await supabase.from("crm_webhook_logs").insert({
+      payload: req.body,
+      headers: { "content-type": req.headers["content-type"], "user-agent": req.headers["user-agent"] } as any,
+      status: "processed",
+    });
+  } catch {};
+
+  res.json({ received: true, keys: Object.keys(req.body) });
 });
 
 // ══════════════════════════════════════════════
