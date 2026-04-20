@@ -63,6 +63,8 @@ export default function ContactDetailPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [contractTitle, setContractTitle] = useState("");
   const [showTaskCreate, setShowTaskCreate] = useState(false);
+  const [showCommunityInput, setShowCommunityInput] = useState(false);
+  const [communityName, setCommunityName] = useState("");
   const [noteText, setNoteText] = useState("");
   const [meetingData, setMeetingData] = useState({
     title: "",
@@ -345,6 +347,98 @@ export default function ContactDetailPage() {
               onSave={v => updateContact.mutate({ id: contact.id, id_number: v || null } as any)} dir="ltr" />
           </div>
 
+          {/* Lead Tracking */}
+          <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+            <h3 className="font-semibold text-sm">מעקב ליד</h3>
+
+            {/* Webinar registered - only for webinar pipeline leads */}
+            {contactPipeline?.name?.includes("וובינר") && (
+              <>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">נרשם לוובינר</span>
+                  <InlineField label="" value={contact.webinar_registered} dir="ltr"
+                    onSave={v => updateContact.mutate({ id: contact.id, webinar_registered: v || null } as any)} />
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">נכח בוובינר</span>
+                  <InlineField label="" value={contact.webinar_attended} dir="ltr"
+                    onSave={v => updateContact.mutate({ id: contact.id, webinar_attended: v || null } as any)} />
+                </div>
+              </>
+            )}
+
+            {/* Meeting date - from upcoming meetings */}
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">מועד פגישה</span>
+              <span className="font-medium text-foreground">
+                {upcomingMeetings.length > 0
+                  ? formatDateTime(upcomingMeetings[0].scheduled_at)
+                  : "—"}
+              </span>
+            </div>
+
+            {/* Sales call completed */}
+            <label className="flex items-center justify-between text-xs cursor-pointer">
+              <span className="text-muted-foreground">שיחת מכירה בוצעה</span>
+              <input type="checkbox" checked={!!contact.sales_call_completed}
+                onChange={e => updateContact.mutate({ id: contact.id, sales_call_completed: e.target.checked } as any)}
+                className="w-4 h-4 rounded accent-primary" />
+            </label>
+
+            {/* Community groups */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">קבוצות קהילה</span>
+                <button onClick={() => setShowCommunityInput(true)}
+                  className="text-primary hover:underline text-[10px]">+ הוסף</button>
+              </div>
+              {showCommunityInput && (
+                <div className="flex items-center gap-1.5">
+                  <input value={communityName} onChange={e => setCommunityName(e.target.value)} placeholder="שם הקבוצה..."
+                    className="flex-1 px-2 py-1 text-xs border border-input rounded-lg bg-background outline-none" autoFocus
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && communityName.trim()) {
+                        updateContact.mutate({ id: contact.id, community_groups: [...(contact.community_groups || []), communityName.trim()] } as any);
+                        setCommunityName(""); setShowCommunityInput(false);
+                      }
+                      if (e.key === "Escape") { setCommunityName(""); setShowCommunityInput(false); }
+                    }} />
+                  <button onClick={() => {
+                    if (communityName.trim()) {
+                      updateContact.mutate({ id: contact.id, community_groups: [...(contact.community_groups || []), communityName.trim()] } as any);
+                      setCommunityName(""); setShowCommunityInput(false);
+                    }
+                  }} className="text-xs text-primary">✓</button>
+                  <button onClick={() => { setCommunityName(""); setShowCommunityInput(false); }} className="text-xs text-muted-foreground">✕</button>
+                </div>
+              )}
+              {contact.community_groups?.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {contact.community_groups.map((g: string, i: number) => (
+                    <span key={i} className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      {g}
+                      <button onClick={() => updateContact.mutate({ id: contact.id, community_groups: contact.community_groups.filter((_: string, j: number) => j !== i) } as any)}
+                        className="hover:text-destructive">×</button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[10px] text-muted-foreground">לא נוסף לקבוצות</p>
+              )}
+            </div>
+
+            {/* Marketing consent */}
+            <label className="flex items-center justify-between text-xs cursor-pointer">
+              <span className="text-muted-foreground">אישור דיוור</span>
+              <input type="checkbox" checked={!!contact.marketing_consent}
+                onChange={e => updateContact.mutate({ id: contact.id, marketing_consent: e.target.checked, marketing_consent_at: e.target.checked ? new Date().toISOString() : null } as any)}
+                className="w-4 h-4 rounded accent-primary" />
+            </label>
+            {contact.marketing_consent_at && (
+              <p className="text-[10px] text-muted-foreground">אושר ב-{formatDateTime(contact.marketing_consent_at)}</p>
+            )}
+          </div>
+
           {/* Upcoming Meetings */}
           <div className="bg-card border border-border rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
@@ -476,17 +570,17 @@ export default function ContactDetailPage() {
               contact.source || "לא ידוע"
             } badge />
             <MarketingRow label="פלטפורמה" value={contact.ad_platform || (contact.utm_source?.includes("facebook") || contact.utm_source?.includes("fb") ? "facebook" : contact.utm_source?.includes("instagram") ? "instagram" : contact.utm_source?.includes("google") ? "google" : contact.utm_source?.includes("youtube") ? "youtube" : "—")} />
-            <MarketingRow label="מקור (source)" value={contact.utm_source} dir="ltr" />
-            <MarketingRow label="מדיום (medium)" value={contact.utm_medium} dir="ltr" />
-            <MarketingRow label="קמפיין" value={contact.utm_campaign} dir="ltr" />
+            <MarketingRow label="utm_source" value={contact.utm_source} dir="ltr" />
+            <MarketingRow label="utm_medium" value={contact.utm_medium} dir="ltr" />
+            <MarketingRow label="utm_campaign" value={contact.utm_campaign} dir="ltr" />
             {matchedAdCampaign && (
-              <MarketingRow label="מודעה" value={matchedAdCampaign.name} />
+              <MarketingRow label="שם מודעה" value={matchedAdCampaign.name} />
             )}
             {contact.ad_campaign_id && !matchedAdCampaign && (
               <MarketingRow label="מזהה מודעה" value={contact.ad_campaign_id} dir="ltr" />
             )}
-            {contact.utm_content && <MarketingRow label="תוכן" value={contact.utm_content} dir="ltr" />}
-            {contact.utm_term && <MarketingRow label="מונח" value={contact.utm_term} dir="ltr" />}
+            {contact.utm_content && <MarketingRow label="utm_content" value={contact.utm_content} dir="ltr" />}
+            {contact.utm_term && <MarketingRow label="utm_term" value={contact.utm_term} dir="ltr" />}
             <MarketingRow label="סוג כניסה" value={contact.entry_type || "—"} />
             <MarketingRow label="דף נחיתה" value={contact.landing_page_url?.replace("https://aiagencyschool.co.il", "") || "—"}
               href={contact.landing_page_url || undefined} dir="ltr" />
@@ -792,8 +886,8 @@ function MarketingRow({ label, value, dir, href, badge }: {
   const display = value || "—";
   const hasValue = !!value && value !== "—";
   return (
-    <div className="flex items-center justify-between text-xs gap-2">
-      <span className="text-muted-foreground shrink-0">{label}</span>
+    <div className="flex text-xs gap-2 py-0.5">
+      <span className="text-muted-foreground shrink-0 min-w-[90px]" dir="ltr">{label}</span>
       {badge && hasValue ? (
         <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-medium",
           display === "ממומן" ? "bg-blue-100 text-blue-700" :
@@ -802,9 +896,9 @@ function MarketingRow({ label, value, dir, href, badge }: {
           "bg-secondary text-secondary-foreground"
         )}>{display}</span>
       ) : href && hasValue ? (
-        <a href={href} target="_blank" rel="noopener" className="font-medium text-primary hover:underline truncate max-w-[160px]" dir={dir}>{display}</a>
+        <a href={href} target="_blank" rel="noopener" className="font-medium text-primary hover:underline break-all" dir={dir}>{display}</a>
       ) : (
-        <span className={cn("font-medium truncate max-w-[160px]", hasValue ? "text-foreground" : "text-muted-foreground/40")} dir={dir}>{display}</span>
+        <span className={cn("font-medium break-all", hasValue ? "text-foreground" : "text-muted-foreground/40")} dir={dir}>{display}</span>
       )}
     </div>
   );

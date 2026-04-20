@@ -423,9 +423,9 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
                         </div>
                       </div>
                     ) : (
-                      /* Regular activity body */
+                      /* Regular activity body — structured for form submissions */
                       activity.body && (
-                        <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{activity.body}</p>
+                        <ActivityBody body={activity.body} metadata={activity.metadata} />
                       )
                     )}
                   </div>
@@ -445,6 +445,60 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
           אין פעילות עדיין. הוסף הערה או תעד שיחה.
         </p>
       )}
+    </div>
+  );
+}
+
+// ── Structured activity body ──
+function ActivityBody({ body, metadata }: { body: string; metadata?: Record<string, any> }) {
+  // Parse sections: lines starting with "פרטי הטופס:" or "שיוך:" create sections
+  const lines = body.split("\n");
+  const sections: { title: string | null; lines: string[] }[] = [];
+  let current: { title: string | null; lines: string[] } = { title: null, lines: [] };
+
+  for (const line of lines) {
+    if (line === "פרטי הטופס:" || line === "שיוך:") {
+      if (current.lines.length > 0 || current.title) sections.push(current);
+      current = { title: line.replace(":", ""), lines: [] };
+    } else if (line.trim()) {
+      current.lines.push(line);
+    }
+  }
+  if (current.lines.length > 0 || current.title) sections.push(current);
+
+  // If no sections detected, just show plain text
+  if (sections.length <= 1 && !sections[0]?.title) {
+    return <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{body}</p>;
+  }
+
+  return (
+    <div className="mt-1.5 space-y-2">
+      {sections.map((section, i) => (
+        <div key={i}>
+          {!section.title && section.lines.map((line, j) => (
+            <p key={j} className="text-xs text-muted-foreground">{line}</p>
+          ))}
+          {section.title && (
+            <div className="bg-muted/30 rounded-lg p-2.5 space-y-1">
+              <p className="text-[10px] font-semibold text-muted-foreground mb-1">{section.title}</p>
+              {section.lines.map((line, j) => {
+                const colonIdx = line.indexOf(":");
+                if (colonIdx > 0 && colonIdx < 20) {
+                  const label = line.substring(0, colonIdx).trim();
+                  const value = line.substring(colonIdx + 1).trim();
+                  return (
+                    <div key={j} className="flex text-xs gap-2">
+                      <span className="text-muted-foreground shrink-0 min-w-[60px]">{label}</span>
+                      <span className="font-medium text-foreground break-all" dir={/^[a-zA-Z0-9]/.test(value) ? "ltr" : undefined}>{value}</span>
+                    </div>
+                  );
+                }
+                return <p key={j} className="text-xs text-muted-foreground">{line}</p>;
+              })}
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

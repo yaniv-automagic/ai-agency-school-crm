@@ -21,6 +21,13 @@ export interface Contact {
   id_number: string | null;
   assigned_to: string | null;
   last_activity_at: string | null;
+  // Lead tracking
+  webinar_registered: string | null;
+  webinar_attended: string | null;
+  sales_call_completed: boolean;
+  community_groups: string[];
+  marketing_consent: boolean;
+  marketing_consent_at: string | null;
   // Attribution
   utm_source: string | null;
   utm_medium: string | null;
