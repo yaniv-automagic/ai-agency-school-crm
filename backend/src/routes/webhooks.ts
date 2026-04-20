@@ -177,10 +177,11 @@ webhookRouter.get("/fireflies/:tenantId/transcript/:meetingId", async (req, res)
     const dateStr = t.date ? new Date(t.date).toLocaleDateString("he-IL") : "";
     const header = `${t.title || "פגישה"}\n${dateStr}\n${"=".repeat(40)}\n\n`;
     const body = (t.sentences || []).map((s: any) => `${s.speaker_name}: ${s.text}`).join("\n\n");
-    const filename = `transcript-${(t.title || meetingId).replace(/[^a-zA-Z0-9\u0590-\u05FF ]/g, "").replace(/\s+/g, "-")}.txt`;
+    const safeName = `transcript-${meetingId.slice(0, 10)}.txt`;
+    const utf8Name = `transcript-${(t.title || meetingId).replace(/[^\w\u0590-\u05FF ]/g, "").replace(/\s+/g, "-")}.txt`;
 
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Disposition", `attachment; filename="${safeName}"; filename*=UTF-8''${encodeURIComponent(utf8Name)}`);
     res.send(header + body);
   } catch (err: any) {
     console.error("[Fireflies] Transcript download error:", err.message);
