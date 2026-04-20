@@ -257,6 +257,35 @@ webhookRouter.post("/fireflies/:tenantId", async (req, res) => {
       matchedContacts = contacts || [];
     }
 
+    // Fallback: try matching by name from transcript title (e.g. "גל וניצן - הכשרה")
+    if (matchedContacts.length === 0 && transcript.title) {
+      console.log("[Fireflies] No email match, trying name match from title:", transcript.title);
+      const titleParts = transcript.title.split(/[-–—:,]/)[0].trim();
+      const names = titleParts.split(/\s+ו/).flatMap((n: string) => n.trim().split(/\s+/)).filter((n: string) => n.length > 1);
+
+      if (names.length > 0) {
+        const { data: allContacts } = await supabase
+          .from("crm_contacts")
+          .select("id, email, first_name, last_name")
+          .eq("tenant_id", tenantId);
+
+        if (allContacts) {
+          for (const contact of allContacts) {
+            const fullName = `${contact.first_name || ""} ${contact.last_name || ""}`.trim().toLowerCase();
+            const firstName = (contact.first_name || "").toLowerCase();
+            for (const name of names) {
+              if (name.length > 1 && (firstName === name.toLowerCase() || fullName.includes(name.toLowerCase()))) {
+                if (!matchedContacts.find(c => c.id === contact.id)) {
+                  matchedContacts.push({ id: contact.id, email: contact.email || "" });
+                  console.log(`[Fireflies] Name match: "${name}" → ${contact.first_name} ${contact.last_name} (${contact.id})`);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     if (matchedContacts.length === 0) {
       console.log("[Fireflies] No matching contacts found for", participantEmails);
     }
@@ -316,19 +345,21 @@ webhookRouter.post("/fireflies/:tenantId", async (req, res) => {
       .single();
 
     if (existingMeeting) {
-      await supabase
-        .from("crm_meetings")
-        .update({
-          recording_url: recordingUrl,
-          transcript_url: transcriptUrl,
-          transcript_text: transcriptText,
-          ai_summary: summary,
-          ai_action_items: actionItems,
-          status: "completed",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", existingMeeting.id);
+      // Update existing meeting with transcript data
+      const updateData: Record<string, any> = {
+        recording_url: recordingUrl,
+        transcript_url: transcriptUrl,
+        transcript_text: transcriptText,
+        ai_summary: summary,
+        ai_action_items: actionItems,
+        status: "completed",
+        updated_at: new Date().toISOString(),
+      };
+      // Link to contact if we found one now
+      if (contactId) updateData.contact_id = contactId;
+      await supabase.from("crm_meetings").update(updateData).eq("id", existingMeeting.id);
     } else if (contactId) {
+      // Create meeting linked to matched contact
       await supabase
         .from("crm_meetings")
         .insert({
@@ -346,6 +377,8 @@ webhookRouter.post("/fireflies/:tenantId", async (req, res) => {
           ai_action_items: actionItems,
           fireflies_meeting_id: firefliesMeetingId,
         });
+    } else {
+      console.log(`[Fireflies] No contact match — meeting "${transcript.title}" saved to logs only`);
     }
 
     // Add activity to timeline for each matched contact
