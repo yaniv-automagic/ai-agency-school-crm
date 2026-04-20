@@ -323,13 +323,11 @@ webhookRouter.post("/fireflies/:tenantId", async (req, res) => {
     const { data: existingMeeting } = await supabase
       .from("crm_meetings")
       .select("id")
-      .eq("tenant_id", tenantId)
       .eq("fireflies_meeting_id", firefliesMeetingId)
       .limit(1)
       .single();
 
     if (existingMeeting) {
-      // Update existing meeting with transcript data
       const updateData: Record<string, any> = {
         recording_url: recordingUrl,
         transcript_url: transcriptUrl,
@@ -339,15 +337,14 @@ webhookRouter.post("/fireflies/:tenantId", async (req, res) => {
         status: "completed",
         updated_at: new Date().toISOString(),
       };
-      // Link to contact if we found one now
       if (contactId) updateData.contact_id = contactId;
-      await supabase.from("crm_meetings").update(updateData).eq("id", existingMeeting.id);
+      const { error: updateErr } = await supabase.from("crm_meetings").update(updateData).eq("id", existingMeeting.id);
+      if (updateErr) console.error("[Fireflies] Meeting update error:", updateErr.message);
+      else console.log(`[Fireflies] Updated meeting ${existingMeeting.id}`);
     } else if (contactId) {
-      // Create meeting linked to matched contact
-      await supabase
+      const { error: insertErr } = await supabase
         .from("crm_meetings")
         .insert({
-          tenant_id: tenantId,
           contact_id: contactId,
           meeting_type: meetingType as any,
           status: "completed",
@@ -361,14 +358,15 @@ webhookRouter.post("/fireflies/:tenantId", async (req, res) => {
           ai_action_items: actionItems,
           fireflies_meeting_id: firefliesMeetingId,
         });
+      if (insertErr) console.error("[Fireflies] Meeting insert error:", insertErr.message);
+      else console.log(`[Fireflies] Created meeting for contact ${contactId}`);
     } else {
-      console.log(`[Fireflies] No contact match — meeting "${transcript.title}" saved to logs only`);
+      console.log(`[Fireflies] No contact match — skipping meeting creation`);
     }
 
     // Add activity to timeline for each matched contact
-    const activityPromises = matchedContacts.map((contact) =>
-      supabase.from("crm_activities").insert({
-        tenant_id: tenantId,
+    for (const contact of matchedContacts) {
+      const { error: actErr } = await supabase.from("crm_activities").insert({
         contact_id: contact.id,
         type: "meeting",
         subject: transcript.title || "הקלטת פגישה",
@@ -383,10 +381,10 @@ webhookRouter.post("/fireflies/:tenantId", async (req, res) => {
           action_items: actionItems,
         },
         performed_at: meetingDate,
-      })
-    );
-
-    await Promise.all(activityPromises);
+      });
+      if (actErr) console.error(`[Fireflies] Activity insert error for ${contact.id}:`, actErr.message);
+      else console.log(`[Fireflies] Activity created for contact ${contact.id}`);
+    }
 
     console.log(
       `[Fireflies] Processed transcript "${transcript.title}" → ${matchedContacts.length} contacts`
