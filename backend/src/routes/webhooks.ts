@@ -413,8 +413,21 @@ webhookRouter.post("/fireflies/:tenantId", async (req, res) => {
       console.log(`[Fireflies] No contact match — skipping meeting creation`);
     }
 
-    // Add activity to timeline for each matched contact
+    // Add activity to timeline for each matched contact (skip if already exists)
     for (const contact of matchedContacts) {
+      const { data: existingActivity } = await supabase
+        .from("crm_activities")
+        .select("id")
+        .eq("contact_id", contact.id)
+        .eq("metadata->>fireflies_meeting_id", firefliesMeetingId)
+        .limit(1)
+        .single();
+
+      if (existingActivity) {
+        console.log(`[Fireflies] Activity already exists for contact ${contact.id}, skipping`);
+        continue;
+      }
+
       const { error: actErr } = await supabase.from("crm_activities").insert({
         contact_id: contact.id,
         type: "meeting",
