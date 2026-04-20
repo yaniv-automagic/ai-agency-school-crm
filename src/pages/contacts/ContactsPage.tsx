@@ -56,7 +56,16 @@ const ALL_COLUMNS: ColumnDef[] = [
     render: (c, { openAssigneePicker }) => (
       <button onClick={(e) => { e.stopPropagation(); openAssigneePicker(c.id, e); }}
         className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors">
-        {c.assigned_member?.display_name || "לא משויך"}
+        {c.assigned_member ? (
+          <>
+            {c.assigned_member.avatar_url ? (
+              <img src={c.assigned_member.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
+            ) : (
+              <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center text-[8px] font-bold text-primary">{c.assigned_member.display_name?.charAt(0)}</div>
+            )}
+            {c.assigned_member.display_name}
+          </>
+        ) : "לא משויך"}
       </button>
     ),
   },
@@ -571,6 +580,11 @@ export default function ContactsPage() {
               <button key={m.id} onClick={() => { updateContact.mutate({ id: assigneePickerId, assigned_to: m.id } as any); setAssigneePickerId(null); setAssigneePickerPos(null); }}
                 className={cn("w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary text-right",
                   filteredContacts?.find(c => c.id === assigneePickerId)?.assigned_to === m.id && "bg-secondary/50 font-medium")}>
+                {m.avatar_url ? (
+                  <img src={m.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                ) : (
+                  <div className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center text-[10px] font-medium">{m.display_name?.charAt(0)}</div>
+                )}
                 {m.display_name}
               </button>
             ))}

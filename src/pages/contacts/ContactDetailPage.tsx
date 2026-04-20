@@ -59,6 +59,7 @@ export default function ContactDetailPage() {
   const [showContractForm, setShowContractForm] = useState(false);
   const [showWhatsApp, setShowWhatsApp] = useState(false);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
+  const [showPipelinePicker, setShowPipelinePicker] = useState(false);
   const [showAssigneePicker, setShowAssigneePicker] = useState(false);
   const [showMeetingForm, setShowMeetingForm] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
@@ -189,76 +190,85 @@ export default function ContactDetailPage() {
 
       {/* Header */}
       <div className="flex items-start justify-between">
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">
-              {contact.first_name} {contact.last_name}
-            </h1>
-            {(contact.address || contact.city) && (
-              <div className="flex items-center gap-1 mt-1 text-sm text-muted-foreground">
-                <MapPin size={14} />
-                {contact.address || contact.city}
-              </div>
-            )}
-            <div className="flex items-center gap-2 mt-2">
+        <div>
+          <h1 className="text-2xl font-bold">
+            {contact.first_name} {contact.last_name}
+          </h1>
+          {(contact.address || contact.city) && (
+            <div className="flex items-center gap-1 mt-1 text-sm text-muted-foreground">
+              <MapPin size={14} />
+              {contact.address || contact.city}
+            </div>
+          )}
+          <div className="flex items-center gap-1.5 mt-2 flex-wrap [&_.badge]:inline-flex [&_.badge]:items-center [&_.badge]:px-2.5 [&_.badge]:h-[22px] [&_.badge]:rounded-full [&_.badge]:text-xs [&_.badge]:font-medium [&_.badge]:overflow-hidden [&_.badge]:box-border">
               {/* Source badge */}
               {source && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-secondary text-secondary-foreground">
+                <span className="badge bg-secondary text-secondary-foreground">
                   {source.label}
                 </span>
               )}
 
-              {/* Pipeline badge */}
-              {contactPipeline && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-violet-100 text-violet-700">
-                  {contactPipeline.name}
-                </span>
-              )}
+              {/* Pipeline picker */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowPipelinePicker(!showPipelinePicker)}
+                  className="badge gap-1.5 bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors cursor-pointer"
+                >
+                  {contactPipeline?.name || "ללא צנרת"}
+                </button>
+                {showPipelinePicker && (
+                  <div className="absolute top-full mt-1 right-0 bg-card border border-border rounded-xl shadow-xl py-1 w-44 z-50" dir="rtl">
+                    {pipelines?.map(p => (
+                      <button key={p.id}
+                        onClick={() => {
+                          const firstStage = p.stages?.[0];
+                          if (firstStage) updateContact.mutate({ id: contact.id, stage_id: firstStage.id } as any);
+                          setShowPipelinePicker(false);
+                        }}
+                        className={cn("w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary text-right",
+                          contactPipeline?.id === p.id && "bg-violet-50 font-medium")}>
+                        {p.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-              {/* Status/Stage picker */}
+              {/* Status/Stage picker - only current pipeline stages */}
               <div className="relative">
                 <button
                   onClick={() => setShowStatusPicker(!showStatusPicker)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer"
+                  className="badge gap-1.5 bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer"
                 >
                   <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: stage?.color || "#6b7280" }} />
                   {stage?.name || "ללא שלב"}
                 </button>
                 {showStatusPicker && (
-                  <div className="absolute top-full mt-1 right-0 bg-card border border-border rounded-xl shadow-xl py-1 w-48 z-50 max-h-72 overflow-y-auto" dir="rtl">
-                    {pipelines?.map(pipeline => (
-                      <div key={pipeline.id}>
-                        {pipelines.length > 1 && (
-                          <div className="px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-muted/30">
-                            {pipeline.name}
-                          </div>
+                  <div className="absolute top-full mt-1 right-0 bg-card border border-border rounded-xl shadow-xl py-1 w-44 z-50 max-h-72 overflow-y-auto" dir="rtl">
+                    {(contactPipeline?.stages || []).map(s => (
+                      <button
+                        key={s.id}
+                        onClick={() => {
+                          const stageName = s.name.toLowerCase();
+                          if (stageName.includes("פולואפ") || stageName.includes("follow")) {
+                            setPendingStageId(s.id);
+                            setShowFollowupPopup(true);
+                          } else if (stageName.includes("לא נסגר") || stageName.includes("לא רלוונטי")) {
+                            setPendingStageId(s.id);
+                            setShowLossPopup(true);
+                          } else {
+                            updateContact.mutate({ id: contact.id, stage_id: s.id } as any);
+                          }
+                          setShowStatusPicker(false);
+                        }}
+                        className={cn(
+                          "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary text-right",
+                          s.id === contact.stage_id && "bg-secondary/50 font-medium"
                         )}
-                        {pipeline.stages?.map(s => (
-                          <button
-                            key={s.id}
-                            onClick={() => {
-                              const stageName = s.name.toLowerCase();
-                              if (stageName.includes("פולואפ") || stageName.includes("follow")) {
-                                setPendingStageId(s.id);
-                                setShowFollowupPopup(true);
-                              } else if (stageName.includes("לא נסגר") || stageName.includes("לא רלוונטי")) {
-                                setPendingStageId(s.id);
-                                setShowLossPopup(true);
-                              } else {
-                                updateContact.mutate({ id: contact.id, stage_id: s.id } as any);
-                              }
-                              setShowStatusPicker(false);
-                            }}
-                            className={cn(
-                              "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary text-right",
-                              s.id === contact.stage_id && "bg-secondary/50 font-medium"
-                            )}
-                          >
-                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color || "#6b7280" }} />
-                            {s.name}
-                          </button>
-                        ))}
-                      </div>
+                      >
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color || "#6b7280" }} />
+                        {s.name}
+                      </button>
                     ))}
                   </div>
                 )}
@@ -268,22 +278,18 @@ export default function ContactDetailPage() {
               <div className="relative">
                 <button
                   onClick={() => setShowAssigneePicker(!showAssigneePicker)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer"
+                  className="badge gap-1 bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer"
                 >
                   {contact.assigned_member ? (
                     <>
                       {contact.assigned_member.avatar_url ? (
-                        <img src={contact.assigned_member.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
+                        <img src={contact.assigned_member.avatar_url} alt="" className="w-[14px] h-[14px] rounded-full object-cover" />
                       ) : (
-                        <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center text-[8px] font-bold text-primary">
-                          {contact.assigned_member.display_name?.charAt(0)}
-                        </div>
+                        <span className="w-[14px] h-[14px] rounded-full bg-primary/20 inline-flex items-center justify-center text-[6px] font-bold text-primary leading-none">{contact.assigned_member.display_name?.charAt(0)}</span>
                       )}
                       {contact.assigned_member.display_name}
                     </>
-                  ) : (
-                    <span className="text-muted-foreground">לא משויך</span>
-                  )}
+                  ) : "לא משויך"}
                 </button>
                 {showAssigneePicker && (
                   <div className="absolute top-full mt-1 right-0 bg-card border border-border rounded-xl shadow-xl py-1 w-48 z-50" dir="rtl">
@@ -313,13 +319,12 @@ export default function ContactDetailPage() {
 
               {/* Marketing consent badge */}
               <button onClick={() => updateContact.mutate({ id: contact.id, marketing_consent: !contact.marketing_consent, marketing_consent_at: !contact.marketing_consent ? new Date().toISOString() : null } as any)}
-                className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors",
+                className={cn("badge transition-colors",
                   contact.marketing_consent ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-red-100 text-red-600 hover:bg-red-200")}>
                 {contact.marketing_consent ? "✓ אישר דיוור" : "✕ לא אישר דיוור"}
               </button>
             </div>
           </div>
-        </div>
 
         <div className="flex items-center gap-2">
           {contact.phone && (
@@ -839,7 +844,15 @@ function FollowupPopup({ contact, stageId, onConfirm, onCancel }: {
 }
 
 // ── Loss Reason Popup ──
-const LOSS_REASONS = ["מחיר גבוה", "בחר מתחרה", "לא מעוניין", "תזמון לא מתאים", "אחר"];
+const LOSS_REASONS = [
+  "לא עלה לפגישה", "חרגול שבור", "מחיר גבוה ביחס לתקציב",
+  "בחר להתקדם עם מתחרה", "רוצה לנסות קודם לבד", "התכנית פחות מתאימה",
+  "לא מרגיש שזה הזמן הנכון", "ספק לגבי יכולת אישית / רקע טכני",
+  "חשש מהתחייבות או שינוי מקצועי", "חוסר הבנה של הערך / התמורה",
+  "ממתין למימון / הכנסה עתידית", "עדיין בשלב בירור / השוואה",
+  "לא מעוניין", "לא עבר את שלב הסינון לפגישת הזנקה",
+  "לא תואמה פגישה - אין מענה", "אחר",
+];
 const DISQUALIFICATION_REASONS = [
   "לא עלה לפגישה", "חרגול שבור", "מחיר גבוה ביחס לתקציב", "בחר להתקדם עם מתחרה",
   "רוצה לנסות קודם לבד", "התכנית פחות מתאימה", "לא מרגיש שזה הזמן הנכון",

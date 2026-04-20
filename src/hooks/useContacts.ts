@@ -98,27 +98,12 @@ export function useUpdateContact() {
       if (error) throw error;
       return data as Contact;
     },
-    onMutate: async ({ id, ...updates }) => {
-      // Optimistic update — instant UI response
-      await queryClient.cancelQueries({ queryKey: CONTACTS_KEY });
-      const prevContact = queryClient.getQueryData<Contact>([...CONTACTS_KEY, id]);
-      if (prevContact) {
-        queryClient.setQueryData([...CONTACTS_KEY, id], { ...prevContact, ...updates });
-      }
-      // Also update in list cache
-      queryClient.setQueriesData<Contact[]>({ queryKey: CONTACTS_KEY }, (old) =>
-        old?.map(c => c.id === id ? { ...c, ...updates } : c)
-      );
-      return { prevContact };
-    },
-    onSuccess: () => {
+    onSuccess: (data, { id }) => {
+      // Update single contact cache immediately
+      queryClient.setQueryData([...CONTACTS_KEY, id], data);
       queryClient.invalidateQueries({ queryKey: CONTACTS_KEY });
     },
-    onError: (error: Error, variables, context) => {
-      // Rollback on error
-      if (context?.prevContact) {
-        queryClient.setQueryData([...CONTACTS_KEY, variables.id], context.prevContact);
-      }
+    onError: (error: Error) => {
       toast.error(`שגיאה בעדכון: ${error.message}`);
     },
   });
