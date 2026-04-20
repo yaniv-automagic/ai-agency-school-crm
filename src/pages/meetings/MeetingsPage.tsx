@@ -3,9 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { Plus, X, Calendar, Video, Users, TrendingUp } from "lucide-react";
 import { useMeetings, useMeetingStats, useCreateMeeting } from "@/hooks/useMeetings";
 import { useContacts } from "@/hooks/useContacts";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { MEETING_TYPES, MEETING_STATUSES, MEETING_OUTCOMES } from "@/lib/constants";
 import { cn, timeAgo } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { MeetingType } from "@/types/crm";
 
 const TABS = [
@@ -262,37 +264,42 @@ function MeetingForm({ onClose }: { onClose: () => void }) {
           {/* Contact */}
           <div>
             <label className="text-sm font-medium mb-1 block">ליד *</label>
-            <select
-              value={formData.contact_id}
-              onChange={(e) => setFormData((p) => ({ ...p, contact_id: e.target.value }))}
-              className={inputClass}
-              required
+            <Select
+              value={formData.contact_id || "__none__"}
+              onValueChange={(val) => setFormData((p) => ({ ...p, contact_id: val === "__none__" ? "" : val }))}
             >
-              <option value="">בחר ליד</option>
-              {contacts?.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.first_name} {c.last_name} {c.email ? `(${c.email})` : ""}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className={inputClass}>
+                <SelectValue placeholder="בחר ליד" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">בחר ליד</SelectItem>
+                {contacts?.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.first_name} {c.last_name} {c.email ? `(${c.email})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Type */}
           <div>
             <label className="text-sm font-medium mb-1 block">סוג פגישה *</label>
-            <select
+            <Select
               value={formData.meeting_type}
-              onChange={(e) =>
-                setFormData((p) => ({ ...p, meeting_type: e.target.value as MeetingType }))
-              }
-              className={inputClass}
+              onValueChange={(val) => setFormData((p) => ({ ...p, meeting_type: val as MeetingType }))}
             >
-              {MEETING_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className={inputClass}>
+                <SelectValue placeholder="בחר סוג פגישה" />
+              </SelectTrigger>
+              <SelectContent>
+                {MEETING_TYPES.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Title */}
@@ -311,13 +318,10 @@ function MeetingForm({ onClose }: { onClose: () => void }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium mb-1 block">תאריך ושעה *</label>
-              <input
-                type="datetime-local"
+              <DateTimePicker
                 value={formData.scheduled_at}
-                onChange={(e) => setFormData((p) => ({ ...p, scheduled_at: e.target.value }))}
+                onChange={(v) => setFormData((p) => ({ ...p, scheduled_at: v }))}
                 className={inputClass}
-                dir="ltr"
-                required
               />
             </div>
             <div>
@@ -350,16 +354,20 @@ function MeetingForm({ onClose }: { onClose: () => void }) {
           {/* Assigned To */}
           <div>
             <label className="text-sm font-medium mb-1 block">אחראי</label>
-            <select
-              value={formData.assigned_to}
-              onChange={(e) => setFormData((p) => ({ ...p, assigned_to: e.target.value }))}
-              className={inputClass}
+            <Select
+              value={formData.assigned_to || "__none__"}
+              onValueChange={(val) => setFormData((p) => ({ ...p, assigned_to: val === "__none__" ? "" : val }))}
             >
-              <option value="">ללא שיוך</option>
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>{m.display_name}</option>
-              ))}
-            </select>
+              <SelectTrigger className={inputClass}>
+                <SelectValue placeholder="ללא שיוך" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">ללא שיוך</SelectItem>
+                {members.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>{m.display_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Description */}

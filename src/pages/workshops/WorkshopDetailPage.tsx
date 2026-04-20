@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
@@ -60,6 +62,7 @@ const PARTICIPANT_STATUS_CONFIG: Record<string, { label: string; color: string }
 export default function WorkshopDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const { data: workshop, isLoading } = useWorkshop(id);
   const deleteWorkshop = useDeleteWorkshop();
   const [showAddSession, setShowAddSession] = useState(false);
@@ -90,7 +93,14 @@ export default function WorkshopDetailPage() {
   const participants = workshop.participants || [];
 
   const handleDelete = async () => {
-    if (!confirm("למחוק את הסדנה?")) return;
+    const confirmed = await confirm({
+      title: "מחיקת סדנה",
+      description: "למחוק את הסדנה?",
+      confirmText: "מחק",
+      cancelText: "ביטול",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
     await deleteWorkshop.mutateAsync(workshop.id);
     toast.success("סדנה נמחקה");
     navigate("/workshops");
@@ -516,12 +526,10 @@ function AddSessionForm({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs font-medium mb-1 block">תאריך ושעה</label>
-            <input
-              type="datetime-local"
+            <DateTimePicker
               value={formData.scheduled_at}
-              onChange={(e) => setFormData((p) => ({ ...p, scheduled_at: e.target.value }))}
+              onChange={(v) => setFormData((p) => ({ ...p, scheduled_at: v }))}
               className={inputClass}
-              dir="ltr"
             />
           </div>
           <div>
@@ -652,6 +660,7 @@ function ParticipantRow({
   sessions: WorkshopSession[];
 }) {
   const removeParticipant = useRemoveParticipant();
+  const confirm = useConfirm();
   const [hovered, setHovered] = useState(false);
   const participantStatus = PARTICIPANT_STATUS_CONFIG[participant.status] || PARTICIPANT_STATUS_CONFIG.active;
 
@@ -663,7 +672,14 @@ function ParticipantRow({
   }, 0);
 
   const handleRemove = async () => {
-    if (!confirm("להסיר את התלמיד מהסדנה?")) return;
+    const confirmed = await confirm({
+      title: "הסרת תלמיד",
+      description: "להסיר את התלמיד מהסדנה?",
+      confirmText: "מחק",
+      cancelText: "ביטול",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
     await removeParticipant.mutateAsync(participant.id);
   };
 

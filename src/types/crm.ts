@@ -17,6 +17,8 @@ export interface Contact {
   notes: string | null;
   avatar_url: string | null;
   city: string | null;
+  address: string | null;
+  id_number: string | null;
   assigned_to: string | null;
   last_activity_at: string | null;
   // Attribution
@@ -325,6 +327,11 @@ export interface Meeting {
   duration_minutes: number;
   meeting_url: string | null;
   recording_url: string | null;
+  transcript_url: string | null;
+  transcript_text: string | null;
+  ai_summary: string | null;
+  ai_action_items: string[];
+  fireflies_meeting_id: string | null;
   outcome: MeetingOutcome | null;
   outcome_notes: string | null;
   outcome_deal_value: number | null;

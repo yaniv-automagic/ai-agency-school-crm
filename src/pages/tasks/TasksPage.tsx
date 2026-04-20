@@ -3,6 +3,8 @@ import { Plus, CheckSquare, Clock, AlertTriangle, Calendar } from "lucide-react"
 import { useTasks, useCreateTask, useCompleteTask } from "@/hooks/useTasks";
 import { TASK_PRIORITIES, TASK_TYPES } from "@/lib/constants";
 import { cn, timeAgo } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DatePicker } from "@/components/ui/date-picker";
 
 export default function TasksPage() {
   const [filter, setFilter] = useState<"all" | "pending" | "overdue">("all");
@@ -147,35 +149,36 @@ export default function TasksPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium mb-1 block">סוג</label>
-                <select
-                  value={newTask.type}
-                  onChange={e => setNewTask(t => ({ ...t, type: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"
-                >
-                  {TASK_TYPES.map(t => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
+                <Select value={newTask.type} onValueChange={v => setNewTask(t => ({ ...t, type: v }))}>
+                  <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
+                    <SelectValue placeholder="בחר סוג" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TASK_TYPES.map(t => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <label className="text-sm font-medium mb-1 block">עדיפות</label>
-                <select
-                  value={newTask.priority}
-                  onChange={e => setNewTask(t => ({ ...t, priority: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"
-                >
-                  {TASK_PRIORITIES.map(p => (
-                    <option key={p.value} value={p.value}>{p.label}</option>
-                  ))}
-                </select>
+                <Select value={newTask.priority} onValueChange={v => setNewTask(t => ({ ...t, priority: v }))}>
+                  <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
+                    <SelectValue placeholder="בחר עדיפות" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TASK_PRIORITIES.map(p => (
+                      <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">תאריך יעד</label>
-              <input
-                type="date"
+              <DatePicker
                 value={newTask.due_date}
-                onChange={e => setNewTask(t => ({ ...t, due_date: e.target.value }))}
+                onChange={(v) => setNewTask(t => ({ ...t, due_date: v }))}
                 className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"
               />
             </div>

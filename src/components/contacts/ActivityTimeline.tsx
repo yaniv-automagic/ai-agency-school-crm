@@ -26,10 +26,10 @@ const ICON_MAP: Record<string, any> = {
 };
 
 const COLOR_MAP: Record<string, string> = {
-  note: "bg-gray-100 text-gray-500",
+  note: "bg-yellow-100 text-yellow-600",
   call: "bg-green-100 text-green-600",
-  email: "bg-blue-100 text-blue-600",
-  meeting: "bg-purple-100 text-purple-600",
+  email: "bg-red-100 text-red-600",
+  meeting: "bg-blue-100 text-blue-600",
   whatsapp: "bg-emerald-100 text-emerald-600",
   sms: "bg-cyan-100 text-cyan-600",
   stage_change: "bg-orange-100 text-orange-600",
@@ -135,7 +135,7 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
     resetForm();
   };
 
-  const displayed = (showAll ? activities : activities?.slice(0, 10))?.slice().reverse();
+  const displayed = showAll ? activities : activities?.slice(0, 10);
 
   return (
     <div className="space-y-4">
@@ -344,7 +344,7 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
                       {activity.subject && (
                         <span className="text-sm text-muted-foreground">— {activity.subject}</span>
                       )}
-                      <span className="text-[11px] text-muted-foreground mr-auto">{formatDateTime(activity.performed_at)}</span>
+                      <span className="text-[11px] text-muted-foreground ml-auto">{formatDateTime(activity.performed_at)}</span>
                     </div>
 
                     {/* Fireflies — full card with mini player, summary, transcript */}
@@ -417,7 +417,7 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
                               </a>
                             )}
                             {meta.duration_minutes > 0 && (
-                              <span className="text-[10px] text-muted-foreground mr-auto">{meta.duration_minutes} דק׳</span>
+                              <span className="text-[10px] text-muted-foreground ml-auto">{meta.duration_minutes} דק׳</span>
                             )}
                           </div>
                         </div>

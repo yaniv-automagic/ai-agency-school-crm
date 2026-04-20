@@ -5,6 +5,8 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { cn, timeAgo } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 interface Form {
   id: string;
@@ -53,6 +55,7 @@ const CRM_FIELD_MAPPINGS = [
 export default function FormsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [showBuilder, setShowBuilder] = useState(false);
   const [formName, setFormName] = useState("");
   const [formSlug, setFormSlug] = useState("");
@@ -202,8 +205,16 @@ export default function FormsPage() {
                     <Code size={14} />
                   </button>
                   <button
-                    onClick={() => {
-                      if (confirm("למחוק את הטופס?")) deleteForm.mutate(form.id);
+                    onClick={async () => {
+                      const confirmed = await confirm({
+                        title: "מחיקת טופס",
+                        description: "למחוק את הטופס?",
+                        confirmText: "מחק",
+                        cancelText: "ביטול",
+                        variant: "destructive",
+                      });
+                      if (!confirmed) return;
+                      deleteForm.mutate(form.id);
                     }}
                     className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
                   >
@@ -263,20 +274,28 @@ export default function FormsPage() {
                     className="flex-1 px-2 py-1 text-sm border border-input rounded bg-background outline-none"
                     placeholder="תווית השדה"
                   />
-                  <select
+                  <Select
                     value={field.type}
-                    onChange={e => updateField(field.id, { type: e.target.value as any })}
-                    className="w-24 px-2 py-1 text-xs border border-input rounded bg-background outline-none"
+                    onValueChange={v => updateField(field.id, { type: v as any })}
                   >
-                    {FIELD_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
-                  <select
-                    value={field.mapTo || ""}
-                    onChange={e => updateField(field.id, { mapTo: e.target.value })}
-                    className="w-28 px-2 py-1 text-xs border border-input rounded bg-background outline-none"
+                    <SelectTrigger className="w-24 px-2 py-1 text-xs border border-input rounded bg-background outline-none">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FIELD_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={field.mapTo || "__none__"}
+                    onValueChange={v => updateField(field.id, { mapTo: v === "__none__" ? "" : v })}
                   >
-                    {CRM_FIELD_MAPPINGS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                  </select>
+                    <SelectTrigger className="w-28 px-2 py-1 text-xs border border-input rounded bg-background outline-none">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CRM_FIELD_MAPPINGS.map(m => <SelectItem key={m.value || "__none__"} value={m.value || "__none__"}>{m.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                   <label className="flex items-center gap-1 text-xs">
                     <input
                       type="checkbox"

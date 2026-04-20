@@ -3,6 +3,7 @@ import { Plus, Video, Radio, Users, Calendar, ExternalLink, BarChart3, Eye } fro
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { cn, timeAgo } from "@/lib/utils";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { toast } from "sonner";
 
 interface CrmEvent {
@@ -233,7 +234,7 @@ export default function EventsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium mb-1 block">תאריך ושעה *</label>
-                <input type="datetime-local" value={form.scheduled_at} onChange={e => setForm(f => ({ ...f, scheduled_at: e.target.value }))}
+                <DateTimePicker value={form.scheduled_at} onChange={v => setForm(f => ({ ...f, scheduled_at: v }))}
                   className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background" />
               </div>
               <div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { X, Tag, UserCheck, Trash2, Download, Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useQueryClient } from "@tanstack/react-query";
@@ -13,6 +14,7 @@ interface BulkActionsProps {
 
 export default function BulkActions({ selectedIds, onClear, totalCount }: BulkActionsProps) {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const { data: pipelines } = usePipelines();
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [showTagInput, setShowTagInput] = useState(false);
@@ -66,7 +68,14 @@ export default function BulkActions({ selectedIds, onClear, totalCount }: BulkAc
   };
 
   const deleteSelected = async () => {
-    if (!confirm(`למחוק ${count} לידים? פעולה זו לא ניתנת לביטול.`)) return;
+    const confirmed = await confirm({
+      title: "מחיקה המונית",
+      description: `למחוק ${count} לידים? פעולה זו לא ניתנת לביטול.`,
+      confirmText: "מחק",
+      cancelText: "ביטול",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
     setLoading(true);
     const { error } = await supabase.from("crm_contacts").delete().in("id", selectedIds);
     setLoading(false);
@@ -82,7 +91,7 @@ export default function BulkActions({ selectedIds, onClear, totalCount }: BulkAc
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 animate-in slide-in-from-bottom-4 duration-300">
       <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white rounded-2xl shadow-2xl">
         {/* Count */}
-        <div className="flex items-center gap-2 pl-3 border-l border-white/20">
+        <div className="flex items-center gap-2 pr-3 border-r border-white/20">
           <Users size={15} />
           <span className="text-sm font-semibold">{count}</span>
           <span className="text-xs text-white/60">נבחרו</span>

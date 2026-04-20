@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { X, Save } from "lucide-react";
 import type { WorkflowNode } from "@/components/ui/workflow-canvas";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TimePicker } from "@/components/ui/time-picker";
 
 interface Props {
   node: WorkflowNode;
@@ -81,25 +83,35 @@ export default function NodeConfigPanel({ node, onSave, onClose }: Props) {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">אובייקט</label>
-                    <select value={config.object_type || "contacts"} onChange={e => set("object_type", e.target.value)} className={inputCls}>
-                      <option value="contacts">לידים</option>
-                      <option value="deals">עסקאות</option>
-                      <option value="tasks">משימות</option>
-                    </select>
+                    <Select value={config.object_type || "contacts"} onValueChange={v => set("object_type", v)}>
+                      <SelectTrigger className={inputCls}><SelectValue placeholder="בחר אובייקט" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="contacts">לידים</SelectItem>
+                        <SelectItem value="deals">עסקאות</SelectItem>
+                        <SelectItem value="tasks">משימות</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   {node.title.includes("מתוזמן") && (
                     <>
                       <div>
                         <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">תדירות</label>
-                        <select value={config.frequency || "daily"} onChange={e => set("frequency", e.target.value)} className={inputCls}>
-                          <option value="daily">כל יום</option>
-                          <option value="weekly">כל שבוע</option>
-                          <option value="monthly">כל חודש</option>
-                        </select>
+                        <Select value={config.frequency || "daily"} onValueChange={v => set("frequency", v)}>
+                          <SelectTrigger className={inputCls}><SelectValue placeholder="בחר תדירות" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="daily">כל יום</SelectItem>
+                            <SelectItem value="weekly">כל שבוע</SelectItem>
+                            <SelectItem value="monthly">כל חודש</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div>
                         <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">שעה</label>
-                        <input type="time" value={config.time || "09:00"} onChange={e => set("time", e.target.value)} className={inputCls} />
+                        <TimePicker
+                          value={config.time || "09:00"}
+                          onChange={v => set("time", v)}
+                          className={inputCls}
+                        />
                       </div>
                     </>
                   )}
@@ -165,9 +177,15 @@ export default function NodeConfigPanel({ node, onSave, onClose }: Props) {
                   </div>
                   <div>
                     <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">עדיפות</label>
-                    <select value={config.priority || "medium"} onChange={e => set("priority", e.target.value)} className={inputCls}>
-                      <option value="low">נמוכה</option><option value="medium">בינונית</option><option value="high">גבוהה</option><option value="urgent">דחוף</option>
-                    </select>
+                    <Select value={config.priority || "medium"} onValueChange={v => set("priority", v)}>
+                      <SelectTrigger className={inputCls}><SelectValue placeholder="בחר עדיפות" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">נמוכה</SelectItem>
+                        <SelectItem value="medium">בינונית</SelectItem>
+                        <SelectItem value="high">גבוהה</SelectItem>
+                        <SelectItem value="urgent">דחוף</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">יעד (ימים)</label>
@@ -181,9 +199,15 @@ export default function NodeConfigPanel({ node, onSave, onClose }: Props) {
                 <div className="flex gap-3">
                   <div className="w-24 shrink-0">
                     <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">Method</label>
-                    <select value={config.method || "POST"} onChange={e => set("method", e.target.value)} className={inputCls}>
-                      <option>POST</option><option>GET</option><option>PUT</option><option>PATCH</option>
-                    </select>
+                    <Select value={config.method || "POST"} onValueChange={v => set("method", v)}>
+                      <SelectTrigger className={inputCls}><SelectValue placeholder="Method" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="POST">POST</SelectItem>
+                        <SelectItem value="GET">GET</SelectItem>
+                        <SelectItem value="PUT">PUT</SelectItem>
+                        <SelectItem value="PATCH">PATCH</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="flex-1">
                     <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">URL</label>
@@ -209,9 +233,16 @@ export default function NodeConfigPanel({ node, onSave, onClose }: Props) {
                   </div>
                   <div>
                     <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">אופרטור</label>
-                    <select value={config.operator || "eq"} onChange={e => set("operator", e.target.value)} className={inputCls}>
-                      <option value="eq">שווה</option><option value="ne">שונה</option><option value="contains">מכיל</option><option value="gt">גדול מ</option><option value="lt">קטן מ</option>
-                    </select>
+                    <Select value={config.operator || "eq"} onValueChange={v => set("operator", v)}>
+                      <SelectTrigger className={inputCls}><SelectValue placeholder="בחר אופרטור" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="eq">שווה</SelectItem>
+                        <SelectItem value="ne">שונה</SelectItem>
+                        <SelectItem value="contains">מכיל</SelectItem>
+                        <SelectItem value="gt">גדול מ</SelectItem>
+                        <SelectItem value="lt">קטן מ</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">ערך</label>
@@ -229,9 +260,14 @@ export default function NodeConfigPanel({ node, onSave, onClose }: Props) {
                   </div>
                   <div className="w-28">
                     <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">יחידה</label>
-                    <select value={config.unit || "hours"} onChange={e => set("unit", e.target.value)} className={inputCls}>
-                      <option value="minutes">דקות</option><option value="hours">שעות</option><option value="days">ימים</option>
-                    </select>
+                    <Select value={config.unit || "hours"} onValueChange={v => set("unit", v)}>
+                      <SelectTrigger className={inputCls}><SelectValue placeholder="בחר יחידה" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="minutes">דקות</SelectItem>
+                        <SelectItem value="hours">שעות</SelectItem>
+                        <SelectItem value="days">ימים</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               )}

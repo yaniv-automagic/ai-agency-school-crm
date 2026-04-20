@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Database, Webhook, FileText, Upload, FileSignature, Target, FormInput, MessageCircle, Users, Shield } from "lucide-react";
+import { Database, Webhook, FileText, Upload, FileSignature, Target, FormInput, MessageCircle, Users, Shield, Globe, Video } from "lucide-react";
 
 const settingsSections = [
   {
@@ -35,6 +35,20 @@ const settingsSections = [
     description: "Email, Google Calendar, Facebook Ads, Webhooks",
     icon: Webhook,
     path: "/settings/integrations",
+    color: "bg-purple-50 text-purple-500",
+  },
+  {
+    title: "דפי נחיתה",
+    description: "מיפוי דפי נחיתה לצנרות — לידים ישויכו אוטומטית",
+    icon: Globe,
+    path: "/settings/landing-pages",
+    color: "bg-orange-50 text-orange-500",
+  },
+  {
+    title: "Fireflies.ai",
+    description: "תמלול והקלטת פגישות אוטומטי עם AI",
+    icon: Video,
+    path: "/settings/fireflies",
     color: "bg-purple-50 text-purple-500",
   },
   {

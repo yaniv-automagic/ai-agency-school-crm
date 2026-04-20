@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
 import { Plus, Trash2, GripVertical, Save, ArrowRight, Pencil, Check, X } from "lucide-react";
 import { usePipelines } from "@/hooks/useDeals";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Pipeline, PipelineStage } from "@/types/crm";
 import { useNavigate } from "react-router-dom";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { ColorPicker } from "@/components/ui/color-picker";
 
 const STAGE_COLORS = [
   "#3b82f6", "#6366f1", "#8b5cf6", "#a855f7", "#d946ef",
@@ -15,6 +18,7 @@ const STAGE_COLORS = [
 ];
 
 export default function PipelineSettingsPage() {
+  const confirm = useConfirm();
   const { data: pipelines, isLoading } = usePipelines();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [stages, setStages] = useState<PipelineStage[]>([]);
@@ -83,7 +87,7 @@ export default function PipelineSettingsPage() {
     if (pipelineName !== selectedPipeline?.name) pipelineUpdates.name = pipelineName;
     if (defaultStageId !== selectedPipeline?.default_stage_id) pipelineUpdates.default_stage_id = defaultStageId;
     if (Object.keys(pipelineUpdates).length > 0) {
-      await supabaseAdmin.from("crm_pipelines").update(pipelineUpdates).eq("id", selectedId);
+      await supabase.from("crm_pipelines").update(pipelineUpdates).eq("id", selectedId);
     }
 
     // Delete removed stages
@@ -91,7 +95,7 @@ export default function PipelineSettingsPage() {
     const currentIds = stages.filter(s => !s.id.startsWith("new-")).map(s => s.id);
     const deletedIds = existingIds.filter(id => !currentIds.includes(id));
     for (const id of deletedIds) {
-      await supabaseAdmin.from("crm_pipeline_stages").delete().eq("id", id);
+      await supabase.from("crm_pipeline_stages").delete().eq("id", id);
     }
 
     // Upsert stages
@@ -108,9 +112,9 @@ export default function PipelineSettingsPage() {
       };
 
       if (stage.id.startsWith("new-")) {
-        await supabaseAdmin.from("crm_pipeline_stages").insert(data);
+        await supabase.from("crm_pipeline_stages").insert(data);
       } else {
-        await supabaseAdmin.from("crm_pipeline_stages").update(data).eq("id", stage.id);
+        await supabase.from("crm_pipeline_stages").update(data).eq("id", stage.id);
       }
     }
 
@@ -129,7 +133,7 @@ export default function PipelineSettingsPage() {
     if (error) { toast.error(error.message); return; }
 
     // Create default stages
-    await supabaseAdmin.from("crm_pipeline_stages").insert([
+    await supabase.from("crm_pipeline_stages").insert([
       { pipeline_id: data.id, name: "חדש", order_index: 0, color: "#3b82f6", probability: 10 },
       { pipeline_id: data.id, name: "בתהליך", order_index: 1, color: "#f97316", probability: 50 },
       { pipeline_id: data.id, name: "סגירה", order_index: 2, color: "#22c55e", probability: 100, is_won: true },
@@ -148,9 +152,16 @@ export default function PipelineSettingsPage() {
       toast.error("חייב להישאר לפחות צנרת אחת");
       return;
     }
-    if (!confirm("למחוק את הצנרת? כל העסקאות המשויכות ימחקו!")) return;
+    const confirmed = await confirm({
+      title: "מחיקת צנרת",
+      description: "למחוק את הצנרת? כל העסקאות המשויכות ימחקו!",
+      confirmText: "מחק",
+      cancelText: "ביטול",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
 
-    await supabaseAdmin.from("crm_pipelines").delete().eq("id", selectedId);
+    await supabase.from("crm_pipelines").delete().eq("id", selectedId);
     queryClient.invalidateQueries({ queryKey: ["pipelines"] });
     setSelectedId(null);
     toast.success("צנרת נמחקה");
@@ -263,16 +274,20 @@ export default function PipelineSettingsPage() {
               {/* Default stage selector */}
               <div className="flex items-center gap-4 bg-card border border-border rounded-xl px-4 py-3">
                 <label className="text-sm font-medium whitespace-nowrap">שלב ברירת מחדל ללידים חדשים</label>
-                <select
-                  value={defaultStageId || ""}
-                  onChange={e => setDefaultStageId(e.target.value || null)}
-                  className="flex-1 max-w-xs px-3 py-1.5 text-sm border border-input rounded-lg bg-background"
+                <Select
+                  value={defaultStageId || "__none__"}
+                  onValueChange={v => setDefaultStageId(v === "__none__" ? null : v)}
                 >
-                  <option value="">שלב ראשון (אוטומטי)</option>
-                  {stages.filter(s => !s.id.startsWith("new-")).map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
+                  <SelectTrigger className="flex-1 max-w-xs px-3 py-1.5 text-sm border border-input rounded-lg bg-background">
+                    <SelectValue placeholder="שלב ראשון (אוטומטי)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">שלב ראשון (אוטומטי)</SelectItem>
+                    {stages.filter(s => !s.id.startsWith("new-")).map(s => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Stages table */}
@@ -311,11 +326,9 @@ export default function PipelineSettingsPage() {
                         {/* Color */}
                         <td className="px-2 py-2">
                           <div className="relative">
-                            <input
-                              type="color"
+                            <ColorPicker
                               value={stage.color || "#6366f1"}
-                              onChange={e => updateStage(idx, { color: e.target.value })}
-                              className="w-7 h-7 rounded-lg border-0 cursor-pointer"
+                              onChange={color => updateStage(idx, { color })}
                             />
                           </div>
                         </td>
@@ -392,7 +405,7 @@ export default function PipelineSettingsPage() {
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex items-center gap-2 px-6 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 mr-auto"
+                  className="flex items-center gap-2 px-6 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 ml-auto"
                 >
                   <Save size={14} />
                   {saving ? "שומר..." : "שמור שינויים"}

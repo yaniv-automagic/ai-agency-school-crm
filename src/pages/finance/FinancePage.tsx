@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { DollarSign, TrendingUp, TrendingDown, CreditCard, Receipt, Download, Filter } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { formatCurrency, cn, timeAgo } from "@/lib/utils";
@@ -105,10 +106,14 @@ export default function FinancePage() {
           <p className="text-muted-foreground text-sm">הכנסות, הוצאות ורווחיות</p>
         </div>
         <div className="flex items-center gap-2">
-          <select value={year} onChange={e => setYear(Number(e.target.value))}
-            className="px-3 py-2 text-sm border border-input rounded-lg bg-background">
-            {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
+          <Select value={String(year)} onValueChange={v => setYear(Number(v))}>
+            <SelectTrigger className="px-3 py-2 text-sm border border-input rounded-lg bg-background">
+              <SelectValue placeholder="שנה" />
+            </SelectTrigger>
+            <SelectContent>
+              {[2024, 2025, 2026, 2027].map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

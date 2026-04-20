@@ -3,6 +3,7 @@ import { X, Hash, BarChart3, PieChart as PieIcon, LineChart as LineIcon, Triangl
 import type { WidgetConfig, WidgetType, WidgetFilter } from "@/types/dashboard";
 import { CRM_DATA_SOURCES, CRM_GROUPBY_OPTIONS, CHART_COLORS } from "@/types/dashboard";
 import { fetchWidgetData } from "@/hooks/useDashboardData";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const TYPES: { type: WidgetType; label: string; icon: typeof Hash }[] = [
   { type: "number", label: "מספר", icon: Hash },
@@ -108,16 +109,17 @@ export default function WidgetConfigPanel({ config, onSave, onClose }: Props) {
           {/* Data source */}
           <div>
             <label className="block text-xs font-semibold mb-1.5 text-muted-foreground">מקור נתונים</label>
-            <select
-              value={dataSource}
-              onChange={e => { setDataSource(e.target.value); setGroupBy(""); }}
-              className="w-full px-3 py-2 rounded-xl text-sm border border-input bg-background outline-none"
-            >
-              <option value="">בחר טבלה...</option>
-              {CRM_DATA_SOURCES.map(s => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
+            <Select value={dataSource || "__none__"} onValueChange={v => { const val = v === "__none__" ? "" : v; setDataSource(val); setGroupBy(""); }}>
+              <SelectTrigger className="w-full px-3 py-2 rounded-xl text-sm border border-input bg-background outline-none">
+                <SelectValue placeholder="בחר טבלה..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">בחר טבלה...</SelectItem>
+                {CRM_DATA_SOURCES.map(s => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Metric options per data source */}
@@ -209,13 +211,14 @@ export default function WidgetConfigPanel({ config, onSave, onClose }: Props) {
                       placeholder="שדה"
                       className="flex-1 px-2 py-1.5 rounded-lg text-xs border border-input bg-background outline-none"
                     />
-                    <select
-                      value={f.operator}
-                      onChange={e => { const n = [...filters]; n[i] = { ...f, operator: e.target.value as any }; setFilters(n); }}
-                      className="w-20 px-2 py-1.5 rounded-lg text-xs border border-input bg-background outline-none"
-                    >
-                      {OPERATORS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select>
+                    <Select value={f.operator} onValueChange={v => { const n = [...filters]; n[i] = { ...f, operator: v as any }; setFilters(n); }}>
+                      <SelectTrigger className="w-20 px-2 py-1.5 rounded-lg text-xs border border-input bg-background outline-none">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {OPERATORS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                     {!["is-null", "is-not-null"].includes(f.operator) && (
                       <input
                         value={f.value}

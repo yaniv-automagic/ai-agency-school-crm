@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Plus, Package, Pencil, Trash2, X, ToggleLeft, ToggleRight } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { PRODUCT_CATEGORIES } from "@/lib/constants";
 import type { Product } from "@/types/crm";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 
 function useProducts() {
@@ -26,6 +28,7 @@ const emptyForm = { name: "", description: "", price: "", currency: "ILS", categ
 export default function ProductsPage() {
   const { data: products, isLoading } = useProducts();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState(emptyForm);
@@ -102,8 +105,15 @@ export default function ProductsPage() {
     });
   };
 
-  const handleDelete = (id: string, name: string) => {
-    if (!confirm(`למחוק את "${name}"? לא ניתן לבטל.`)) return;
+  const handleDelete = async (id: string, name: string) => {
+    const confirmed = await confirm({
+      title: "מחיקת מוצר",
+      description: `למחוק את "${name}"? לא ניתן לבטל.`,
+      confirmText: "מחק",
+      cancelText: "ביטול",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
     deleteMutation.mutate(id);
   };
 
@@ -208,10 +218,14 @@ export default function ProductsPage() {
               </div>
               <div>
                 <label className="text-sm font-medium mb-1 block">קטגוריה</label>
-                <select value={formData.category} onChange={e => setFormData(f => ({ ...f, category: e.target.value }))}
-                  className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
-                  {PRODUCT_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-                </select>
+                <Select value={formData.category} onValueChange={v => setFormData(f => ({ ...f, category: v }))}>
+                  <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
+                    <SelectValue placeholder="בחר קטגוריה" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRODUCT_CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div>

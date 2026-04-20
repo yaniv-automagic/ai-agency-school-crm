@@ -555,18 +555,25 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
     if (urlParams.adset_id) contact.ad_adset_id = urlParams.adset_id;
     if (urlParams.campaign_id) contact.ad_campaign_id = urlParams.campaign_id;
 
-    // Detect platform
+    // Detect platform from utm_source or fbclid/gclid
     const src = (urlParams.utm_source || "").toLowerCase();
-    if (src.includes("facebook") || src.includes("fb") || src.includes("meta") || urlParams.fbclid) contact.ad_platform = "facebook";
-    else if (src.includes("instagram") || src.includes("ig")) contact.ad_platform = "instagram";
-    else if (src.includes("google") || urlParams.gclid) contact.ad_platform = "google";
-    else if (src.includes("youtube") || src.includes("yt")) contact.ad_platform = "youtube";
+    if (src.includes("facebook") || src.includes("fb") || src.includes("meta") || urlParams.fbclid) { contact.ad_platform = "facebook"; contact.source = "facebook_ad"; }
+    else if (src.includes("instagram") || src.includes("ig")) { contact.ad_platform = "instagram"; contact.source = "instagram"; }
+    else if (src.includes("google") || urlParams.gclid) { contact.ad_platform = "google"; contact.source = "google_ad"; }
+    else if (src.includes("youtube") || src.includes("yt")) { contact.ad_platform = "youtube"; }
 
-    contact.entry_type = mapping?.entry_type || urlParams.entry_type || urlParams.ref || "vsl";
+    if (urlParams.utm_id) contact.ad_campaign_id = contact.ad_campaign_id || urlParams.utm_id;
+
+    contact.entry_type = mapping?.entry_type || urlParams.entry_type || urlParams.ref || null;
     contact.landing_page_url = urlParams.page_url || urlParams.referrer || null;
     contact.referrer_url = urlParams.referrer || null;
 
-    if (contact.utm_source && !contact.source) contact.source = "facebook_ad";
+    // Detect entry type from landing page URL if not set
+    if (!contact.entry_type && contact.landing_page_url) {
+      const lpUrl = contact.landing_page_url.toLowerCase();
+      if (lpUrl.includes("vsl") || lpUrl.includes("שאלון")) contact.entry_type = "vsl";
+      else if (lpUrl.includes("webinar")) contact.entry_type = "webinar";
+    }
     if (!contact.first_name) contact.first_name = "ליד";
     if (!contact.last_name) contact.last_name = "חדש";
 
@@ -791,17 +798,31 @@ webhookRouter.post("/elementor", async (req, res) => {
     if (meta.utm_medium || payload.utm_medium) contact.utm_medium = meta.utm_medium || payload.utm_medium;
     if (meta.utm_campaign || payload.utm_campaign) contact.utm_campaign = meta.utm_campaign || payload.utm_campaign;
     if (meta.utm_content || payload.utm_content) contact.utm_content = meta.utm_content || payload.utm_content;
+    if (meta.utm_term || payload.utm_term) contact.utm_term = meta.utm_term || payload.utm_term;
+    if (meta.fbclid || payload.fbclid) contact.custom_fields = { ...contact.custom_fields, fbclid: meta.fbclid || payload.fbclid };
+    if (meta.gclid || payload.gclid) contact.custom_fields = { ...contact.custom_fields, gclid: meta.gclid || payload.gclid };
+    if (meta.campaign_id || payload.campaign_id) contact.ad_campaign_id = meta.campaign_id || payload.campaign_id;
+    if (meta.adset_id || payload.adset_id) contact.ad_adset_id = meta.adset_id || payload.adset_id;
+    if (meta.ad_id || payload.ad_id) contact.ad_id = meta.ad_id || payload.ad_id;
     contact.landing_page_url = meta.page_url || payload.page_url || null;
     contact.referrer_url = meta.referrer || payload.referrer || null;
+    if (meta.entry_type || payload.entry_type) contact.entry_type = meta.entry_type || payload.entry_type;
 
+    // Detect entry type from URL if not set
     const url = contact.landing_page_url || "";
-    if (url.includes("vsl")) contact.entry_type = "vsl";
-    else if (url.includes("webinar")) contact.entry_type = "webinar";
+    if (!contact.entry_type) {
+      if (url.includes("vsl") || url.includes("שאלון")) contact.entry_type = "vsl";
+      else if (url.includes("webinar")) contact.entry_type = "webinar";
+    }
 
+    // Detect platform from utm_source or fbclid/gclid
     const utmSrc = (contact.utm_source || "").toLowerCase();
-    if (utmSrc.includes("facebook") || utmSrc.includes("fb")) { contact.ad_platform = "facebook"; contact.source = "facebook_ad"; }
-    else if (utmSrc.includes("instagram")) { contact.ad_platform = "instagram"; contact.source = "instagram"; }
-    else if (utmSrc.includes("google")) { contact.ad_platform = "google"; contact.source = "google_ad"; }
+    const hasFbclid = !!(meta.fbclid || payload.fbclid);
+    const hasGclid = !!(meta.gclid || payload.gclid);
+    if (utmSrc.includes("facebook") || utmSrc.includes("fb") || utmSrc.includes("meta") || hasFbclid) { contact.ad_platform = "facebook"; contact.source = "facebook_ad"; }
+    else if (utmSrc.includes("instagram") || utmSrc.includes("ig")) { contact.ad_platform = "instagram"; contact.source = "instagram"; }
+    else if (utmSrc.includes("google") || hasGclid) { contact.ad_platform = "google"; contact.source = "google_ad"; }
+    else if (utmSrc.includes("youtube") || utmSrc.includes("yt")) { contact.ad_platform = "youtube"; }
 
     if (!contact.first_name) contact.first_name = "ליד";
     if (!contact.last_name) contact.last_name = "";

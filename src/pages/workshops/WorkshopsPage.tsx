@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Plus, BookOpen, Users, Calendar, User } from "lucide-react";
 import { useWorkshops, useCreateWorkshop, useCreateSession } from "@/hooks/useWorkshops";
 import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DatePicker } from "@/components/ui/date-picker";
 import type { WorkshopStatus } from "@/types/crm";
 
 const STATUS_CONFIG: Record<WorkshopStatus, { label: string; color: string }> = {
@@ -225,35 +227,35 @@ function WorkshopForm({ onClose }: { onClose: () => void }) {
 
           <div>
             <label className="text-sm font-medium mb-1 block">סטטוס</label>
-            <select
+            <Select
               value={formData.status}
-              onChange={(e) => setFormData((p) => ({ ...p, status: e.target.value as "draft" | "active" }))}
-              className={inputClass}
+              onValueChange={(val) => setFormData((p) => ({ ...p, status: val as "draft" | "active" }))}
             >
-              <option value="draft">טיוטה</option>
-              <option value="active">פעילה</option>
-            </select>
+              <SelectTrigger className={inputClass}>
+                <SelectValue placeholder="בחר סטטוס" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">טיוטה</SelectItem>
+                <SelectItem value="active">פעילה</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium mb-1 block">תאריך התחלה</label>
-              <input
-                type="date"
+              <DatePicker
                 value={formData.start_date}
-                onChange={(e) => setFormData((p) => ({ ...p, start_date: e.target.value }))}
+                onChange={(v) => setFormData((p) => ({ ...p, start_date: v }))}
                 className={inputClass}
-                dir="ltr"
               />
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">תאריך סיום</label>
-              <input
-                type="date"
+              <DatePicker
                 value={formData.end_date}
-                onChange={(e) => setFormData((p) => ({ ...p, end_date: e.target.value }))}
+                onChange={(v) => setFormData((p) => ({ ...p, end_date: v }))}
                 className={inputClass}
-                dir="ltr"
               />
             </div>
           </div>

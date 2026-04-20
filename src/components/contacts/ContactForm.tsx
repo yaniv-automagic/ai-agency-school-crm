@@ -6,6 +6,7 @@ import { useCreateContact, useUpdateContact } from "@/hooks/useContacts";
 import { usePipelines } from "@/hooks/useDeals";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { CONTACT_SOURCES } from "@/lib/constants";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Contact } from "@/types/crm";
 
 const contactSchema = z.object({
@@ -42,6 +43,8 @@ export default function ContactForm({ contact, onClose }: ContactFormProps) {
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<ContactFormData>({
     resolver: zodResolver(contactSchema),
@@ -75,7 +78,7 @@ export default function ContactForm({ contact, onClose }: ContactFormProps) {
   return (
     <div className="fixed inset-0 z-50 bg-black/50" onClick={onClose}>
       <div
-        className="fixed inset-y-0 left-0 w-full max-w-lg bg-card shadow-xl overflow-y-auto"
+        className="fixed inset-y-0 right-0 w-full max-w-lg bg-card shadow-xl overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -166,45 +169,52 @@ export default function ContactForm({ contact, onClose }: ContactFormProps) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium mb-1 block">שלב</label>
-              <select
-                {...register("stage_id")}
-                className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"
-              >
-                {pipelines?.map(p => (
-                  <optgroup key={p.id} label={pipelines.length > 1 ? p.name : undefined}>
-                    {p.stages?.map(s => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
+              <Select value={watch("stage_id") || ""} onValueChange={(val) => setValue("stage_id", val)}>
+                <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
+                  <SelectValue placeholder="בחר שלב" />
+                </SelectTrigger>
+                <SelectContent>
+                  {pipelines?.map(p => (
+                    <SelectGroup key={p.id}>
+                      {pipelines.length > 1 && <SelectLabel>{p.name}</SelectLabel>}
+                      {p.stages?.map(s => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">מקור</label>
-              <select
-                {...register("source")}
-                className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"
-              >
-                <option value="">בחר מקור</option>
-                {CONTACT_SOURCES.map(s => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
+              <Select value={watch("source") || "__none__"} onValueChange={(val) => setValue("source", val === "__none__" ? "" : val)}>
+                <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
+                  <SelectValue placeholder="בחר מקור" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">בחר מקור</SelectItem>
+                  {CONTACT_SOURCES.map(s => (
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
           {/* Assigned To */}
           <div>
             <label className="text-sm font-medium mb-1 block">אחראי</label>
-            <select
-              {...register("assigned_to")}
-              className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"
-            >
-              <option value="">ללא שיוך</option>
-              {members.map(m => (
-                <option key={m.id} value={m.id}>{m.display_name}</option>
-              ))}
-            </select>
+            <Select value={watch("assigned_to") || "__none__"} onValueChange={(val) => setValue("assigned_to", val === "__none__" ? "" : val)}>
+              <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
+                <SelectValue placeholder="ללא שיוך" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">ללא שיוך</SelectItem>
+                {members.map(m => (
+                  <SelectItem key={m.id} value={m.id}>{m.display_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* City */}

@@ -6,6 +6,8 @@ import { useContacts } from "@/hooks/useContacts";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { ENROLLMENT_STATUSES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DatePicker } from "@/components/ui/date-picker";
 import type { EnrollmentStatus } from "@/types/crm";
 
 const STATUS_TABS = [
@@ -218,19 +220,22 @@ function EnrollmentForm({ onClose }: { onClose: () => void }) {
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label className="text-sm font-medium mb-1 block">ליד *</label>
-            <select
-              value={formData.contact_id}
-              onChange={(e) => setFormData((p) => ({ ...p, contact_id: e.target.value }))}
-              className={inputClass}
-              required
+            <Select
+              value={formData.contact_id || "__all__"}
+              onValueChange={(val) => setFormData((p) => ({ ...p, contact_id: val === "__all__" ? "" : val }))}
             >
-              <option value="">בחר ליד</option>
-              {contacts?.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.first_name} {c.last_name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className={inputClass}>
+                <SelectValue placeholder="בחר ליד" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">בחר ליד</SelectItem>
+                {contacts?.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.first_name} {c.last_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
@@ -260,12 +265,10 @@ function EnrollmentForm({ onClose }: { onClose: () => void }) {
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">תאריך התחלה</label>
-              <input
-                type="date"
+              <DatePicker
                 value={formData.start_date}
-                onChange={(e) => setFormData((p) => ({ ...p, start_date: e.target.value }))}
+                onChange={(v) => setFormData((p) => ({ ...p, start_date: v }))}
                 className={inputClass}
-                dir="ltr"
               />
             </div>
           </div>
@@ -282,16 +285,20 @@ function EnrollmentForm({ onClose }: { onClose: () => void }) {
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">אחראי</label>
-              <select
-                value={formData.assigned_to}
-                onChange={(e) => setFormData((p) => ({ ...p, assigned_to: e.target.value }))}
-                className={inputClass}
+              <Select
+                value={formData.assigned_to || "__all__"}
+                onValueChange={(val) => setFormData((p) => ({ ...p, assigned_to: val === "__all__" ? "" : val }))}
               >
-                <option value="">ללא שיוך</option>
-                {members.map((m) => (
-                  <option key={m.id} value={m.id}>{m.display_name}</option>
-                ))}
-              </select>
+                <SelectTrigger className={inputClass}>
+                  <SelectValue placeholder="ללא שיוך" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">ללא שיוך</SelectItem>
+                  {members.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>{m.display_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

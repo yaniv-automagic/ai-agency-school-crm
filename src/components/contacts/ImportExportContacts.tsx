@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import type { Contact } from "@/types/crm";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface ImportExportProps {
   contacts: Contact[];
@@ -185,16 +186,20 @@ export function ImportButton() {
                 <div key={key} className="flex items-center gap-4">
                   <span className="text-sm font-medium w-24 shrink-0">{label}</span>
                   <span className="text-muted-foreground">←</span>
-                  <select
-                    value={mapping[key] || ""}
-                    onChange={(e) => setMapping(m => ({ ...m, [key]: e.target.value }))}
-                    className="flex-1 px-3 py-1.5 text-sm border border-input rounded-lg bg-background"
+                  <Select
+                    value={mapping[key] || "__none__"}
+                    onValueChange={(val) => setMapping(m => ({ ...m, [key]: val === "__none__" ? "" : val }))}
                   >
-                    <option value="">-- לא למפות --</option>
-                    {Object.keys(preview[0] || {}).map(col => (
-                      <option key={col} value={col}>{col}</option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="flex-1 px-3 py-1.5 text-sm border border-input rounded-lg bg-background">
+                      <SelectValue placeholder="-- לא למפות --" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">-- לא למפות --</SelectItem>
+                      {Object.keys(preview[0] || {}).map(col => (
+                        <SelectItem key={col} value={col}>{col}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               ))}
             </div>

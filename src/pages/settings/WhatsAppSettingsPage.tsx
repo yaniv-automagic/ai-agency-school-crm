@@ -4,9 +4,11 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import * as evo from "@/lib/evolution-api";
 import type { WhatsAppInstance } from "@/lib/evolution-api";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export default function WhatsAppSettingsPage() {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
   const [teamInstances, setTeamInstances] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,7 +89,14 @@ export default function WhatsAppSettingsPage() {
   };
 
   const handleDelete = async (instanceId: string) => {
-    if (!confirm("למחוק את החיבור הזה?")) return;
+    const confirmed = await confirm({
+      title: "מחיקת חיבור",
+      description: "למחוק את החיבור הזה?",
+      confirmText: "מחק",
+      cancelText: "ביטול",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
     try {
       await evo.deleteInstance(instanceId);
       toast.success("חיבור נמחק");

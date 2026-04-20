@@ -92,6 +92,22 @@ integrationRouter.post("/test", authMiddleware, async (req: Request, res: Respon
       return res.json({ ok: true, state: result });
     }
 
+    if (provider === "fireflies") {
+      const response = await fetch("https://api.fireflies.ai/graphql", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${data.config.api_key}`,
+        },
+        body: JSON.stringify({ query: "{ user { email name } }" }),
+      });
+      const result = await response.json();
+      if (result.errors) {
+        return res.status(400).json({ error: result.errors[0]?.message || "Invalid API key" });
+      }
+      return res.json({ ok: true, message: `מחובר כ-${result.data?.user?.name || result.data?.user?.email}` });
+    }
+
     res.json({ ok: true, message: "Config saved" });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

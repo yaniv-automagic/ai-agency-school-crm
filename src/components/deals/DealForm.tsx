@@ -8,6 +8,8 @@ import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import type { Product } from "@/types/crm";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DatePicker } from "@/components/ui/date-picker";
 
 const dealSchema = z.object({
   title: z.string().min(1, "כותרת העסקה חובה"),
@@ -110,17 +112,22 @@ export default function DealForm({ onClose, defaultContactId }: DealFormProps) {
           {/* Contact */}
           <div>
             <label className="text-sm font-medium mb-1 block">ליד *</label>
-            <select
-              {...register("contact_id")}
-              className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"
+            <Select
+              value={watch("contact_id") || "__none__"}
+              onValueChange={(v) => setValue("contact_id", v === "__none__" ? "" : v, { shouldValidate: true })}
             >
-              <option value="">בחר ליד</option>
-              {contacts?.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.first_name} {c.last_name} {c.email ? `(${c.email})` : ""}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
+                <SelectValue placeholder="בחר ליד" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">בחר ליד</SelectItem>
+                {contacts?.map(c => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.first_name} {c.last_name} {c.email ? `(${c.email})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {errors.contact_id && (
               <p className="text-xs text-destructive mt-1">{errors.contact_id.message}</p>
             )}
@@ -129,17 +136,22 @@ export default function DealForm({ onClose, defaultContactId }: DealFormProps) {
           {/* Product */}
           <div>
             <label className="text-sm font-medium mb-1 block">מוצר/קורס</label>
-            <select
-              onChange={(e) => handleProductChange(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"
+            <Select
+              value={watch("product_id") || "__none__"}
+              onValueChange={(v) => handleProductChange(v === "__none__" ? "" : v)}
             >
-              <option value="">בחר מוצר (אופציונלי)</option>
-              {products?.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.name} - {p.price.toLocaleString()} ₪
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
+                <SelectValue placeholder="בחר מוצר (אופציונלי)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">בחר מוצר (אופציונלי)</SelectItem>
+                {products?.map(p => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name} - {p.price.toLocaleString()} ₪
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Title */}
@@ -159,30 +171,39 @@ export default function DealForm({ onClose, defaultContactId }: DealFormProps) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium mb-1 block">צנרת *</label>
-              <select
-                {...register("pipeline_id")}
-                onChange={(e) => {
-                  setValue("pipeline_id", e.target.value);
-                  const pl = pipelines?.find(p => p.id === e.target.value);
+              <Select
+                value={watch("pipeline_id")}
+                onValueChange={(v) => {
+                  setValue("pipeline_id", v, { shouldValidate: true });
+                  const pl = pipelines?.find(p => p.id === v);
                   if (pl?.stages?.[0]) setValue("stage_id", pl.stages[0].id);
                 }}
-                className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"
               >
-                {pipelines?.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
+                <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
+                  <SelectValue placeholder="בחר צנרת" />
+                </SelectTrigger>
+                <SelectContent>
+                  {pipelines?.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">שלב *</label>
-              <select
-                {...register("stage_id")}
-                className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"
+              <Select
+                value={watch("stage_id")}
+                onValueChange={(v) => setValue("stage_id", v, { shouldValidate: true })}
               >
-                {stages.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
+                <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
+                  <SelectValue placeholder="בחר שלב" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stages.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -199,9 +220,9 @@ export default function DealForm({ onClose, defaultContactId }: DealFormProps) {
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">סגירה צפויה</label>
-              <input
-                {...register("expected_close")}
-                type="date"
+              <DatePicker
+                value={watch("expected_close") || ""}
+                onChange={(v) => setValue("expected_close", v)}
                 className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"
               />
             </div>
@@ -210,15 +231,20 @@ export default function DealForm({ onClose, defaultContactId }: DealFormProps) {
           {/* Assigned To */}
           <div>
             <label className="text-sm font-medium mb-1 block">אחראי</label>
-            <select
-              {...register("assigned_to")}
-              className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"
+            <Select
+              value={watch("assigned_to") || "__none__"}
+              onValueChange={(v) => setValue("assigned_to", v === "__none__" ? "" : v)}
             >
-              <option value="">ללא שיוך</option>
-              {members.map(m => (
-                <option key={m.id} value={m.id}>{m.display_name}</option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
+                <SelectValue placeholder="ללא שיוך" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">ללא שיוך</SelectItem>
+                {members.map(m => (
+                  <SelectItem key={m.id} value={m.id}>{m.display_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Notes */}

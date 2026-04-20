@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 
 const roleLabels: Record<TeamRole, string> = {
@@ -422,18 +423,22 @@ export default function UsersPage() {
 
             <div>
               <label className="block text-sm font-medium mb-1">תפקיד</label>
-              <select
+              <Select
                 value={formRole}
-                onChange={(e) => setFormRole(e.target.value as TeamRole)}
-                className="w-full px-3 py-2 border border-input rounded-lg bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                onValueChange={v => setFormRole(v as TeamRole)}
                 disabled={editingMember?.role === "owner"}
               >
-                {editingMember?.role === "owner" && <option value="owner">בעלים</option>}
-                <option value="admin">מנהל</option>
-                <option value="sales">מכירות</option>
-                <option value="marketing">שיווק</option>
-                <option value="viewer">צופה</option>
-              </select>
+                <SelectTrigger className="w-full px-3 py-2 border border-input rounded-lg bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {editingMember?.role === "owner" && <SelectItem value="owner">בעלים</SelectItem>}
+                  <SelectItem value="admin">מנהל</SelectItem>
+                  <SelectItem value="sales">מכירות</SelectItem>
+                  <SelectItem value="marketing">שיווק</SelectItem>
+                  <SelectItem value="viewer">צופה</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {error && (

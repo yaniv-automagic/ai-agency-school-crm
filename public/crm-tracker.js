@@ -35,7 +35,7 @@
   var stored = {};
   try { stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e) {}
 
-  var utmFields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'gclid', 'ad_id', 'adset_id', 'campaign_id'];
+  var utmFields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'utm_id', 'fbclid', 'gclid', 'ad_id', 'adset_id', 'campaign_id'];
   utmFields.forEach(function(f) {
     if (params[f]) stored[f] = params[f];
   });
@@ -68,12 +68,13 @@
       if (!href || href.includes('utm_source=')) return;
       var sep = href.includes('?') ? '&' : '?';
       var qs = '';
-      if (stored.utm_source) qs += 'utm_source=' + encodeURIComponent(stored.utm_source) + '&';
-      if (stored.utm_medium) qs += 'utm_medium=' + encodeURIComponent(stored.utm_medium) + '&';
-      if (stored.utm_campaign) qs += 'utm_campaign=' + encodeURIComponent(stored.utm_campaign) + '&';
-      if (stored.utm_content) qs += 'utm_content=' + encodeURIComponent(stored.utm_content) + '&';
-      if (stored.entry_type) qs += 'entry_type=' + encodeURIComponent(stored.entry_type) + '&';
+      // Forward all UTM and tracking params
+      var forwardFields = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'utm_id', 'fbclid', 'gclid', 'ad_id', 'adset_id', 'campaign_id', 'entry_type'];
+      forwardFields.forEach(function(f) {
+        if (stored[f]) qs += f + '=' + encodeURIComponent(stored[f]) + '&';
+      });
       qs += 'page_url=' + encodeURIComponent(window.location.href);
+      if (stored.referrer) qs += '&referrer=' + encodeURIComponent(stored.referrer);
       link.setAttribute('href', href + sep + qs);
     });
   }
@@ -122,11 +123,15 @@
                   utm_campaign: stored.utm_campaign || null,
                   utm_content: stored.utm_content || null,
                   utm_term: stored.utm_term || null,
+                  utm_id: stored.utm_id || null,
                   entry_type: stored.entry_type || null,
                   page_url: window.location.href,
                   referrer: document.referrer,
                   fbclid: stored.fbclid || null,
                   gclid: stored.gclid || null,
+                  ad_id: stored.ad_id || null,
+                  adset_id: stored.adset_id || null,
+                  campaign_id: stored.campaign_id || null,
                 }
               };
 
@@ -182,8 +187,16 @@
                     utm_medium: stored.utm_medium || null,
                     utm_campaign: stored.utm_campaign || null,
                     utm_content: stored.utm_content || null,
+                    utm_term: stored.utm_term || null,
+                    utm_id: stored.utm_id || null,
+                    entry_type: stored.entry_type || null,
                     page_url: window.location.href,
                     referrer: document.referrer,
+                    fbclid: stored.fbclid || null,
+                    gclid: stored.gclid || null,
+                    ad_id: stored.ad_id || null,
+                    adset_id: stored.adset_id || null,
+                    campaign_id: stored.campaign_id || null,
                   }
                 });
               }

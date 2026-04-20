@@ -7,6 +7,7 @@ import type { Automation } from "@/types/crm";
 import { cn, timeAgo } from "@/lib/utils";
 import { toast } from "sonner";
 import AutomationBuilder from "@/components/automations/AutomationBuilder";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 function useAutomations() {
   return useQuery({
@@ -45,6 +46,7 @@ export default function AutomationsPage() {
   const { data: automations, isLoading } = useAutomations();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [showBuilder, setShowBuilder] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -185,10 +187,16 @@ export default function AutomationsPage() {
                     <Edit3 size={14} />
                   </button>
                   <button
-                    onClick={() => {
-                      if (confirm("למחוק את האוטומציה?")) {
-                        deleteAutomation.mutate(auto.id);
-                      }
+                    onClick={async () => {
+                      const confirmed = await confirm({
+                        title: "מחיקת אוטומציה",
+                        description: "למחוק את האוטומציה?",
+                        confirmText: "מחק",
+                        cancelText: "ביטול",
+                        variant: "destructive",
+                      });
+                      if (!confirmed) return;
+                      deleteAutomation.mutate(auto.id);
                     }}
                     className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
                   >

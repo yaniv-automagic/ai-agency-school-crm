@@ -51,10 +51,15 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     >
       {/* Logo */}
       <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border">
-        {!collapsed && (
-          <h1 className="text-lg font-bold text-sidebar-primary-foreground truncate">
-            AI Agency CRM
-          </h1>
+        {!collapsed ? (
+          <div className="flex items-center gap-2 min-w-0">
+            <img src="/logo.png" alt="AI Agency" className="w-8 h-8 rounded-lg shrink-0" />
+            <h1 className="text-lg font-bold text-sidebar-primary-foreground truncate">
+              AI Agency CRM
+            </h1>
+          </div>
+        ) : (
+          <img src="/logo.png" alt="AI Agency" className="w-8 h-8 rounded-lg" />
         )}
         <button
           onClick={onToggle}

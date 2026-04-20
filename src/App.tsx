@@ -54,10 +54,12 @@ const SettingsPage = lazy(() => import("./pages/settings/SettingsPage"));
 const PipelineSettingsPage = lazy(() => import("./pages/settings/PipelineSettingsPage"));
 const IntegrationSettingsPage = lazy(() => import("./pages/settings/IntegrationSettingsPage"));
 const FormsPage = lazy(() => import("./pages/settings/FormsPage"));
+const LandingPageMappingsPage = lazy(() => import("./pages/settings/LandingPageMappingsPage"));
 const MigrationPage = lazy(() => import("./pages/settings/MigrationPage"));
 const WhatsAppSettingsPage = lazy(() => import("./pages/settings/WhatsAppSettingsPage"));
 const UsersPage = lazy(() => import("./pages/settings/UsersPage"));
 const PermissionsPage = lazy(() => import("./pages/settings/PermissionsPage"));
+const FirefliesSettingsPage = lazy(() => import("./pages/settings/FirefliesSettingsPage"));
 
 function PageLoader() {
   return (
@@ -139,10 +141,12 @@ export default function App() {
           <Route path="/settings/pipelines" element={<PipelineSettingsPage />} />
           <Route path="/settings/integrations" element={<IntegrationSettingsPage />} />
           <Route path="/settings/forms" element={<FormsPage />} />
+          <Route path="/settings/landing-pages" element={<LandingPageMappingsPage />} />
           <Route path="/settings/migration" element={<MigrationPage />} />
           <Route path="/settings/whatsapp" element={<WhatsAppSettingsPage />} />
           <Route path="/settings/users" element={<UsersPage />} />
           <Route path="/settings/permissions" element={<PermissionsPage />} />
+          <Route path="/settings/fireflies" element={<FirefliesSettingsPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Kanban } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDeals, usePipelines, useUpdateDeal } from "@/hooks/useDeals";
 import { formatCurrency, cn, timeAgo } from "@/lib/utils";
 import DealForm from "@/components/deals/DealForm";
@@ -43,15 +44,16 @@ export default function PipelinePage() {
         </div>
         <div className="flex items-center gap-3">
           {pipelines && pipelines.length > 1 && (
-            <select
-              value={pipelineId}
-              onChange={(e) => setSelectedPipelineId(e.target.value)}
-              className="px-3 py-2 text-sm border border-input rounded-lg bg-background"
-            >
-              {pipelines.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+            <Select value={pipelineId} onValueChange={setSelectedPipelineId}>
+              <SelectTrigger className="px-3 py-2 text-sm border border-input rounded-lg bg-background">
+                <SelectValue placeholder="בחר צנרת" />
+              </SelectTrigger>
+              <SelectContent>
+                {pipelines.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
           <button
             onClick={() => setShowDealForm(true)}

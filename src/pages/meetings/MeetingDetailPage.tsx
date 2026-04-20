@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowRight, ExternalLink, Calendar, Clock, Video, User } from "lucide-react";
+import { ArrowRight, ExternalLink, Calendar, Clock, Video, User, FileText, CheckCircle, ChevronDown } from "lucide-react";
 import { useMeeting, useUpdateMeeting } from "@/hooks/useMeetings";
 import { MEETING_TYPES, MEETING_STATUSES, MEETING_OUTCOMES } from "@/lib/constants";
 import { cn, formatCurrency, timeAgo } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { MeetingOutcome } from "@/types/crm";
 
 export default function MeetingDetailPage() {
@@ -11,6 +12,8 @@ export default function MeetingDetailPage() {
   const navigate = useNavigate();
   const { data: meeting, isLoading } = useMeeting(id);
   const updateMeeting = useUpdateMeeting();
+
+  const [showFullTranscript, setShowFullTranscript] = useState(false);
 
   const [outcomeForm, setOutcomeForm] = useState<{
     outcome: MeetingOutcome | "";
@@ -200,6 +203,98 @@ export default function MeetingDetailPage() {
             </div>
           )}
 
+          {/* Mini Video Player (Fireflies) */}
+          {meeting.recording_url && meeting.fireflies_meeting_id && (
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <div className="relative bg-black">
+                <video
+                  src={meeting.recording_url}
+                  controls
+                  preload="metadata"
+                  className="w-full max-h-[400px] object-contain"
+                  controlsList="nodownload"
+                  playsInline
+                />
+              </div>
+              <div className="px-4 py-2.5 flex items-center justify-between bg-purple-50/50 border-t border-border">
+                <div className="flex items-center gap-2">
+                  <Video size={14} className="text-purple-500" />
+                  <span className="text-xs font-medium text-purple-700">הקלטת פגישה</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-600 font-medium">Fireflies</span>
+                </div>
+                <a href={meeting.recording_url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-[11px] text-purple-600 hover:underline">
+                  <ExternalLink size={11} /> פתח בחלון חדש
+                </a>
+              </div>
+            </div>
+          )}
+
+          {/* AI Summary (Fireflies) */}
+          {meeting.ai_summary && (
+            <div className="bg-card border border-border rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Video size={16} className="text-purple-500" />
+                <h3 className="font-semibold">סיכום AI</h3>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-medium">Fireflies</span>
+              </div>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                {meeting.ai_summary}
+              </p>
+            </div>
+          )}
+
+          {/* Action Items (Fireflies) */}
+          {meeting.ai_action_items && meeting.ai_action_items.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <CheckCircle size={16} className="text-purple-500" />
+                <h3 className="font-semibold">פריטי פעולה</h3>
+              </div>
+              <ul className="space-y-2">
+                {meeting.ai_action_items.map((item, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    <span className="text-purple-400 mt-0.5 shrink-0">•</span>
+                    <span className="text-muted-foreground">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Transcript (Fireflies) */}
+          {meeting.transcript_text && (
+            <div className="bg-card border border-border rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <FileText size={16} className="text-purple-500" />
+                  <h3 className="font-semibold">תמלול פגישה</h3>
+                </div>
+                {meeting.transcript_url && (
+                  <a href={meeting.transcript_url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs text-purple-600 hover:underline">
+                    <ExternalLink size={12} /> פתח ב-Fireflies
+                  </a>
+                )}
+              </div>
+              <div className={cn("text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed font-mono", !showFullTranscript && "max-h-64 overflow-hidden relative")}>
+                {meeting.transcript_text}
+                {!showFullTranscript && meeting.transcript_text.length > 500 && (
+                  <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-card to-transparent" />
+                )}
+              </div>
+              {meeting.transcript_text.length > 500 && (
+                <button
+                  onClick={() => setShowFullTranscript(!showFullTranscript)}
+                  className="flex items-center gap-1.5 mt-3 text-xs font-medium text-purple-600 hover:text-purple-700"
+                >
+                  <ChevronDown size={14} className={cn("transition-transform", showFullTranscript && "rotate-180")} />
+                  {showFullTranscript ? "הצג פחות" : "הצג תמלול מלא"}
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Outcome Recording Form */}
           {showOutcomeForm && (
             <div className="bg-card border border-border rounded-xl p-4">
@@ -207,21 +302,24 @@ export default function MeetingDetailPage() {
               <form onSubmit={handleOutcomeSubmit} className="space-y-4">
                 <div>
                   <label className="text-sm font-medium mb-1 block">תוצאה *</label>
-                  <select
-                    value={outcomeForm.outcome}
-                    onChange={(e) =>
-                      setOutcomeForm((p) => ({ ...p, outcome: e.target.value as MeetingOutcome | "" }))
+                  <Select
+                    value={outcomeForm.outcome || "__all__"}
+                    onValueChange={(val) =>
+                      setOutcomeForm((p) => ({ ...p, outcome: val === "__all__" ? "" : val as MeetingOutcome }))
                     }
-                    className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"
-                    required
                   >
-                    <option value="">בחר תוצאה</option>
-                    {MEETING_OUTCOMES.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
+                      <SelectValue placeholder="בחר תוצאה" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">בחר תוצאה</SelectItem>
+                      {MEETING_OUTCOMES.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div>
@@ -363,6 +461,17 @@ export default function MeetingDetailPage() {
                 <ExternalLink size={14} />
                 צפה בהקלטה
               </a>
+            </div>
+          )}
+
+          {/* Fireflies badge */}
+          {meeting.fireflies_meeting_id && (
+            <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Video size={14} className="text-purple-500" />
+                <h3 className="font-semibold text-sm text-purple-700">Fireflies.ai</h3>
+              </div>
+              <p className="text-xs text-purple-600">פגישה זו תומללה אוטומטית</p>
             </div>
           )}
         </div>
