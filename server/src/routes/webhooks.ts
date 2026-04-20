@@ -230,7 +230,8 @@ webhookRouter.post("/fireflies/:tenantId", async (req: Request, res: Response) =
 
     const recordingUrl = transcript.video_url || transcript.audio_url || null;
     const transcriptUrl = transcript.transcript_url || null;
-    const meetingDate = transcript.date ? new Date(transcript.date * 1000).toISOString() : new Date().toISOString();
+    // Fireflies returns date in milliseconds
+    const meetingDate = transcript.date ? new Date(transcript.date).toISOString() : new Date().toISOString();
     const durationMinutes = transcript.duration ? Math.round(transcript.duration / 60) : null;
 
     // Collect all participant emails from meeting_attendees, host_email, organizer_email
