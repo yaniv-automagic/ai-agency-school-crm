@@ -218,11 +218,76 @@
     };
   }
 
+  // ── Intercept Elementor form submit (handles both AJAX and redirect) ──
+  function hookElementorFormSubmit() {
+    document.addEventListener('submit', function(e) {
+      var form = e.target;
+      if (!form || form.tagName !== 'FORM') return;
+
+      // Check if this is an Elementor form
+      var isElementor = form.classList.contains('elementor-form') ||
+                        form.querySelector('[name="action"][value*="elementor"]') ||
+                        form.querySelector('input[name="form_fields[name]"], input[name="form_fields[email]"], input[name="form_fields[field_"]');
+
+      if (!isElementor) return;
+
+      try {
+        var formData = {};
+        var inputs = form.querySelectorAll('input, select, textarea');
+        for (var i = 0; i < inputs.length; i++) {
+          var input = inputs[i];
+          var name = input.getAttribute('name') || '';
+          var val = input.value || '';
+          if (!name || !val) continue;
+          if (name.startsWith('form_fields[')) {
+            var fieldName = name.replace('form_fields[', '').replace(']', '');
+            formData[fieldName] = val;
+          } else if (name === 'form_fields') {
+            // Some Elementor versions use flat names
+          }
+        }
+
+        if (Object.keys(formData).length > 0) {
+          console.log('[CRM Tracker] Elementor form submit captured:', Object.keys(formData));
+          // Use sendBeacon for reliability during page unload/redirect
+          var payload = JSON.stringify({
+            fields: formData,
+            meta: {
+              utm_source: stored.utm_source || null,
+              utm_medium: stored.utm_medium || null,
+              utm_campaign: stored.utm_campaign || null,
+              utm_content: stored.utm_content || null,
+              utm_term: stored.utm_term || null,
+              utm_id: stored.utm_id || null,
+              entry_type: stored.entry_type || null,
+              page_url: window.location.href,
+              referrer: document.referrer || stored.referrer || null,
+              fbclid: stored.fbclid || null,
+              gclid: stored.gclid || null,
+              ad_id: stored.ad_id || null,
+              adset_id: stored.adset_id || null,
+              campaign_id: stored.campaign_id || null,
+            }
+          });
+
+          if (navigator.sendBeacon) {
+            navigator.sendBeacon(CRM_BACKEND + '/api/webhooks/elementor', new Blob([payload], { type: 'application/json' }));
+          } else {
+            sendToCRM('/api/webhooks/elementor', JSON.parse(payload));
+          }
+        }
+      } catch(e) {
+        console.warn('[CRM Tracker] Error capturing form:', e);
+      }
+    }, true); // capture phase — runs before the form actually submits
+  }
+
   // ── Run ──
   function init() {
     patchFilloutLinks();
     hookElementorAjax();
     hookFetchApi();
+    hookElementorFormSubmit();
   }
 
   if (document.readyState === 'loading') {
