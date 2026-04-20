@@ -147,16 +147,16 @@ webhookRouter.post("/fireflies/:tenantId", async (req: Request, res: Response) =
     const { tenantId } = req.params;
     const payload = req.body;
 
-    // Fireflies sends { meetingId, eventType, ... }
-    const firefliesMeetingId = payload.meetingId || payload.meeting_id;
-    const eventType = payload.eventType || payload.event_type || "Meeting Transcribed";
+    // Webhooks V2 payload: { event, meeting_id, timestamp, client_reference_id? }
+    const firefliesMeetingId = payload.meeting_id || payload.meetingId;
+    const eventType = payload.event || payload.eventType || "meeting.transcribed";
 
     if (!firefliesMeetingId) {
-      return res.status(400).json({ error: "Missing meetingId" });
+      return res.status(400).json({ error: "Missing meeting_id" });
     }
 
-    // Only process transcript-completed events
-    if (eventType !== "Meeting Transcribed" && eventType !== "Transcription completed") {
+    // Only process transcript-ready events
+    if (eventType !== "meeting.transcribed" && eventType !== "meeting.summarized") {
       return res.json({ ok: true, skipped: true, reason: `Unhandled event: ${eventType}` });
     }
 
@@ -190,8 +190,13 @@ webhookRouter.post("/fireflies/:tenantId", async (req: Request, res: Response) =
             title
             date
             duration
+            host_email
             organizer_email
-            participants
+            meeting_attendees {
+              displayName
+              email
+              name
+            }
             transcript_url
             audio_url
             video_url
@@ -228,17 +233,21 @@ webhookRouter.post("/fireflies/:tenantId", async (req: Request, res: Response) =
     const meetingDate = transcript.date ? new Date(transcript.date * 1000).toISOString() : new Date().toISOString();
     const durationMinutes = transcript.duration ? Math.round(transcript.duration / 60) : null;
 
-    // Collect all participant emails
+    // Collect all participant emails from meeting_attendees, host_email, organizer_email
     const participantEmails: string[] = [];
-    if (transcript.organizer_email) participantEmails.push(transcript.organizer_email.toLowerCase());
-    if (transcript.participants) {
-      for (const p of transcript.participants) {
-        const email = (typeof p === "string" ? p : p?.email || "").toLowerCase().trim();
-        if (email && !participantEmails.includes(email)) participantEmails.push(email);
+    const addEmail = (e: string) => {
+      const clean = e.toLowerCase().trim();
+      if (clean && clean.includes("@") && !participantEmails.includes(clean)) participantEmails.push(clean);
+    };
+    if (transcript.host_email) addEmail(transcript.host_email);
+    if (transcript.organizer_email) addEmail(transcript.organizer_email);
+    if (transcript.meeting_attendees) {
+      for (const a of transcript.meeting_attendees) {
+        if (a.email) addEmail(a.email);
       }
     }
 
-    // Find matching contacts by email
+    // Find matching contacts by email only
     let matchedContacts: { id: string; email: string }[] = [];
     if (participantEmails.length > 0) {
       const { data: contacts } = await supabase
@@ -250,34 +259,8 @@ webhookRouter.post("/fireflies/:tenantId", async (req: Request, res: Response) =
       matchedContacts = contacts || [];
     }
 
-    // Fallback: try matching by name from transcript title
-    if (matchedContacts.length === 0 && transcript.title) {
-      console.log("[Fireflies] No email match, trying name match from title:", transcript.title);
-      const titleParts = transcript.title.split(/[-–—:,]/)[0].trim();
-      const names = titleParts.split(/\s+ו/).flatMap((n: string) => n.trim().split(/\s+/)).filter((n: string) => n.length > 1);
-      if (names.length > 0) {
-        const { data: allContacts } = await supabase
-          .from("crm_contacts")
-          .select("id, email, first_name, last_name")
-          .eq("tenant_id", tenantId);
-        if (allContacts) {
-          for (const contact of allContacts) {
-            const firstName = (contact.first_name || "").toLowerCase();
-            const fullName = `${contact.first_name || ""} ${contact.last_name || ""}`.trim().toLowerCase();
-            for (const name of names) {
-              if (name.length > 1 && (firstName === name.toLowerCase() || fullName.includes(name.toLowerCase()))) {
-                if (!matchedContacts.find(c => c.id === contact.id)) {
-                  matchedContacts.push({ id: contact.id, email: contact.email || "" });
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-
     if (matchedContacts.length === 0) {
-      console.log("[Fireflies] No matching contacts found for", participantEmails);
+      console.log("[Fireflies] No matching contacts for emails:", participantEmails);
     }
 
     // Determine meeting type: check if there's an existing meeting for this contact
