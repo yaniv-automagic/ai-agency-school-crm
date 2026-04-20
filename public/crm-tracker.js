@@ -97,12 +97,20 @@
       var url = this._crmUrl || '';
 
       // Elementor Pro sends to admin-ajax.php with action=elementor_pro_forms_send_form
-      if (url.includes('admin-ajax.php') && body && typeof body === 'string' && body.includes('elementor_pro_forms')) {
+      // Body can be a string (URL-encoded) or FormData object
+      var bodyStr = '';
+      if (typeof body === 'string') {
+        bodyStr = body;
+      } else if (body instanceof FormData) {
+        body.forEach(function(val, key) { bodyStr += encodeURIComponent(key) + '=' + encodeURIComponent(val) + '&'; });
+      }
+
+      if (url.includes('admin-ajax.php') && bodyStr && (bodyStr.includes('elementor_pro_forms') || bodyStr.includes('elementor') && bodyStr.includes('form_fields'))) {
         xhr.addEventListener('load', function() {
           try {
             // Parse the form data that was sent
             var formData = {};
-            var pairs = body.split('&');
+            var pairs = bodyStr.split('&');
             for (var i = 0; i < pairs.length; i++) {
               var kv = pairs[i].split('=');
               var key = decodeURIComponent(kv[0] || '');
@@ -166,7 +174,7 @@
 
         if (bodyStr.includes('elementor') && bodyStr.includes('form_fields')) {
           // Parse and send to CRM after fetch completes
-          origFetch.apply(this, arguments).then(function() {
+          return origFetch.apply(this, arguments).then(function(response) {
             try {
               var formData = {};
               var pairs = bodyStr.split('&');
@@ -201,6 +209,7 @@
                 });
               }
             } catch(e) {}
+            return response;
           });
         }
       }
