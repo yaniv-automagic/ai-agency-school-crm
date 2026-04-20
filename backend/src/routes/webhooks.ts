@@ -1,7 +1,401 @@
 import { Router } from "express";
+import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "../lib/supabase.js";
 
 export const webhookRouter = Router();
+
+// ── AI Summary Prompts ──
+
+const MENTORING_SUMMARY_PROMPT = `אתה עוזר מקצועי לסיכום פגישות ליווי עסקי/מנטורינג.
+תקבל תמלול מלא של פגישה ותפיק סיכום תמציתי ומדויק בעברית.
+
+הפלט חייב להיות טקסט רגיל בלבד — בלי HTML, בלי markdown, בלי תגיות.
+
+מבנה הפלט (עקוב במדויק):
+
+שורה ראשונה: "פגישה [מספר אם ידוע] —"
+שורה ריקה
+פסקת סיכום: 2-5 משפטים רצופים.
+שורה ריקה
+"שיעורי בית:"
+רשימה ממוספרת של משימות (1. משימה ראשונה  2. משימה שנייה  וכו')
+
+הנחיות לתוכן:
+
+פסקת הסיכום:
+- כתוב בגוף שלישי ("נועה התקדמה...", "גיא בנה...")
+- התחל בעדכון מצב כללי — מה קרה מאז הפגישה הקודמת, התקדמות, אתגרים
+- המשך בתיאור מה נעשה בפגישה עצמה — נושאים, תרגילים, תובנות
+- ציין לידים, פרויקטים, או הזדמנויות בשם ועם פרטים
+- ציין חששות או קשיים שעלו
+- טון ישיר, ענייני, וחם
+
+שיעורי בית:
+- כל משימה ברורה וספציפית
+- ניסוח בצורת פועל במקור: לצפות, לבנות, לקדם, לדבר עם, למצוא, להגיע...
+- שמות קורסים וכלים במירכאות או כשמם המדויק
+
+כללי:
+- אל תמציא מידע שלא מופיע בתמלול
+- אל תוסיף פרשנויות או המלצות שלא נאמרו בפגישה
+- אם שם המתלמד/ה לא ברור — כתוב [שם]
+- הסיכום צריך להיות קצר מספיק לקריאה ב-30 שניות, אבל מפורט מספיק לזכור את הפגישה גם אחרי חודשים`;
+
+const SALES_SUMMARY_PROMPT = `אתה מנתח שיחות מכירה מומחה. אתה מקבל תמלול מלא של שיחת מכירה (בעברית), ותפקידך לייצר סיכום מעמיק, ישיר וחד שמאפשר למוכר להבין בדיוק מה קרה בשיחה, למה הליד לא סגר (או סגר), ומה לעשות הלאה.
+
+הפלט חייב להיות טקסט רגיל בלבד — בלי HTML, בלי markdown, בלי תגיות.
+השתמש בשורות ריקות להפרדה בין סעיפים, ובאותיות גדולות או "---" להפרדה בין חלקים.
+
+מבנה הסיכום:
+
+למה לא סגר/ה? (או: למה כן סגר/ה?)
+---
+פסקה אחת תמציתית שמסבירה את השורה התחתונה: מה בדיוק מנע סגירה (או מה הוביל לסגירה). זו אבחנה ממוקדת. הפרד בין התנגדות אמיתית לבין תירוץ, וציין מה החסם האמיתי.
+
+מה היה בשיחה:
+---
+
+טריגר רגשי:
+מה מניע את הליד ברמה העמוקה? לא מה הוא אומר שהוא רוצה, אלא מה באמת דוחף אותו — פחד, שאיפה, כאב, חלום, תסכול, רצון להוכיח.
+
+הבולשיט שניקינו:
+אילו אמונות מגבילות, בלבולים או הנחות שגויות היו לליד, ואיך המוכר פירק אותם? דוגמאות ספציפיות.
+
+הפער שעלה:
+מה הפער המרכזי בין המצב הנוכחי של הליד לבין המצב הרצוי? חדד מה בדיוק הפער.
+
+למה יש התאמה:
+מה בליד הופך אותו למתאים? למה המוצר/שירות רלוונטי ספציפית עבורו?
+
+מה חיזק את הביטחון / הערך:
+אילו אלמנטים נתנו לליד תחושת ביטחון, אמון או התחברות?
+
+החסם המרכזי:
+מה באמת עוצר את הליד? הפרד בין חסמים שונים. זהה מה ראשי ומה משני.
+
+הכאב שנגע בו/בה:
+מה היה הרגע בשיחה שבו הליד הכי הרגיש שזה רלוונטי? אם לא היה רגע כזה — ציין.
+
+שימור (מה נעשה טוב):
+---
+נקודות ספציפיות שהמוכר עשה טוב. כל נקודה — משפט-שניים שמסביר מה נעשה ולמה היה אפקטיבי.
+
+שיפור (מה אפשר לעשות טוב יותר):
+---
+נקודות ספציפיות לשיפור. כל נקודה כוללת: מה היה אפשר אחרת, ולמה זה היה משנה. כולל המלצות לפולואפ.
+
+סטטוס ליד:
+---
+שורה-שתיים: חם/קר/פושר, סגור/לא סגור, מה השלב הבא, מה נדרש. תאריך שיחת המשך אם נקבעה.
+
+הנחיות כלליות:
+- כתוב בעברית, בגוף שני (פנייה ישירה למוכר — "עשית", "חידדת", "הצגת")
+- כשמתייחס לליד, השתמש בשם הפרטי שלו/שלה
+- טון ישיר, מקצועי, כנה. שבחים רק כשמגיע, ביקורת בונה חדה וברורה
+- אל תמציא מידע שלא עלה בשיחה
+- אם יש מספרים (יעדי הכנסה, מחירים, מסלולים) — שלב אותם
+- אם עלו שמות נוספים (בן/בת זוג, שותף) — ציין תפקידם
+- שים לב להבדל בין מה שהליד אומר לבין מה שהוא מרגיש
+- כתוב בפסקאות זורמות, לא ברשימות תבליטים. הסיכום צריך להיקרא כמו אנליזה רציפה`;
+
+async function generateAISummary(
+  transcript: string,
+  meetingType: string,
+  anthropicApiKey: string
+): Promise<{ summary: string; actionItems: string[] }> {
+  const client = new Anthropic({ apiKey: anthropicApiKey });
+  const isSales = meetingType === "sales_consultation";
+  const systemPrompt = isSales ? SALES_SUMMARY_PROMPT : MENTORING_SUMMARY_PROMPT;
+
+  const response = await client.messages.create({
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 2000,
+    system: systemPrompt,
+    messages: [{ role: "user", content: `תמלול הפגישה:\n\n${transcript}` }],
+  });
+
+  const summaryText = response.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("\n");
+
+  // Extract action items from the summary
+  const actionItems: string[] = [];
+  const lines = summaryText.split("\n");
+  let inHomework = false;
+  for (const line of lines) {
+    if (line.includes("שיעורי בית:") || line.includes("שיפור")) {
+      inHomework = true;
+      continue;
+    }
+    if (inHomework) {
+      const match = line.match(/^\d+\.\s*(.+)/);
+      if (match) {
+        actionItems.push(match[1].trim());
+      } else if (line.trim() === "" || line.includes("---")) {
+        if (actionItems.length > 0) inHomework = false;
+      }
+    }
+  }
+
+  return { summary: summaryText, actionItems };
+}
+
+// ══════════════════════════════════════════════
+// Fireflies.ai Webhook
+// URL: POST /api/webhooks/fireflies/:tenantId
+// ══════════════════════════════════════════════
+webhookRouter.post("/fireflies/:tenantId", async (req, res) => {
+  try {
+    const { tenantId } = req.params;
+    const payload = req.body;
+
+    console.log("[Fireflies] Webhook received:", JSON.stringify(payload).substring(0, 500));
+
+    // Fireflies sends { meetingId, eventType, ... }
+    const firefliesMeetingId = payload.meetingId || payload.meeting_id;
+    const eventType = payload.eventType || payload.event_type || "Meeting Transcribed";
+
+    if (!firefliesMeetingId) {
+      return res.status(400).json({ error: "Missing meetingId" });
+    }
+
+    // Only process transcript-completed events
+    if (eventType !== "Meeting Transcribed" && eventType !== "Transcription completed") {
+      return res.json({ ok: true, skipped: true, reason: `Unhandled event: ${eventType}` });
+    }
+
+    // Get Fireflies API key from integration config
+    const { data: ffConfig } = await supabase
+      .from("crm_integration_configs")
+      .select("config")
+      .eq("tenant_id", tenantId)
+      .eq("provider", "fireflies")
+      .eq("is_active", true)
+      .single();
+
+    if (!ffConfig?.config?.api_key) {
+      console.error("[Fireflies] No API key configured for tenant", tenantId);
+      return res.status(400).json({ error: "Fireflies API key not configured" });
+    }
+
+    const apiKey = ffConfig.config.api_key;
+
+    // Fetch transcript details from Fireflies GraphQL API
+    const gqlResponse = await fetch("https://api.fireflies.ai/graphql", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        query: `query GetTranscript($id: String!) {
+          transcript(id: $id) {
+            id
+            title
+            date
+            duration
+            organizer_email
+            participants
+            transcript_url
+            audio_url
+            video_url
+            summary {
+              overview
+              shorthand_bullet
+              action_items
+            }
+            sentences {
+              speaker_name
+              text
+            }
+          }
+        }`,
+        variables: { id: firefliesMeetingId },
+      }),
+    });
+
+    const gqlData = await gqlResponse.json();
+    const transcript = gqlData?.data?.transcript;
+
+    if (!transcript) {
+      console.error("[Fireflies] Transcript not found:", firefliesMeetingId, JSON.stringify(gqlData?.errors || gqlData).substring(0, 300));
+      return res.status(404).json({ error: "Transcript not found in Fireflies" });
+    }
+
+    console.log(`[Fireflies] Got transcript: "${transcript.title}" (${transcript.sentences?.length || 0} sentences)`);
+
+    // Build plain-text transcript from sentences
+    const transcriptText = transcript.sentences
+      ?.map((s: any) => `${s.speaker_name}: ${s.text}`)
+      .join("\n") || "";
+
+    const recordingUrl = transcript.video_url || transcript.audio_url || null;
+    const transcriptUrl = transcript.transcript_url || null;
+    const meetingDate = transcript.date ? new Date(transcript.date * 1000).toISOString() : new Date().toISOString();
+    const durationMinutes = transcript.duration ? Math.round(transcript.duration / 60) : null;
+
+    // Collect all participant emails
+    const participantEmails: string[] = [];
+    if (transcript.organizer_email) participantEmails.push(transcript.organizer_email.toLowerCase());
+    if (transcript.participants) {
+      for (const p of transcript.participants) {
+        const email = (typeof p === "string" ? p : p?.email || "").toLowerCase().trim();
+        if (email && !participantEmails.includes(email)) participantEmails.push(email);
+      }
+    }
+
+    // Find matching contacts by email
+    let matchedContacts: { id: string; email: string }[] = [];
+    if (participantEmails.length > 0) {
+      const { data: contacts } = await supabase
+        .from("crm_contacts")
+        .select("id, email")
+        .eq("tenant_id", tenantId)
+        .in("email", participantEmails);
+
+      matchedContacts = contacts || [];
+    }
+
+    if (matchedContacts.length === 0) {
+      console.log("[Fireflies] No matching contacts found for", participantEmails);
+    }
+
+    // Determine meeting type from existing meetings for this contact
+    let meetingType = "other";
+    const contactId = matchedContacts[0]?.id || null;
+    if (contactId) {
+      const { data: recentMeeting } = await supabase
+        .from("crm_meetings")
+        .select("meeting_type")
+        .eq("contact_id", contactId)
+        .order("scheduled_at", { ascending: false })
+        .limit(1)
+        .single();
+      if (recentMeeting?.meeting_type) meetingType = recentMeeting.meeting_type;
+    }
+
+    // Generate AI summary using Claude
+    let summary = "";
+    let actionItems: string[] = [];
+
+    const { data: anthropicConfig } = await supabase
+      .from("crm_integration_configs")
+      .select("config")
+      .eq("tenant_id", tenantId)
+      .eq("provider", "anthropic")
+      .eq("is_active", true)
+      .single();
+
+    const anthropicApiKey = anthropicConfig?.config?.api_key || process.env.ANTHROPIC_API_KEY;
+
+    if (anthropicApiKey && transcriptText) {
+      try {
+        console.log(`[Fireflies] Generating AI summary (${meetingType}) for "${transcript.title}"...`);
+        const aiResult = await generateAISummary(transcriptText, meetingType, anthropicApiKey);
+        summary = aiResult.summary;
+        actionItems = aiResult.actionItems;
+        console.log(`[Fireflies] AI summary generated (${summary.length} chars, ${actionItems.length} action items)`);
+      } catch (aiErr: any) {
+        console.error("[Fireflies] AI summary failed, using Fireflies summary:", aiErr.message);
+        summary = transcript.summary?.overview || transcript.summary?.shorthand_bullet?.join("\n") || "";
+        actionItems = transcript.summary?.action_items || [];
+      }
+    } else {
+      summary = transcript.summary?.overview || transcript.summary?.shorthand_bullet?.join("\n") || "";
+      actionItems = transcript.summary?.action_items || [];
+    }
+
+    // Check if we already processed this Fireflies meeting
+    const { data: existingMeeting } = await supabase
+      .from("crm_meetings")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("fireflies_meeting_id", firefliesMeetingId)
+      .limit(1)
+      .single();
+
+    if (existingMeeting) {
+      await supabase
+        .from("crm_meetings")
+        .update({
+          recording_url: recordingUrl,
+          transcript_url: transcriptUrl,
+          transcript_text: transcriptText,
+          ai_summary: summary,
+          ai_action_items: actionItems,
+          status: "completed",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existingMeeting.id);
+    } else if (contactId) {
+      await supabase
+        .from("crm_meetings")
+        .insert({
+          tenant_id: tenantId,
+          contact_id: contactId,
+          meeting_type: meetingType as any,
+          status: "completed",
+          title: transcript.title || "פגישה מוקלטת",
+          scheduled_at: meetingDate,
+          duration_minutes: durationMinutes || 60,
+          recording_url: recordingUrl,
+          transcript_url: transcriptUrl,
+          transcript_text: transcriptText,
+          ai_summary: summary,
+          ai_action_items: actionItems,
+          fireflies_meeting_id: firefliesMeetingId,
+        });
+    }
+
+    // Add activity to timeline for each matched contact
+    const activityPromises = matchedContacts.map((contact) =>
+      supabase.from("crm_activities").insert({
+        tenant_id: tenantId,
+        contact_id: contact.id,
+        type: "meeting",
+        subject: transcript.title || "הקלטת פגישה",
+        body: summary || `תמלול פגישה זמין — ${transcript.title}`,
+        metadata: {
+          source: "fireflies",
+          fireflies_meeting_id: firefliesMeetingId,
+          recording_url: recordingUrl,
+          transcript_url: transcriptUrl,
+          duration_minutes: durationMinutes,
+          participants: participantEmails,
+          action_items: actionItems,
+        },
+        performed_at: meetingDate,
+      })
+    );
+
+    await Promise.all(activityPromises);
+
+    console.log(
+      `[Fireflies] Processed transcript "${transcript.title}" → ${matchedContacts.length} contacts`
+    );
+
+    return res.json({
+      ok: true,
+      title: transcript.title,
+      matchedContacts: matchedContacts.length,
+      contactIds: matchedContacts.map((c) => c.id),
+    });
+  } catch (err: any) {
+    console.error("[Fireflies] Webhook error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Normalize phone for dedup: +972... -> 0..., remove dashes/spaces
+function normalizePhone(phone: string): string[] {
+  const clean = phone.replace(/[-\s()]/g, "");
+  const variants: string[] = [clean];
+  if (clean.startsWith("+972")) variants.push("0" + clean.slice(4));
+  else if (clean.startsWith("972")) variants.push("0" + clean.slice(3));
+  else if (clean.startsWith("0")) variants.push("+972" + clean.slice(1), "972" + clean.slice(1));
+  return variants;
+}
 
 // ══════════════════════════════════════════════
 // Fillout Webhook
@@ -34,7 +428,10 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
       first_touch_at: new Date().toISOString(),
     };
 
-    // Auto-detect fields
+    // Auto-detect fields + detect meeting-related fields
+    let isMeetingForm = false;
+    let meetingDate: string | null = null;
+
     for (const q of questions) {
       const name = (q.name || q.key || q.label || "").toLowerCase();
       const val = q.value ?? q.answer ?? q.text ?? "";
@@ -44,6 +441,20 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
       else if (name.includes("מייל") || name.includes("email")) contact.email = val;
       else if (name.includes("טלפון") || name.includes("phone") || name.includes("נייד")) { contact.phone = val; contact.whatsapp_phone = val; }
       else if (name.includes("חברה") || name.includes("company")) contact.company = val;
+
+      // Detect meeting/scheduling fields
+      if (name.includes("פגישה") || name.includes("meeting") || name.includes("תאריך") || name.includes("date") || name.includes("schedule") || name.includes("מועד") || name.includes("זמן") || name.includes("time")) {
+        isMeetingForm = true;
+        if (val && (name.includes("תאריך") || name.includes("date") || name.includes("מועד") || name.includes("time") || name.includes("זמן") || name.includes("schedule"))) {
+          meetingDate = val;
+        }
+      }
+    }
+
+    // Also detect by landing page URL containing "meeting"
+    const pageUrl = urlParams.page_url || urlParams.referrer || "";
+    if (pageUrl.includes("meeting") || pageUrl.includes("פגישה") || pageUrl.includes("calendar")) {
+      isMeetingForm = true;
     }
 
     // Mapping overrides
@@ -79,7 +490,48 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
     if (!contact.first_name) contact.first_name = "ליד";
     if (!contact.last_name) contact.last_name = "חדש";
 
-    // Dedupe: find existing contact by email or phone
+    // Auto-assign pipeline stage: meeting form → landing page mapping → entry_type → default
+    const { data: allPipelines } = await supabase.from("crm_pipelines").select("id, name, default_stage_id");
+    const { data: allStages } = await supabase.from("crm_pipeline_stages").select("id, pipeline_id, name, order_index").order("order_index");
+
+    if (isMeetingForm) {
+      // Meeting form: find the "קבע פגישה" stage in any pipeline
+      const meetingStage = allStages?.find(s => s.name.includes("קבע פגישה") || s.name.includes("פגישה"));
+      if (meetingStage) {
+        contact.stage_id = meetingStage.id;
+      }
+    } else if (mapping?.pipeline_id && mapping?.stage_id) {
+      contact.stage_id = mapping.stage_id;
+    } else {
+      // 1. Check landing page mappings
+      const landingUrl = contact.landing_page_url || "";
+      if (landingUrl) {
+        const { data: lpMappings } = await supabase.from("crm_landing_page_mappings").select("*");
+        const matched = lpMappings?.find(m => landingUrl.includes(m.url_pattern) || m.url_pattern.includes(landingUrl.split("?")[0]));
+        if (matched?.pipeline_id) {
+          contact.stage_id = matched.stage_id || matched.pipeline_id && allStages?.find(s => s.pipeline_id === matched.pipeline_id)?.id || null;
+        }
+      }
+
+      // 2. Fallback: match by entry_type
+      if (!contact.stage_id) {
+        const entryType = (contact.entry_type || "").toLowerCase();
+        let matchedPipeline = null;
+        if (entryType === "webinar" || entryType === "וובינר") {
+          matchedPipeline = allPipelines?.find(p => p.name.includes("וובינר") || p.name.toLowerCase().includes("webinar"));
+        } else if (entryType === "vsl") {
+          matchedPipeline = allPipelines?.find(p => p.name.toLowerCase().includes("vsl"));
+        }
+        if (!matchedPipeline) {
+          matchedPipeline = allPipelines?.find(p => (p as any).is_default) || allPipelines?.[0];
+        }
+        if (matchedPipeline) {
+          contact.stage_id = matchedPipeline.default_stage_id || allStages?.find(s => s.pipeline_id === matchedPipeline!.id)?.id || null;
+        }
+      }
+    }
+
+    // Dedupe: find existing contact by email or phone (with normalization)
     let contactId: string | null = null;
     let existingContact: any = null;
 
@@ -88,8 +540,11 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
       if (ex) { contactId = ex.id; existingContact = ex; }
     }
     if (!contactId && contact.phone) {
-      const { data: ex } = await supabase.from("crm_contacts").select("*").eq("phone", contact.phone).single();
-      if (ex) { contactId = ex.id; existingContact = ex; }
+      const phoneVariants = normalizePhone(contact.phone);
+      for (const variant of phoneVariants) {
+        const { data: ex } = await supabase.from("crm_contacts").select("*").eq("phone", variant).single();
+        if (ex) { contactId = ex.id; existingContact = ex; break; }
+      }
     }
 
     if (existingContact) {
@@ -118,6 +573,13 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
       if (!existingContact.first_touch_at) updates.first_touch_at = contact.first_touch_at;
       if (!existingContact.landing_page_url && contact.landing_page_url) updates.landing_page_url = contact.landing_page_url;
 
+      // Meeting form: always advance stage to "קבע פגישה"
+      if (isMeetingForm && contact.stage_id) {
+        updates.stage_id = contact.stage_id;
+      } else if (!existingContact.stage_id && contact.stage_id) {
+        updates.stage_id = contact.stage_id;
+      }
+
       // Conversion timestamp: update on each submission (last touch)
       updates.conversion_at = new Date().toISOString();
 
@@ -143,19 +605,33 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
         contact.entry_type && `entry: ${contact.entry_type}`,
       ].filter(Boolean).join(" | ");
 
+      const activitySubject = isMeetingForm
+        ? (isReturning ? "קבע פגישה" : "קבע פגישה")
+        : (isReturning ? `השאיר פרטים שוב — ${formName}` : `השאיר פרטים — ${formName}`);
+
+      const activityBody = isMeetingForm
+        ? [
+            "הליד קבע פגישה",
+            meetingDate && `מועד: ${meetingDate}`,
+            contact.landing_page_url && `דף: ${contact.landing_page_url}`,
+          ].filter(Boolean).join("\n")
+        : [
+            isReturning ? "ליד חוזר — השאיר פרטים שוב" : "ליד חדש — השאיר פרטים לראשונה",
+            utmInfo && `שיוך: ${utmInfo}`,
+            contact.landing_page_url && `דף: ${contact.landing_page_url}`,
+          ].filter(Boolean).join("\n");
+
       await supabase.from("crm_activities").insert({
         contact_id: contactId,
-        type: "system",
-        subject: isReturning ? `השלים טופס שוב — ${formName}` : `השלים טופס — ${formName}`,
-        body: [
-          isReturning ? "ליד חוזר — השאיר פרטים שוב" : "ליד חדש — השאיר פרטים לראשונה",
-          utmInfo && `שיוך: ${utmInfo}`,
-          contact.landing_page_url && `דף: ${contact.landing_page_url}`,
-        ].filter(Boolean).join("\n"),
+        type: isMeetingForm ? "meeting" : "system",
+        subject: activitySubject,
+        body: activityBody,
         metadata: {
           form_type: "fillout",
           form_id: formId,
           form_name: formName,
+          is_meeting: isMeetingForm,
+          meeting_date: meetingDate,
           is_returning: isReturning,
           utm_source: urlParams.utm_source || null,
           utm_campaign: urlParams.utm_campaign || null,
@@ -164,12 +640,22 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
       });
     }
 
-    // Auto-create deal (only for NEW contacts, not returning)
-    if (!existingContact && mapping?.auto_create_deal && contactId && mapping.pipeline_id && mapping.stage_id) {
-      await supabase.from("crm_deals").insert({ contact_id: contactId, pipeline_id: mapping.pipeline_id, stage_id: mapping.stage_id, title: `ליד מ-${mapping.name || "Fillout"}`, product_id: mapping.product_id || null, status: "open", probability: 10 });
+    // Create meeting record if it's a meeting form
+    if (isMeetingForm && contactId) {
+      const scheduledAt = meetingDate ? new Date(meetingDate).toISOString() : new Date(Date.now() + 86400000).toISOString();
+      await supabase.from("crm_meetings").insert({
+        contact_id: contactId,
+        title: `פגישה עם ${contact.first_name || ""} ${contact.last_name || ""}`.trim(),
+        meeting_type: "sales_consultation",
+        status: "scheduled",
+        scheduled_at: scheduledAt,
+        duration_minutes: 30,
+        fillout_submission_id: formId,
+      });
+      console.log(`[Fillout] Created meeting for contact ${contactId}`);
     }
 
-    console.log(`[Fillout] Contact ${contactId} (${existingContact ? 'updated' : 'new'}) from form ${formId}`);
+    console.log(`[Fillout] Contact ${contactId} (${existingContact ? 'updated' : 'new'}) ${isMeetingForm ? '[MEETING]' : '[FORM]'} from ${formId}`);
     res.json({ success: true, contactId, isNew: !existingContact });
   } catch (err: any) {
     console.error("[Fillout] Error:", err);
@@ -216,26 +702,67 @@ webhookRouter.post("/elementor", async (req, res) => {
     if (!contact.first_name) contact.first_name = "ליד";
     if (!contact.last_name) contact.last_name = "";
 
-    // Dedupe
+    // Auto-assign pipeline stage: landing page mapping → entry_type → default
+    const { data: elPipelines } = await supabase.from("crm_pipelines").select("id, name, default_stage_id");
+    const { data: elStages } = await supabase.from("crm_pipeline_stages").select("id, pipeline_id, order_index").order("order_index");
+
+    // 1. Check landing page mappings
+    const elLandingUrl = contact.landing_page_url || "";
+    if (elLandingUrl) {
+      const { data: elLpMappings } = await supabase.from("crm_landing_page_mappings").select("*");
+      const elMatched = elLpMappings?.find(m => elLandingUrl.includes(m.url_pattern) || m.url_pattern.includes(elLandingUrl.split("?")[0]));
+      if (elMatched?.pipeline_id) {
+        contact.stage_id = elMatched.stage_id || elStages?.find(s => s.pipeline_id === elMatched.pipeline_id)?.id || null;
+      }
+    }
+
+    // 2. Fallback: match by entry_type
+    if (!contact.stage_id) {
+      const entryType = (contact.entry_type || "").toLowerCase();
+      let elPipeline = null;
+      if (entryType === "webinar" || entryType === "וובינר") {
+        elPipeline = elPipelines?.find(p => p.name.includes("וובינר") || p.name.toLowerCase().includes("webinar"));
+      } else if (entryType === "vsl") {
+        elPipeline = elPipelines?.find(p => p.name.toLowerCase().includes("vsl"));
+      }
+      if (!elPipeline) {
+        elPipeline = elPipelines?.find(p => (p as any).is_default) || elPipelines?.[0];
+      }
+      if (elPipeline) {
+        contact.stage_id = elPipeline.default_stage_id || elStages?.find(s => s.pipeline_id === elPipeline!.id)?.id || null;
+      }
+    }
+
+    // Dedupe by email or phone (with normalization)
     let contactId: string | null = null;
     let isReturning = false;
+    let existingEl: any = null;
+
     if (contact.email) {
       const { data: ex } = await supabase.from("crm_contacts").select("*").eq("email", contact.email).single();
-      if (ex) {
-        contactId = ex.id;
-        isReturning = true;
-        // Preserve first-touch attribution
-        const updates: Record<string, any> = { updated_at: new Date().toISOString(), conversion_at: new Date().toISOString() };
-        if (contact.first_name && contact.first_name !== "ליד") updates.first_name = contact.first_name;
-        if (contact.phone) { updates.phone = contact.phone; updates.whatsapp_phone = contact.phone; }
-        if (!ex.utm_source && contact.utm_source) updates.utm_source = contact.utm_source;
-        if (!ex.utm_medium && contact.utm_medium) updates.utm_medium = contact.utm_medium;
-        if (!ex.utm_campaign && contact.utm_campaign) updates.utm_campaign = contact.utm_campaign;
-        if (!ex.ad_platform && contact.ad_platform) updates.ad_platform = contact.ad_platform;
-        if (!ex.entry_type && contact.entry_type) updates.entry_type = contact.entry_type;
-        if (!ex.landing_page_url && contact.landing_page_url) updates.landing_page_url = contact.landing_page_url;
-        await supabase.from("crm_contacts").update(updates).eq("id", contactId);
+      if (ex) { existingEl = ex; contactId = ex.id; isReturning = true; }
+    }
+    if (!contactId && contact.phone) {
+      const phoneVariants = normalizePhone(contact.phone);
+      for (const variant of phoneVariants) {
+        const { data: ex } = await supabase.from("crm_contacts").select("*").eq("phone", variant).single();
+        if (ex) { existingEl = ex; contactId = ex.id; isReturning = true; break; }
       }
+    }
+
+    if (existingEl) {
+      // Update existing - preserve first-touch attribution
+      const updates: Record<string, any> = { updated_at: new Date().toISOString(), conversion_at: new Date().toISOString() };
+      if (contact.first_name && contact.first_name !== "ליד") updates.first_name = contact.first_name;
+      if (contact.phone) updates.phone = contact.phone;
+      if (!existingEl.utm_source && contact.utm_source) updates.utm_source = contact.utm_source;
+      if (!existingEl.utm_medium && contact.utm_medium) updates.utm_medium = contact.utm_medium;
+      if (!existingEl.utm_campaign && contact.utm_campaign) updates.utm_campaign = contact.utm_campaign;
+      if (!existingEl.ad_platform && contact.ad_platform) updates.ad_platform = contact.ad_platform;
+      if (!existingEl.entry_type && contact.entry_type) updates.entry_type = contact.entry_type;
+      if (!existingEl.landing_page_url && contact.landing_page_url) updates.landing_page_url = contact.landing_page_url;
+      if (!existingEl.stage_id && contact.stage_id) updates.stage_id = contact.stage_id;
+      await supabase.from("crm_contacts").update(updates).eq("id", contactId);
     }
     if (!contactId) {
       const { data: nc } = await supabase.from("crm_contacts").insert(contact).select("id").single();
@@ -263,12 +790,11 @@ webhookRouter.post("/elementor", async (req, res) => {
       });
     }
 
-    // Auto-create deal only for new contacts
-    if (!isReturning) {
-      const { data: dp } = await supabase.from("crm_pipelines").select("id").eq("is_default", true).single();
-      const { data: fs } = await supabase.from("crm_pipeline_stages").select("id").eq("pipeline_id", dp?.id).order("order_index").limit(1).single();
-      if (contactId && dp && fs) {
-        await supabase.from("crm_deals").insert({ contact_id: contactId, pipeline_id: dp.id, stage_id: fs.id, title: contact.entry_type === "webinar" ? "הרשמה לוובינר" : "ליד מדף נחיתה", status: "open", probability: 10 });
+    // Update stage_id on existing contacts without one
+    if (isReturning && contact.stage_id && contactId) {
+      const { data: exContact } = await supabase.from("crm_contacts").select("stage_id").eq("id", contactId).single();
+      if (exContact && !exContact.stage_id) {
+        await supabase.from("crm_contacts").update({ stage_id: contact.stage_id }).eq("id", contactId);
       }
     }
 
