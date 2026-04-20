@@ -799,6 +799,12 @@ webhookRouter.post("/elementor", async (req, res) => {
       if (k.includes("שם") || k === "name" || k.includes("full")) { const p = v.split(" "); contact.first_name = p[0]; contact.last_name = p.slice(1).join(" ") || ""; }
       else if (k.includes("email") || k.includes("מייל") || k.includes("אימייל")) contact.email = v;
       else if (k.includes("phone") || k.includes("טלפון") || k.includes("נייד")) { contact.phone = v; contact.whatsapp_phone = v; }
+      else if (k.includes("הסכמה") || k.includes("consent") || k.includes("דיוור") || k.includes("agree")) {
+        if (v === "on" || v === "true" || v === "yes" || v === "1" || v === "כן") {
+          contact.marketing_consent = true;
+          contact.marketing_consent_at = new Date().toISOString();
+        }
+      }
       // Elementor native webhook sends "קישור לעמוד" with full URL including UTMs
       if (k.includes("קישור לעמוד") || k.includes("page_url") || k === "referrer_url") pageUrl = v;
     }
