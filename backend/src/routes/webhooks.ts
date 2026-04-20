@@ -784,42 +784,70 @@ webhookRouter.post("/elementor", async (req, res) => {
     console.log("[Elementor] Webhook received:", JSON.stringify(payload).substring(0, 500));
     const contact: Record<string, any> = { source: "website", status: "new", first_touch_at: new Date().toISOString() };
 
-    // Handle both our tracker format (fields: {}) and Elementor native webhook format (flat object with labels as keys)
+    // Handle both our tracker format (fields: {}) and Elementor native webhook format (flat with Hebrew labels)
     const fields = payload.fields || payload;
+    const meta = payload.meta || {};
+
+    // System fields to exclude from "form answers" display
+    const systemFields = new Set(["form_id", "form_name", "תאריך", "זמן", "פרטי משתמש", "IP השולח", "מופעל באמצעות", "קישור לעמוד"]);
+
+    // Parse contact fields + extract page URL for UTM parsing
+    let pageUrl = "";
     for (const [key, value] of Object.entries(fields)) {
       if (!value) continue;
       const k = String(key).toLowerCase(); const v = String(value);
       if (k.includes("שם") || k === "name" || k.includes("full")) { const p = v.split(" "); contact.first_name = p[0]; contact.last_name = p.slice(1).join(" ") || ""; }
-      else if (k.includes("email") || k.includes("מייל")) contact.email = v;
+      else if (k.includes("email") || k.includes("מייל") || k.includes("אימייל")) contact.email = v;
       else if (k.includes("phone") || k.includes("טלפון") || k.includes("נייד")) { contact.phone = v; contact.whatsapp_phone = v; }
+      // Elementor native webhook sends "קישור לעמוד" with full URL including UTMs
+      if (k.includes("קישור לעמוד") || k.includes("page_url") || k === "referrer_url") pageUrl = v;
     }
 
-    const meta = payload.meta || {};
-    if (meta.utm_source || payload.utm_source) contact.utm_source = meta.utm_source || payload.utm_source;
-    if (meta.utm_medium || payload.utm_medium) contact.utm_medium = meta.utm_medium || payload.utm_medium;
-    if (meta.utm_campaign || payload.utm_campaign) contact.utm_campaign = meta.utm_campaign || payload.utm_campaign;
-    if (meta.utm_content || payload.utm_content) contact.utm_content = meta.utm_content || payload.utm_content;
-    if (meta.utm_term || payload.utm_term) contact.utm_term = meta.utm_term || payload.utm_term;
-    if (meta.fbclid || payload.fbclid) contact.custom_fields = { ...contact.custom_fields, fbclid: meta.fbclid || payload.fbclid };
-    if (meta.gclid || payload.gclid) contact.custom_fields = { ...contact.custom_fields, gclid: meta.gclid || payload.gclid };
-    if (meta.campaign_id || payload.campaign_id) contact.ad_campaign_id = meta.campaign_id || payload.campaign_id;
-    if (meta.adset_id || payload.adset_id) contact.ad_adset_id = meta.adset_id || payload.adset_id;
-    if (meta.ad_id || payload.ad_id) contact.ad_id = meta.ad_id || payload.ad_id;
-    contact.landing_page_url = meta.page_url || payload.page_url || null;
-    contact.referrer_url = meta.referrer || payload.referrer || null;
-    if (meta.entry_type || payload.entry_type) contact.entry_type = meta.entry_type || payload.entry_type;
+    // Parse UTMs from page URL (Elementor native webhook)
+    if (pageUrl && pageUrl.includes("?")) {
+      try {
+        const urlObj = new URL(pageUrl);
+        const p = urlObj.searchParams;
+        if (p.get("utm_source")) contact.utm_source = p.get("utm_source");
+        if (p.get("utm_medium")) contact.utm_medium = p.get("utm_medium");
+        if (p.get("utm_campaign")) contact.utm_campaign = decodeURIComponent(p.get("utm_campaign") || "");
+        if (p.get("utm_content")) contact.utm_content = decodeURIComponent(p.get("utm_content") || "");
+        if (p.get("utm_term")) contact.utm_term = p.get("utm_term");
+        if (p.get("utm_id")) contact.ad_campaign_id = p.get("utm_id");
+        if (p.get("fbclid")) contact.custom_fields = { ...contact.custom_fields, fbclid: p.get("fbclid") };
+        if (p.get("gclid")) contact.custom_fields = { ...contact.custom_fields, gclid: p.get("gclid") };
+        // Store clean URL without query params
+        contact.landing_page_url = urlObj.origin + urlObj.pathname;
+      } catch { /* ignore URL parse errors */ }
+    }
 
-    // Detect entry type from URL if not set
-    const url = contact.landing_page_url || "";
+    // Tracker meta overrides (if sent from our JS tracker, these take precedence)
+    if (meta.utm_source) contact.utm_source = meta.utm_source;
+    if (meta.utm_medium) contact.utm_medium = meta.utm_medium;
+    if (meta.utm_campaign) contact.utm_campaign = meta.utm_campaign;
+    if (meta.utm_content) contact.utm_content = meta.utm_content;
+    if (meta.utm_term) contact.utm_term = meta.utm_term;
+    if (meta.utm_id) contact.ad_campaign_id = contact.ad_campaign_id || meta.utm_id;
+    if (meta.fbclid) contact.custom_fields = { ...contact.custom_fields, fbclid: meta.fbclid };
+    if (meta.gclid) contact.custom_fields = { ...contact.custom_fields, gclid: meta.gclid };
+    if (meta.campaign_id) contact.ad_campaign_id = meta.campaign_id;
+    if (meta.adset_id) contact.ad_adset_id = meta.adset_id;
+    if (meta.ad_id) contact.ad_id = meta.ad_id;
+    if (meta.page_url && !contact.landing_page_url) contact.landing_page_url = meta.page_url;
+    if (meta.referrer) contact.referrer_url = meta.referrer;
+    if (meta.entry_type) contact.entry_type = meta.entry_type;
+
+    // Detect entry type from URL
+    const landingUrl = (contact.landing_page_url || "").toLowerCase();
     if (!contact.entry_type) {
-      if (url.includes("vsl") || url.includes("שאלון")) contact.entry_type = "vsl";
-      else if (url.includes("webinar")) contact.entry_type = "webinar";
+      if (landingUrl.includes("vsl") || landingUrl.includes("שאלון")) contact.entry_type = "vsl";
+      else if (landingUrl.includes("webinar")) contact.entry_type = "webinar";
     }
 
     // Detect platform from utm_source or fbclid/gclid
     const utmSrc = (contact.utm_source || "").toLowerCase();
-    const hasFbclid = !!(meta.fbclid || payload.fbclid);
-    const hasGclid = !!(meta.gclid || payload.gclid);
+    const hasFbclid = !!(contact.custom_fields?.fbclid);
+    const hasGclid = !!(contact.custom_fields?.gclid);
     if (utmSrc.includes("facebook") || utmSrc.includes("fb") || utmSrc.includes("meta") || hasFbclid) { contact.ad_platform = "facebook"; contact.source = "facebook_ad"; }
     else if (utmSrc.includes("instagram") || utmSrc.includes("ig")) { contact.ad_platform = "instagram"; contact.source = "instagram"; }
     else if (utmSrc.includes("google") || hasGclid) { contact.ad_platform = "google"; contact.source = "google_ad"; }
@@ -901,12 +929,17 @@ webhookRouter.post("/elementor", async (req, res) => {
     // Timeline activity
     if (contactId) {
       const pagePath = (contact.landing_page_url || "").replace("https://aiagencyschool.co.il", "");
+      const formName = fields.form_name || fields["form_name"] || "טופס";
       const formType = pagePath.includes("vsl") ? "VSL" : pagePath.includes("webinar") ? "וובינר" : "דף נחיתה";
 
-      // Build structured form answers from Elementor fields
+      // Build clean form answers — only user-submitted fields, not system fields
       const elFields = payload.fields || payload;
       const elAnswers = Object.entries(elFields)
-        .map(([key, val]) => val ? `${key}: ${val}` : null)
+        .filter(([key]) => !systemFields.has(key) && !key.startsWith("form_") && !key.includes("משתמש") && !key.includes("IP") && !key.includes("Mozilla"))
+        .map(([key, val]) => {
+          if (!val || String(val).length > 200) return null; // skip empty or very long values (URLs)
+          return `${key}: ${val}`;
+        })
         .filter(Boolean);
 
       const elBodyParts = [
@@ -920,11 +953,12 @@ webhookRouter.post("/elementor", async (req, res) => {
       }
 
       const elUtmLines = [
+        contact.ad_platform && `פלטפורמה: ${contact.ad_platform}`,
         contact.utm_source && `מקור: ${contact.utm_source}`,
-        contact.utm_campaign && `קמפיין: ${contact.utm_campaign}`,
         contact.utm_medium && `מדיום: ${contact.utm_medium}`,
+        contact.utm_campaign && `קמפיין: ${decodeURIComponent(contact.utm_campaign)}`,
         contact.entry_type && `סוג כניסה: ${contact.entry_type}`,
-        pagePath && `דף נחיתה: ${pagePath}`,
+        contact.landing_page_url && `דף: ${contact.landing_page_url.replace("https://aiagencyschool.co.il", "")}`,
       ].filter(Boolean);
 
       if (elUtmLines.length > 0) {
@@ -933,15 +967,23 @@ webhookRouter.post("/elementor", async (req, res) => {
         elBodyParts.push(...(elUtmLines as string[]));
       }
 
+      // Clean form answers for metadata (exclude system fields)
+      const cleanAnswers: Record<string, string> = {};
+      for (const [key, val] of Object.entries(elFields)) {
+        if (!systemFields.has(key) && !key.startsWith("form_") && val && String(val).length < 200) {
+          cleanAnswers[key] = String(val);
+        }
+      }
+
       await supabase.from("crm_activities").insert({
         contact_id: contactId,
         type: "system",
-        subject: isReturning ? `השלים טופס שוב — ${formType}` : `השלים טופס — ${formType}`,
+        subject: isReturning ? `השאיר פרטים שוב — ${formName}` : `השאיר פרטים — ${formName}`,
         body: elBodyParts.join("\n"),
         metadata: {
           form_type: "elementor",
           is_returning: isReturning,
-          form_answers: elFields,
+          form_answers: cleanAnswers,
           utm_source: contact.utm_source,
           utm_campaign: contact.utm_campaign,
           landing_page: contact.landing_page_url,
