@@ -200,10 +200,10 @@ export default function ContactDetailPage() {
               {contact.address || contact.city}
             </div>
           )}
-          <div className="flex items-center gap-1.5 mt-2 flex-wrap [&_.badge]:inline-flex [&_.badge]:items-center [&_.badge]:px-2.5 [&_.badge]:h-[22px] [&_.badge]:rounded-full [&_.badge]:text-xs [&_.badge]:font-medium [&_.badge]:overflow-hidden [&_.badge]:box-border">
+          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
               {/* Source badge */}
               {source && (
-                <span className="badge bg-secondary text-secondary-foreground">
+                <span style={{height:"22px",overflow:"hidden"}} className="inline-flex items-center px-2.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground">
                   {source.label}
                 </span>
               )}
@@ -212,7 +212,7 @@ export default function ContactDetailPage() {
               <div className="relative">
                 <button
                   onClick={() => setShowPipelinePicker(!showPipelinePicker)}
-                  className="badge gap-1.5 bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors cursor-pointer"
+                  style={{height:"22px",overflow:"hidden"}} className="inline-flex items-center px-2.5 rounded-full text-xs font-medium gap-1.5 bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors cursor-pointer"
                 >
                   {contactPipeline?.name || "ללא צנרת"}
                 </button>
@@ -238,7 +238,7 @@ export default function ContactDetailPage() {
               <div className="relative">
                 <button
                   onClick={() => setShowStatusPicker(!showStatusPicker)}
-                  className="badge gap-1.5 bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer"
+                  style={{height:"22px",overflow:"hidden"}} className="inline-flex items-center px-2.5 rounded-full text-xs font-medium gap-1.5 bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer"
                 >
                   <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: stage?.color || "#6b7280" }} />
                   {stage?.name || "ללא שלב"}
@@ -278,7 +278,7 @@ export default function ContactDetailPage() {
               <div className="relative">
                 <button
                   onClick={() => setShowAssigneePicker(!showAssigneePicker)}
-                  className="badge gap-1 bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer"
+                  style={{height:"22px",overflow:"hidden"}} className="inline-flex items-center px-2.5 rounded-full text-xs font-medium gap-1 bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer"
                 >
                   {contact.assigned_member ? (
                     <>
@@ -319,7 +319,8 @@ export default function ContactDetailPage() {
 
               {/* Marketing consent badge */}
               <button onClick={() => updateContact.mutate({ id: contact.id, marketing_consent: !contact.marketing_consent, marketing_consent_at: !contact.marketing_consent ? new Date().toISOString() : null } as any)}
-                className={cn("badge transition-colors",
+                style={{height:"22px",overflow:"hidden"}}
+                className={cn("inline-flex items-center px-2.5 rounded-full text-xs font-medium transition-colors",
                   contact.marketing_consent ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-red-100 text-red-600 hover:bg-red-200")}>
                 {contact.marketing_consent ? "✓ אישר דיוור" : "✕ לא אישר דיוור"}
               </button>
