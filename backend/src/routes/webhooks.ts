@@ -323,18 +323,21 @@ webhookRouter.post("/fireflies/:tenantId", async (req, res) => {
       console.log(`[Fireflies] Matched ${matchedContacts.length} contacts`);
     }
 
-    // Determine meeting type from existing meetings for this contact
-    let meetingType = "other";
+    // Determine meeting type based on contact status:
+    // student/alumni → mentoring, everything else → sales
     const contactId = matchedContacts[0]?.id || null;
+    let meetingType = "sales_consultation";
     if (contactId) {
-      const { data: recentMeeting } = await supabase
-        .from("crm_meetings")
-        .select("meeting_type")
-        .eq("contact_id", contactId)
-        .order("scheduled_at", { ascending: false })
-        .limit(1)
+      const { data: contactData } = await supabase
+        .from("crm_contacts")
+        .select("status")
+        .eq("id", contactId)
         .single();
-      if (recentMeeting?.meeting_type) meetingType = recentMeeting.meeting_type;
+      const status = contactData?.status || "";
+      if (status === "student" || status === "alumni") {
+        meetingType = "mentoring_1on1";
+      }
+      console.log(`[Fireflies] Contact status: ${status} → meetingType: ${meetingType}`);
     }
 
     // Generate AI summary using Claude
@@ -676,33 +679,54 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
     if (contactId) {
       const formName = mapping?.name || formId;
       const isReturning = !!existingContact;
-      const utmInfo = [
-        urlParams.utm_source && `source: ${urlParams.utm_source}`,
-        urlParams.utm_campaign && `campaign: ${urlParams.utm_campaign}`,
-        contact.entry_type && `entry: ${contact.entry_type}`,
-      ].filter(Boolean).join(" | ");
+
+      // Build structured form answers
+      const formAnswers = questions
+        .map((q: any) => {
+          const label = q.name || q.key || q.label || "שדה";
+          const val = q.value ?? q.answer ?? q.text ?? "";
+          if (!val) return null;
+          return `${label}: ${val}`;
+        })
+        .filter(Boolean);
+
+      const utmLines = [
+        urlParams.utm_source && `מקור: ${urlParams.utm_source}`,
+        urlParams.utm_campaign && `קמפיין: ${urlParams.utm_campaign}`,
+        urlParams.utm_medium && `מדיום: ${urlParams.utm_medium}`,
+        contact.entry_type && `סוג כניסה: ${contact.entry_type}`,
+        contact.landing_page_url && `דף נחיתה: ${contact.landing_page_url.replace("https://aiagencyschool.co.il", "")}`,
+      ].filter(Boolean);
 
       const activitySubject = isMeetingForm
-        ? (isReturning ? "קבע פגישה" : "קבע פגישה")
+        ? "קבע פגישה"
         : (isReturning ? `השאיר פרטים שוב — ${formName}` : `השאיר פרטים — ${formName}`);
 
-      const activityBody = isMeetingForm
-        ? [
-            "הליד קבע פגישה",
-            meetingDate && `מועד: ${meetingDate}`,
-            contact.landing_page_url && `דף: ${contact.landing_page_url}`,
-          ].filter(Boolean).join("\n")
-        : [
-            isReturning ? "ליד חוזר — השאיר פרטים שוב" : "ליד חדש — השאיר פרטים לראשונה",
-            utmInfo && `שיוך: ${utmInfo}`,
-            contact.landing_page_url && `דף: ${contact.landing_page_url}`,
-          ].filter(Boolean).join("\n");
+      const bodyParts = [];
+      if (isMeetingForm) {
+        bodyParts.push("הליד קבע פגישה");
+        if (meetingDate) bodyParts.push(`מועד: ${meetingDate}`);
+      } else {
+        bodyParts.push(isReturning ? "ליד חוזר — השאיר פרטים שוב" : "ליד חדש — השאיר פרטים לראשונה");
+      }
+
+      if (formAnswers.length > 0) {
+        bodyParts.push("");
+        bodyParts.push("פרטי הטופס:");
+        bodyParts.push(...formAnswers);
+      }
+
+      if (utmLines.length > 0) {
+        bodyParts.push("");
+        bodyParts.push("שיוך:");
+        bodyParts.push(...utmLines);
+      }
 
       await supabase.from("crm_activities").insert({
         contact_id: contactId,
         type: isMeetingForm ? "meeting" : "system",
         subject: activitySubject,
-        body: activityBody,
+        body: bodyParts.join("\n"),
         metadata: {
           form_type: "fillout",
           form_id: formId,
@@ -710,9 +734,12 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
           is_meeting: isMeetingForm,
           meeting_date: meetingDate,
           is_returning: isReturning,
+          form_answers: Object.fromEntries(questions.map((q: any) => [q.name || q.key || q.label, q.value ?? q.answer ?? q.text ?? ""])),
           utm_source: urlParams.utm_source || null,
           utm_campaign: urlParams.utm_campaign || null,
+          utm_medium: urlParams.utm_medium || null,
           entry_type: contact.entry_type || null,
+          landing_page: contact.landing_page_url || null,
         },
       });
     }
@@ -853,17 +880,50 @@ webhookRouter.post("/elementor", async (req, res) => {
     if (contactId) {
       const pagePath = (contact.landing_page_url || "").replace("https://aiagencyschool.co.il", "");
       const formType = pagePath.includes("vsl") ? "VSL" : pagePath.includes("webinar") ? "וובינר" : "דף נחיתה";
+
+      // Build structured form answers from Elementor fields
+      const elFields = payload.fields || payload;
+      const elAnswers = Object.entries(elFields)
+        .map(([key, val]) => val ? `${key}: ${val}` : null)
+        .filter(Boolean);
+
+      const elBodyParts = [
+        isReturning ? "ליד חוזר — השאיר פרטים שוב" : "ליד חדש — השאיר פרטים לראשונה",
+      ];
+
+      if (elAnswers.length > 0) {
+        elBodyParts.push("");
+        elBodyParts.push("פרטי הטופס:");
+        elBodyParts.push(...(elAnswers as string[]));
+      }
+
+      const elUtmLines = [
+        contact.utm_source && `מקור: ${contact.utm_source}`,
+        contact.utm_campaign && `קמפיין: ${contact.utm_campaign}`,
+        contact.utm_medium && `מדיום: ${contact.utm_medium}`,
+        contact.entry_type && `סוג כניסה: ${contact.entry_type}`,
+        pagePath && `דף נחיתה: ${pagePath}`,
+      ].filter(Boolean);
+
+      if (elUtmLines.length > 0) {
+        elBodyParts.push("");
+        elBodyParts.push("שיוך:");
+        elBodyParts.push(...(elUtmLines as string[]));
+      }
+
       await supabase.from("crm_activities").insert({
         contact_id: contactId,
         type: "system",
         subject: isReturning ? `השלים טופס שוב — ${formType}` : `השלים טופס — ${formType}`,
-        body: [
-          isReturning ? "ליד חוזר" : "ליד חדש",
-          contact.utm_source && `מקור: ${contact.utm_source}`,
-          contact.utm_campaign && `קמפיין: ${contact.utm_campaign}`,
-          pagePath && `דף: ${pagePath}`,
-        ].filter(Boolean).join("\n"),
-        metadata: { form_type: "elementor", is_returning: isReturning, utm_source: contact.utm_source },
+        body: elBodyParts.join("\n"),
+        metadata: {
+          form_type: "elementor",
+          is_returning: isReturning,
+          form_answers: elFields,
+          utm_source: contact.utm_source,
+          utm_campaign: contact.utm_campaign,
+          landing_page: contact.landing_page_url,
+        },
       });
     }
 
