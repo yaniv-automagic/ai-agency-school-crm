@@ -781,9 +781,10 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
 webhookRouter.post("/elementor", async (req, res) => {
   const payload = req.body;
   try {
-    console.log("[Elementor] Webhook received");
+    console.log("[Elementor] Webhook received:", JSON.stringify(payload).substring(0, 500));
     const contact: Record<string, any> = { source: "website", status: "new", first_touch_at: new Date().toISOString() };
 
+    // Handle both our tracker format (fields: {}) and Elementor native webhook format (flat object with labels as keys)
     const fields = payload.fields || payload;
     for (const [key, value] of Object.entries(fields)) {
       if (!value) continue;

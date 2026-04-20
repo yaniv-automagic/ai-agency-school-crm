@@ -218,38 +218,42 @@
     };
   }
 
-  // ── Intercept Elementor form submit (handles both AJAX and redirect) ──
-  function hookElementorFormSubmit() {
-    document.addEventListener('submit', function(e) {
-      var form = e.target;
-      if (!form || form.tagName !== 'FORM') return;
+  // ── Capture Elementor form via jQuery submit_success event ──
+  // Elementor fires this custom event after successful AJAX submission,
+  // BEFORE the redirect action runs
+  function hookElementorSubmitSuccess() {
+    var jq = window.jQuery || window.$;
+    if (!jq) {
+      // Retry after jQuery loads
+      document.addEventListener('DOMContentLoaded', function() {
+        jq = window.jQuery || window.$;
+        if (jq) bindSubmitSuccess(jq);
+      });
+      return;
+    }
+    bindSubmitSuccess(jq);
+  }
 
-      // Check if this is an Elementor form
-      var isElementor = form.classList.contains('elementor-form') ||
-                        form.querySelector('[name="action"][value*="elementor"]') ||
-                        form.querySelector('input[name="form_fields[name]"], input[name="form_fields[email]"], input[name="form_fields[field_"]');
-
-      if (!isElementor) return;
-
+  function bindSubmitSuccess(jq) {
+    jq(document).on('submit_success', function(evt, response) {
       try {
+        var form = jq(evt.target).closest('form.elementor-form');
+        if (!form.length) form = jq(evt.target).closest('form');
+        if (!form.length) return;
+
         var formData = {};
-        var inputs = form.querySelectorAll('input, select, textarea');
-        for (var i = 0; i < inputs.length; i++) {
-          var input = inputs[i];
-          var name = input.getAttribute('name') || '';
-          var val = input.value || '';
-          if (!name || !val) continue;
-          if (name.startsWith('form_fields[')) {
-            var fieldName = name.replace('form_fields[', '').replace(']', '');
-            formData[fieldName] = val;
-          } else if (name === 'form_fields') {
-            // Some Elementor versions use flat names
+        form.find('input, select, textarea').each(function() {
+          var name = this.getAttribute('name') || '';
+          var val = this.value || '';
+          if (!name || !val) return;
+          if (name.indexOf('form_fields[') === 0) {
+            formData[name.replace('form_fields[', '').replace(']', '')] = val;
           }
-        }
+        });
 
         if (Object.keys(formData).length > 0) {
-          console.log('[CRM Tracker] Elementor form submit captured:', Object.keys(formData));
-          // Use sendBeacon for reliability during page unload/redirect
+          console.log('[CRM Tracker] Elementor submit_success captured:', Object.keys(formData));
+
           var payload = JSON.stringify({
             fields: formData,
             meta: {
@@ -270,6 +274,7 @@
             }
           });
 
+          // sendBeacon is reliable even during redirect
           if (navigator.sendBeacon) {
             navigator.sendBeacon(CRM_BACKEND + '/api/webhooks/elementor', new Blob([payload], { type: 'application/json' }));
           } else {
@@ -279,7 +284,8 @@
       } catch(e) {
         console.warn('[CRM Tracker] Error capturing form:', e);
       }
-    }, true); // capture phase — runs before the form actually submits
+    });
+    console.log('[CRM Tracker] submit_success listener bound');
   }
 
   // ── Run ──
@@ -287,7 +293,7 @@
     patchFilloutLinks();
     hookElementorAjax();
     hookFetchApi();
-    hookElementorFormSubmit();
+    hookElementorSubmitSuccess();
   }
 
   if (document.readyState === 'loading') {
