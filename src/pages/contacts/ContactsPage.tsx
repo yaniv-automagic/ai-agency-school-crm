@@ -77,6 +77,28 @@ const ALL_COLUMNS: ColumnDef[] = [
   { key: "landing_page", label: "דף נחיתה", defaultVisible: false,
     render: (c) => <span className="text-muted-foreground text-xs truncate max-w-[150px] block mx-auto" dir="ltr">{c.landing_page_url?.replace("https://aiagencyschool.co.il", "") || "—"}</span> },
   { key: "id_number", label: "ת.ז.", defaultVisible: false, render: (c) => <span className="text-muted-foreground text-xs">{c.id_number || "—"}</span> },
+  { key: "ad_platform", label: "פלטפורמה", defaultVisible: false, render: (c) => <span className="text-muted-foreground text-xs">{c.ad_platform || "—"}</span> },
+  { key: "utm_medium", label: "utm_medium", defaultVisible: false, render: (c) => <span className="text-muted-foreground text-xs" dir="ltr">{c.utm_medium || "—"}</span> },
+  { key: "utm_content", label: "utm_content", defaultVisible: false, render: (c) => <span className="text-muted-foreground text-xs" dir="ltr">{c.utm_content || "—"}</span> },
+  { key: "utm_term", label: "utm_term", defaultVisible: false, render: (c) => <span className="text-muted-foreground text-xs" dir="ltr">{c.utm_term || "—"}</span> },
+  { key: "sales_call", label: "שיחה קצה לקצה", defaultVisible: false, render: (c) => (
+    <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", c.sales_call_completed ? "bg-green-100 text-green-700" : "bg-secondary text-muted-foreground")}>
+      {c.sales_call_completed ? "בוצעה" : "לא"}
+    </span>
+  )},
+  { key: "marketing_consent", label: "אישור דיוור", defaultVisible: false, render: (c) => (
+    <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", c.marketing_consent ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600")}>
+      {c.marketing_consent ? "אישר" : "לא אישר"}
+    </span>
+  )},
+  { key: "community_groups", label: "קבוצות WhatsApp", defaultVisible: false, render: (c) => c.community_groups?.length > 0 ? (
+    <div className="flex gap-1 flex-wrap justify-center">
+      {c.community_groups.slice(0, 2).map((g: string) => <span key={g} className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">{g}</span>)}
+      {c.community_groups.length > 2 && <span className="text-[10px] text-muted-foreground">+{c.community_groups.length - 2}</span>}
+    </div>
+  ) : <span className="text-[10px] text-amber-600">לא צורף</span> },
+  { key: "webinar_registered", label: "נרשם לוובינר", defaultVisible: false, render: (c) => <span className="text-muted-foreground text-xs">{c.webinar_registered || "—"}</span> },
+  { key: "webinar_attended", label: "נכח בוובינר", defaultVisible: false, render: (c) => <span className="text-muted-foreground text-xs">{c.webinar_attended || "—"}</span> },
 ];
 
 // ── Filter types ──

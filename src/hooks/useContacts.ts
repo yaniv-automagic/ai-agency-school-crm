@@ -98,11 +98,27 @@ export function useUpdateContact() {
       if (error) throw error;
       return data as Contact;
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: CONTACTS_KEY });
-      toast.success("ליד עודכן בהצלחה");
+    onMutate: async ({ id, ...updates }) => {
+      // Optimistic update — instant UI response
+      await queryClient.cancelQueries({ queryKey: CONTACTS_KEY });
+      const prevContact = queryClient.getQueryData<Contact>([...CONTACTS_KEY, id]);
+      if (prevContact) {
+        queryClient.setQueryData([...CONTACTS_KEY, id], { ...prevContact, ...updates });
+      }
+      // Also update in list cache
+      queryClient.setQueriesData<Contact[]>({ queryKey: CONTACTS_KEY }, (old) =>
+        old?.map(c => c.id === id ? { ...c, ...updates } : c)
+      );
+      return { prevContact };
     },
-    onError: (error: Error) => {
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: CONTACTS_KEY });
+    },
+    onError: (error: Error, variables, context) => {
+      // Rollback on error
+      if (context?.prevContact) {
+        queryClient.setQueryData([...CONTACTS_KEY, variables.id], context.prevContact);
+      }
       toast.error(`שגיאה בעדכון: ${error.message}`);
     },
   });

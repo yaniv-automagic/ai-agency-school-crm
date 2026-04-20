@@ -35,6 +35,7 @@ export default function ContactDetailPage() {
   const confirm = useConfirm();
   const updateContact = useUpdateContact();
   const createActivity = useCreateActivity();
+  const createTask = useCreateTask();
   const createMeeting = useCreateMeeting();
   const { data: contractTemplates } = useContractTemplates();
   const createContract = useCreateContract();
@@ -65,6 +66,9 @@ export default function ContactDetailPage() {
   const [showTaskCreate, setShowTaskCreate] = useState(false);
   const [showCommunityInput, setShowCommunityInput] = useState(false);
   const [communityName, setCommunityName] = useState("");
+  const [showFollowupPopup, setShowFollowupPopup] = useState(false);
+  const [showLossPopup, setShowLossPopup] = useState(false);
+  const [pendingStageId, setPendingStageId] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
   const [meetingData, setMeetingData] = useState({
     title: "",
@@ -233,7 +237,16 @@ export default function ContactDetailPage() {
                           <button
                             key={s.id}
                             onClick={() => {
-                              updateContact.mutate({ id: contact.id, stage_id: s.id } as any);
+                              const stageName = s.name.toLowerCase();
+                              if (stageName.includes("פולואפ") || stageName.includes("follow")) {
+                                setPendingStageId(s.id);
+                                setShowFollowupPopup(true);
+                              } else if (stageName.includes("לא נסגר") || stageName.includes("לא רלוונטי")) {
+                                setPendingStageId(s.id);
+                                setShowLossPopup(true);
+                              } else {
+                                updateContact.mutate({ id: contact.id, stage_id: s.id } as any);
+                              }
                               setShowStatusPicker(false);
                             }}
                             className={cn(
@@ -297,6 +310,13 @@ export default function ContactDetailPage() {
                   </div>
                 )}
               </div>
+
+              {/* Marketing consent badge */}
+              <button onClick={() => updateContact.mutate({ id: contact.id, marketing_consent: !contact.marketing_consent, marketing_consent_at: !contact.marketing_consent ? new Date().toISOString() : null } as any)}
+                className={cn("inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors",
+                  contact.marketing_consent ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-red-100 text-red-600 hover:bg-red-200")}>
+                {contact.marketing_consent ? "✓ אישר דיוור" : "✕ לא אישר דיוור"}
+              </button>
             </div>
           </div>
         </div>
@@ -308,10 +328,6 @@ export default function ContactDetailPage() {
               <MessageCircle size={14} /> WhatsApp
             </button>
           )}
-          <button onClick={() => setShowEdit(true)}
-            className="flex items-center gap-2 px-3 py-2 text-sm border border-input rounded-lg hover:bg-secondary transition-colors">
-            <Edit size={14} /> עריכה
-          </button>
           <button onClick={handleDelete}
             className="p-2 text-destructive border border-input rounded-lg hover:bg-destructive/10 transition-colors">
             <Trash2 size={14} />
@@ -351,92 +367,61 @@ export default function ContactDetailPage() {
           <div className="bg-card border border-border rounded-xl p-4 space-y-3">
             <h3 className="font-semibold text-sm">מעקב ליד</h3>
 
-            {/* Webinar registered - only for webinar pipeline leads */}
+            {/* Webinar fields - only for webinar pipeline */}
             {contactPipeline?.name?.includes("וובינר") && (
               <>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">נרשם לוובינר</span>
-                  <InlineField label="" value={contact.webinar_registered} dir="ltr"
-                    onSave={v => updateContact.mutate({ id: contact.id, webinar_registered: v || null } as any)} />
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">נכח בוובינר</span>
-                  <InlineField label="" value={contact.webinar_attended} dir="ltr"
-                    onSave={v => updateContact.mutate({ id: contact.id, webinar_attended: v || null } as any)} />
-                </div>
+                <InlineField label="נרשם לוובינר" value={contact.webinar_registered} icon={<Calendar size={13} />}
+                  onSave={v => updateContact.mutate({ id: contact.id, webinar_registered: v || null } as any)} />
+                <InlineField label="נכח בוובינר" value={contact.webinar_attended} icon={<Video size={13} />}
+                  onSave={v => updateContact.mutate({ id: contact.id, webinar_attended: v || null } as any)} />
               </>
             )}
 
-            {/* Meeting date - from upcoming meetings */}
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">מועד פגישה</span>
-              <span className="font-medium text-foreground">
-                {upcomingMeetings.length > 0
-                  ? formatDateTime(upcomingMeetings[0].scheduled_at)
-                  : "—"}
-              </span>
-            </div>
+            {/* Meeting date */}
+            {upcomingMeetings.length > 0 && (
+              <div className="flex items-center gap-2 text-xs py-0.5">
+                <Calendar size={13} className="text-blue-500 shrink-0" />
+                <span className="font-medium text-foreground">{formatDateTime(upcomingMeetings[0].scheduled_at)}</span>
+              </div>
+            )}
 
-            {/* Sales call completed */}
-            <label className="flex items-center justify-between text-xs cursor-pointer">
-              <span className="text-muted-foreground">שיחת מכירה בוצעה</span>
-              <input type="checkbox" checked={!!contact.sales_call_completed}
-                onChange={e => updateContact.mutate({ id: contact.id, sales_call_completed: e.target.checked } as any)}
-                className="w-4 h-4 rounded accent-primary" />
-            </label>
+            {/* Checkboxes */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-2.5 text-xs cursor-pointer group">
+                <div className={cn("w-4 h-4 rounded border-2 flex items-center justify-center transition-colors",
+                  contact.sales_call_completed ? "bg-primary border-primary" : "border-muted-foreground/30 group-hover:border-primary/50")}>
+                  {contact.sales_call_completed && <span className="text-primary-foreground text-[10px]">✓</span>}
+                </div>
+                <input type="checkbox" checked={!!contact.sales_call_completed} className="sr-only"
+                  onChange={e => updateContact.mutate({ id: contact.id, sales_call_completed: e.target.checked } as any)} />
+                <span className={contact.sales_call_completed ? "font-medium text-foreground" : "text-muted-foreground"}>שיחה קצה לקצה</span>
+              </label>
+
+            </div>
 
             {/* Community groups */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">קבוצות קהילה</span>
-                <button onClick={() => setShowCommunityInput(true)}
-                  className="text-primary hover:underline text-[10px]">+ הוסף</button>
-              </div>
-              {showCommunityInput && (
-                <div className="flex items-center gap-1.5">
-                  <input value={communityName} onChange={e => setCommunityName(e.target.value)} placeholder="שם הקבוצה..."
-                    className="flex-1 px-2 py-1 text-xs border border-input rounded-lg bg-background outline-none" autoFocus
-                    onKeyDown={e => {
-                      if (e.key === "Enter" && communityName.trim()) {
-                        updateContact.mutate({ id: contact.id, community_groups: [...(contact.community_groups || []), communityName.trim()] } as any);
-                        setCommunityName(""); setShowCommunityInput(false);
-                      }
-                      if (e.key === "Escape") { setCommunityName(""); setShowCommunityInput(false); }
-                    }} />
-                  <button onClick={() => {
-                    if (communityName.trim()) {
-                      updateContact.mutate({ id: contact.id, community_groups: [...(contact.community_groups || []), communityName.trim()] } as any);
-                      setCommunityName(""); setShowCommunityInput(false);
+            <div className="space-y-2 pt-2 border-t border-border">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium">קבוצות WhatsApp</span>
+                {!(contact.community_groups?.length > 0) && (
+                  <button onClick={async () => {
+                    const ok = await confirm({ title: "הוספה לקבוצות", description: `להוסיף את ${contact.first_name} ${contact.last_name} לקבוצות הקהילה?`, confirmText: "הוסף", cancelText: "ביטול" });
+                    if (ok) {
+                      updateContact.mutate({ id: contact.id, community_groups: ["קהילה"] } as any);
+                      toast.success("הליד נוסף לקבוצות");
                     }
-                  }} className="text-xs text-primary">✓</button>
-                  <button onClick={() => { setCommunityName(""); setShowCommunityInput(false); }} className="text-xs text-muted-foreground">✕</button>
-                </div>
-              )}
+                  }}
+                    className="px-2.5 py-1 text-[10px] font-medium text-primary bg-primary/10 rounded-lg hover:bg-primary/20 transition-colors">
+                    + הוספה לקבוצות
+                  </button>
+                )}
+              </div>
               {contact.community_groups?.length > 0 ? (
-                <div className="flex flex-wrap gap-1">
-                  {contact.community_groups.map((g: string, i: number) => (
-                    <span key={i} className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full flex items-center gap-1">
-                      {g}
-                      <button onClick={() => updateContact.mutate({ id: contact.id, community_groups: contact.community_groups.filter((_: string, j: number) => j !== i) } as any)}
-                        className="hover:text-destructive">×</button>
-                    </span>
-                  ))}
-                </div>
+                <span className="text-[11px] px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-700 font-medium inline-block">צורף לקבוצות</span>
               ) : (
-                <p className="text-[10px] text-muted-foreground">לא נוסף לקבוצות</p>
+                <span className="text-[11px] px-2.5 py-1 rounded-lg bg-amber-50 text-amber-600 font-medium inline-block">לא צורף לקבוצות</span>
               )}
             </div>
-
-            {/* Marketing consent */}
-            <label className="flex items-center justify-between text-xs cursor-pointer">
-              <span className="text-muted-foreground">אישור דיוור</span>
-              <input type="checkbox" checked={!!contact.marketing_consent}
-                onChange={e => updateContact.mutate({ id: contact.id, marketing_consent: e.target.checked, marketing_consent_at: e.target.checked ? new Date().toISOString() : null } as any)}
-                className="w-4 h-4 rounded accent-primary" />
-            </label>
-            {contact.marketing_consent_at && (
-              <p className="text-[10px] text-muted-foreground">אושר ב-{formatDateTime(contact.marketing_consent_at)}</p>
-            )}
           </div>
 
           {/* Upcoming Meetings */}
@@ -590,9 +575,6 @@ export default function ContactDetailPage() {
         </div>
       </div>
 
-      {showEdit && (
-        <ContactForm contact={contact} onClose={() => setShowEdit(false)} />
-      )}
 
       {showDealForm && (
         <DealForm defaultContactId={contact.id} onClose={() => setShowDealForm(false)} />
@@ -784,6 +766,150 @@ export default function ContactDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Follow-up popup */}
+      {showFollowupPopup && pendingStageId && (
+        <FollowupPopup
+          contact={contact}
+          stageId={pendingStageId}
+          onConfirm={async (dateTime, notes) => {
+            updateContact.mutate({ id: contact.id, stage_id: pendingStageId, next_followup_at: dateTime } as any);
+            await createActivity.mutateAsync({ contact_id: contact.id, type: "stage_change", subject: "שינוי שלב — פולואפ", body: notes ? `מועד פולואפ: ${formatDateTime(dateTime)}\n${notes}` : `מועד פולואפ: ${formatDateTime(dateTime)}` });
+            await createTask.mutateAsync({ title: `פולואפ — ${contact.first_name} ${contact.last_name}`, contact_id: contact.id, type: "follow_up", priority: "high", status: "pending", due_date: dateTime, assigned_to: contact.assigned_to || null } as any);
+            toast.success("פולואפ נקבע ומשימה נוצרה");
+            setShowFollowupPopup(false); setPendingStageId(null);
+          }}
+          onCancel={() => { setShowFollowupPopup(false); setPendingStageId(null); }}
+        />
+      )}
+
+      {/* Loss reason popup */}
+      {showLossPopup && pendingStageId && (
+        <LossReasonPopup
+          contact={contact}
+          stageName={allStages.find(s => s.id === pendingStageId)?.name || ""}
+          onConfirm={async (reason, disqualification, notes) => {
+            updateContact.mutate({ id: contact.id, stage_id: pendingStageId, loss_reason: reason, disqualification_reason: disqualification || null, loss_notes: notes || null } as any);
+            const body = [`סיבה: ${reason}`, disqualification && `סיבת פסילה: ${disqualification}`, notes && `הערות: ${notes}`].filter(Boolean).join("\n");
+            await createActivity.mutateAsync({ contact_id: contact.id, type: "stage_change", subject: `שינוי שלב — ${allStages.find(s => s.id === pendingStageId)?.name}`, body });
+            setShowLossPopup(false); setPendingStageId(null);
+          }}
+          onCancel={() => { setShowLossPopup(false); setPendingStageId(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Follow-up Popup ──
+const FOLLOWUP_INITIAL = { dateTime: "", notes: "" };
+
+function FollowupPopup({ contact, stageId, onConfirm, onCancel }: {
+  contact: Contact; stageId: string;
+  onConfirm: (dateTime: string, notes: string) => void; onCancel: () => void;
+}) {
+  const [form, setForm] = useState(FOLLOWUP_INITIAL);
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={onCancel}>
+      <div className="bg-card rounded-2xl shadow-xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="p-6 border-b border-border">
+          <h2 className="text-lg font-semibold">קביעת פולואפ</h2>
+          <p className="text-sm text-muted-foreground mt-1">{contact.first_name} {contact.last_name}</p>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="text-sm font-medium mb-1 block">מועד פולואפ *</label>
+            <input type="datetime-local" value={form.dateTime} onChange={e => setForm(f => ({ ...f, dateTime: e.target.value }))} required
+              className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring" dir="ltr" />
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1 block">הערות</label>
+            <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3}
+              className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none" placeholder="הערות לפולואפ..." />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => { if (form.dateTime) onConfirm(new Date(form.dateTime).toISOString(), form.notes); }} disabled={!form.dateTime}
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50">קבע פולואפ</button>
+            <button onClick={onCancel} className="px-4 py-2.5 text-sm font-medium border border-input rounded-lg hover:bg-secondary">ביטול</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Loss Reason Popup ──
+const LOSS_REASONS = ["מחיר גבוה", "בחר מתחרה", "לא מעוניין", "תזמון לא מתאים", "אחר"];
+const DISQUALIFICATION_REASONS = [
+  "לא עלה לפגישה", "חרגול שבור", "מחיר גבוה ביחס לתקציב", "בחר להתקדם עם מתחרה",
+  "רוצה לנסות קודם לבד", "התכנית פחות מתאימה", "לא מרגיש שזה הזמן הנכון",
+  "ספק לגבי יכולת אישית / רקע טכני", "חשש מהתחייבות או שינוי מקצועי",
+  "חוסר הבנה של הערך / התמורה", "ממתין למימון / הכנסה עתידית",
+  "עדיין בשלב בירור / השוואה", "לא מעוניין", "לא עבר את שלב הסינון לפגישת הזנקה",
+  "לא תואמה פגישה - אין מענה", "אחר",
+];
+
+function LossReasonPopup({ contact, stageName, onConfirm, onCancel }: {
+  contact: Contact; stageName: string;
+  onConfirm: (reason: string, disqualification: string | null, notes: string) => void; onCancel: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [disqualification, setDisqualification] = useState("");
+  const [notes, setNotes] = useState("");
+  const isDisqualify = stageName.includes("לא רלוונטי");
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={onCancel}>
+      <div className="bg-card rounded-2xl shadow-xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="p-6 border-b border-border">
+          <h2 className="text-lg font-semibold">{stageName}</h2>
+          <p className="text-sm text-muted-foreground mt-1">{contact.first_name} {contact.last_name}</p>
+        </div>
+        <div className="p-6 space-y-4">
+          {!isDisqualify && (
+            <div>
+              <label className="text-sm font-medium mb-1 block">סיבה שלא נסגר *</label>
+              <Select value={reason || "__none__"} onValueChange={v => setReason(v === "__none__" ? "" : v)}>
+                <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
+                  <SelectValue placeholder="בחר סיבה" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">בחר סיבה</SelectItem>
+                  {LOSS_REASONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {isDisqualify && (
+            <div>
+              <label className="text-sm font-medium mb-1 block">סיבת פסילה *</label>
+              <Select value={disqualification || "__none__"} onValueChange={v => setDisqualification(v === "__none__" ? "" : v)}>
+                <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
+                  <SelectValue placeholder="בחר סיבה" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">בחר סיבה</SelectItem>
+                  {DISQUALIFICATION_REASONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div>
+            <label className="text-sm font-medium mb-1 block">הערות</label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
+              className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none" placeholder="הערות נוספות..." />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => {
+              if (isDisqualify && !disqualification) return;
+              if (!isDisqualify && !reason) return;
+              onConfirm(reason || disqualification, isDisqualify ? disqualification : null, notes);
+            }} disabled={isDisqualify ? !disqualification : !reason}
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-destructive rounded-lg hover:bg-destructive/90 disabled:opacity-50">אישור</button>
+            <button onClick={onCancel} className="px-4 py-2.5 text-sm font-medium border border-input rounded-lg hover:bg-secondary">ביטול</button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

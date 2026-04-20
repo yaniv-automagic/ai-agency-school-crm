@@ -28,6 +28,10 @@ export interface Contact {
   community_groups: string[];
   marketing_consent: boolean;
   marketing_consent_at: string | null;
+  loss_reason: string | null;
+  disqualification_reason: string | null;
+  loss_notes: string | null;
+  next_followup_at: string | null;
   // Attribution
   utm_source: string | null;
   utm_medium: string | null;
