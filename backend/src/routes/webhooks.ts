@@ -142,6 +142,53 @@ async function generateAISummary(
 }
 
 // ══════════════════════════════════════════════
+// Fireflies Transcript Download
+// URL: GET /api/webhooks/fireflies/:tenantId/transcript/:meetingId
+// ══════════════════════════════════════════════
+webhookRouter.get("/fireflies/:tenantId/transcript/:meetingId", async (req, res) => {
+  try {
+    const { tenantId, meetingId } = req.params;
+
+    const { data: ffConfig } = await supabase
+      .from("crm_integration_configs")
+      .select("config")
+      .eq("tenant_id", tenantId)
+      .eq("provider", "fireflies")
+      .eq("is_active", true)
+      .single();
+
+    if (!ffConfig?.config?.api_key) {
+      return res.status(400).json({ error: "Fireflies API key not configured" });
+    }
+
+    const gqlRes = await fetch("https://api.fireflies.ai/graphql", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${ffConfig.config.api_key}` },
+      body: JSON.stringify({
+        query: `query($id:String!){transcript(id:$id){title date sentences{speaker_name text}}}`,
+        variables: { id: meetingId },
+      }),
+    });
+
+    const { data } = await gqlRes.json();
+    const t = data?.transcript;
+    if (!t) return res.status(404).json({ error: "Transcript not found" });
+
+    const dateStr = t.date ? new Date(t.date).toLocaleDateString("he-IL") : "";
+    const header = `${t.title || "פגישה"}\n${dateStr}\n${"=".repeat(40)}\n\n`;
+    const body = (t.sentences || []).map((s: any) => `${s.speaker_name}: ${s.text}`).join("\n\n");
+    const filename = `transcript-${(t.title || meetingId).replace(/[^a-zA-Z0-9\u0590-\u05FF ]/g, "").replace(/\s+/g, "-")}.txt`;
+
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(header + body);
+  } catch (err: any) {
+    console.error("[Fireflies] Transcript download error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ══════════════════════════════════════════════
 // Fireflies.ai Webhook
 // URL: POST /api/webhooks/fireflies/:tenantId
 // ══════════════════════════════════════════════

@@ -2,14 +2,17 @@ import { useState } from "react";
 import {
   Phone, Mail, MessageCircle, Calendar, StickyNote, ArrowLeftRight,
   Settings, MessageSquare, Plus, Send, ChevronDown, CheckSquare, X,
+  Video, ExternalLink, FileText, Sparkles, Download, Copy,
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DatePicker } from "@/components/ui/date-picker";
 import { useActivities, useCreateActivity } from "@/hooks/useActivities";
 import { useCreateTask } from "@/hooks/useTasks";
 import { useContact } from "@/hooks/useContacts";
 import { useAuth } from "@/contexts/AuthContext";
 import { sendEmail } from "@/lib/email-api";
 import { ACTIVITY_TYPES, TASK_PRIORITIES } from "@/lib/constants";
-import { cn, timeAgo } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface ActivityTimelineProps {
@@ -132,7 +135,7 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
     resetForm();
   };
 
-  const displayed = showAll ? activities : activities?.slice(0, 10);
+  const displayed = (showAll ? activities : activities?.slice(0, 10))?.slice().reverse();
 
   return (
     <div className="space-y-4">
@@ -142,7 +145,6 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
           { type: "note" as const, label: "הערה", icon: StickyNote },
           { type: "call" as const, label: "שיחה", icon: Phone },
           { type: "email" as const, label: "מייל", icon: Mail },
-          { type: "task" as const, label: "משימה", icon: CheckSquare },
         ]).map(action => (
           <button
             key={action.type}
@@ -271,14 +273,18 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">עדיפות</label>
-              <select value={taskPriority} onChange={e => setTaskPriority(e.target.value)}
-                className="w-full px-3 py-1.5 text-sm border border-input rounded-lg bg-background outline-none">
-                {TASK_PRIORITIES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-              </select>
+              <Select value={taskPriority} onValueChange={setTaskPriority}>
+                <SelectTrigger className="w-full px-3 py-1.5 text-sm border border-input rounded-lg bg-background outline-none">
+                  <SelectValue placeholder="בחר עדיפות" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TASK_PRIORITIES.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">תאריך יעד</label>
-              <input type="date" value={taskDueDate} onChange={e => setTaskDueDate(e.target.value)}
+              <DatePicker value={taskDueDate} onChange={setTaskDueDate}
                 className="w-full px-3 py-1.5 text-sm border border-input rounded-lg bg-background outline-none" />
             </div>
           </div>
@@ -307,12 +313,16 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
         </div>
       ) : displayed && displayed.length > 0 ? (
         <div className="relative">
-          <div className="absolute top-0 bottom-0 right-[15px] w-[2px] bg-border" />
+          {displayed.length > 1 && (
+            <div className="absolute top-4 bottom-4 right-[15px] w-[2px] bg-border" />
+          )}
           <div className="space-y-4">
             {displayed.map(activity => {
-              const Icon = ICON_MAP[activity.type] || Settings;
-              const colorCls = COLOR_MAP[activity.type] || COLOR_MAP.system;
-              const actLabel = ACTIVITY_TYPES.find(t => t.value === activity.type)?.label;
+              const isFireflies = activity.metadata?.source === "fireflies";
+              const Icon = isFireflies ? Video : (ICON_MAP[activity.type] || Settings);
+              const colorCls = isFireflies ? "bg-purple-100 text-purple-600" : (COLOR_MAP[activity.type] || COLOR_MAP.system);
+              const actLabel = isFireflies ? "הקלטת פגישה" : ACTIVITY_TYPES.find(t => t.value === activity.type)?.label;
+              const meta = activity.metadata || {};
               return (
                 <div key={activity.id} className="flex gap-3 relative">
                   <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10", colorCls)}>
@@ -321,7 +331,12 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
                   <div className="flex-1 min-w-0 pb-1">
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="text-sm font-medium">{actLabel}</span>
-                      {activity.direction && (
+                      {isFireflies && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-medium">
+                          Fireflies
+                        </span>
+                      )}
+                      {activity.direction && !isFireflies && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">
                           {activity.direction === "outbound" ? "יוצא" : "נכנס"}
                         </span>
@@ -329,10 +344,89 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
                       {activity.subject && (
                         <span className="text-sm text-muted-foreground">— {activity.subject}</span>
                       )}
-                      <span className="text-[11px] text-muted-foreground mr-auto">{timeAgo(activity.performed_at)}</span>
+                      <span className="text-[11px] text-muted-foreground mr-auto">{formatDateTime(activity.performed_at)}</span>
                     </div>
-                    {activity.body && (
-                      <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{activity.body}</p>
+
+                    {/* Fireflies — full card with mini player, summary, transcript */}
+                    {isFireflies ? (
+                      <div className="mt-2 bg-card border border-border rounded-xl overflow-hidden">
+                        {/* Mini video player */}
+                        {meta.recording_url && (
+                          <div className="relative bg-black rounded-t-xl overflow-hidden">
+                            <video
+                              src={meta.recording_url}
+                              controls
+                              preload="metadata"
+                              className="w-full max-h-52 object-contain"
+                              controlsList="nodownload"
+                              playsInline
+                            />
+                          </div>
+                        )}
+
+                        <div className="p-4 space-y-3">
+                          {/* AI Summary + Homework */}
+                          {activity.body && (() => {
+                            const hwIndex = activity.body.indexOf("שיעורי בית:");
+                            const summaryPart = hwIndex > -1 ? activity.body.slice(0, hwIndex).trim() : activity.body;
+                            const hwPart = hwIndex > -1 ? activity.body.slice(hwIndex + "שיעורי בית:".length).trim() : "";
+                            return (
+                              <>
+                                <div>
+                                  <p className="text-[11px] font-semibold text-purple-600 mb-1.5 flex items-center gap-1">
+                                    <Sparkles size={11} className="text-purple-400" /> סיכום AI
+                                  </p>
+                                  <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{summaryPart}</p>
+                                </div>
+                                {hwPart && (
+                                  <div className="bg-purple-50/50 border border-purple-100 rounded-lg p-3">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                      <p className="text-[11px] font-semibold text-purple-600">שיעורי בית:</p>
+                                      <button
+                                        onClick={() => { navigator.clipboard.writeText("שיעורי בית:\n" + hwPart); toast.success("שיעורי בית הועתקו"); }}
+                                        className="flex items-center gap-1 text-[10px] text-purple-500 hover:text-purple-700 transition-colors"
+                                      >
+                                        <Copy size={10} /> העתק
+                                      </button>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{hwPart}</p>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+
+                          {/* Footer links */}
+                          <div className="flex items-center flex-wrap gap-3 pt-2 border-t border-border">
+                            {meta.transcript_url && (
+                              <a href={meta.transcript_url} target="_blank" rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 text-[11px] text-purple-600 hover:text-purple-700 hover:underline">
+                                <ExternalLink size={11} /> פתח ב-Fireflies
+                              </a>
+                            )}
+                            {meta.recording_url && (
+                              <a href={meta.recording_url} download
+                                className="flex items-center gap-1.5 text-[11px] text-purple-600 hover:text-purple-700 hover:underline">
+                                <Download size={11} /> הורד הקלטה
+                              </a>
+                            )}
+                            {meta.fireflies_meeting_id && teamMember?.tenant_id && (
+                              <a href={`${import.meta.env.VITE_WEBHOOK_BACKEND_URL || import.meta.env.VITE_BACKEND_URL || ""}/api/webhooks/fireflies/${teamMember.tenant_id}/transcript/${meta.fireflies_meeting_id}`}
+                                className="flex items-center gap-1.5 text-[11px] text-purple-600 hover:text-purple-700 hover:underline">
+                                <FileText size={11} /> הורד תמלול
+                              </a>
+                            )}
+                            {meta.duration_minutes > 0 && (
+                              <span className="text-[10px] text-muted-foreground mr-auto">{meta.duration_minutes} דק׳</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Regular activity body */
+                      activity.body && (
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{activity.body}</p>
+                      )
                     )}
                   </div>
                 </div>
