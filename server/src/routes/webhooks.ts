@@ -247,13 +247,13 @@ webhookRouter.post("/fireflies/:tenantId", async (req: Request, res: Response) =
       }
     }
 
-    // Find matching contacts by email only
+    // Find matching contacts by email (check both tenant-scoped and unscoped contacts)
     let matchedContacts: { id: string; email: string }[] = [];
     if (participantEmails.length > 0) {
       const { data: contacts } = await supabase
         .from("crm_contacts")
         .select("id, email")
-        .eq("tenant_id", tenantId)
+        .or(`tenant_id.eq.${tenantId},tenant_id.is.null`)
         .in("email", participantEmails);
 
       matchedContacts = contacts || [];
