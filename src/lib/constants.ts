@@ -80,12 +80,11 @@ export const MEETING_TYPES = [
 ] as const;
 
 export const MEETING_STATUSES = [
-  { value: "scheduled", label: "נקבעה", color: "bg-blue-100 text-blue-700" },
-  { value: "confirmed", label: "אושרה", color: "bg-green-100 text-green-700" },
-  { value: "completed", label: "התקיימה", color: "bg-emerald-100 text-emerald-700" },
-  { value: "no_show", label: "לא הגיע", color: "bg-red-100 text-red-700" },
-  { value: "cancelled", label: "בוטלה", color: "bg-gray-100 text-gray-600" },
-  { value: "rescheduled", label: "נדחתה", color: "bg-amber-100 text-amber-700" },
+  { value: "scheduled", label: "נקבעה", color: "bg-yellow-100 text-yellow-800" },
+  { value: "rescheduled", label: "נדחתה", color: "bg-orange-100 text-orange-700" },
+  { value: "cancelled", label: "בוטלה", color: "bg-red-100 text-red-700" },
+  { value: "completed", label: "התקיימה", color: "bg-green-100 text-green-700" },
+  { value: "no_show", label: "לא הגיע", color: "bg-gray-900 text-white" },
 ] as const;
 
 export const MEETING_OUTCOMES = [

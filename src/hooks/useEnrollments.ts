@@ -15,7 +15,7 @@ export function useEnrollments(filters?: {
     queryFn: async () => {
       let q = supabase
         .from("crm_program_enrollments")
-        .select("*, contact:crm_contacts(id, first_name, last_name, email), product:crm_products(id, name, category), sessions:crm_program_sessions(*)")
+        .select("*, contact:crm_contacts(id, first_name, last_name, email, phone), product:crm_products(id, name, category, price, duration_description, description), sessions:crm_program_sessions(*), assigned_member:crm_team_members!assigned_to(*)")
         .order("created_at", { ascending: false });
 
       if (filters?.contact_id) q = q.eq("contact_id", filters.contact_id);
@@ -84,6 +84,20 @@ export function useUpdateEnrollment() {
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: KEY }); },
+  });
+}
+
+export function useDeleteEnrollment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // Delete sessions first
+      await supabase.from("crm_program_sessions").delete().eq("enrollment_id", id);
+      const { error } = await supabase.from("crm_program_enrollments").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: KEY }); toast.success("ההרשמה נמחקה"); },
+    onError: (e: Error) => toast.error(`שגיאה: ${e.message}`),
   });
 }
 

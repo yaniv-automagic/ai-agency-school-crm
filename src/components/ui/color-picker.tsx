@@ -14,9 +14,10 @@ interface ColorPickerProps {
   value?: string
   onChange?: (color: string) => void
   className?: string
+  align?: "start" | "center" | "end"
 }
 
-export function ColorPicker({ value = "#6366f1", onChange, className }: ColorPickerProps) {
+export function ColorPicker({ value = "#6366f1", onChange, className, align = "end" }: ColorPickerProps) {
   const [open, setOpen] = React.useState(false)
   const [customColor, setCustomColor] = React.useState(value)
 
@@ -49,7 +50,7 @@ export function ColorPicker({ value = "#6366f1", onChange, className }: ColorPic
           style={{ backgroundColor: value }}
         />
       </PopoverTrigger>
-      <PopoverContent className="w-[232px] p-3" align="start">
+      <PopoverContent className="w-[232px] p-3" align={align} side="bottom" collisionPadding={8}>
         <div className="grid grid-cols-5 gap-2 mb-3">
           {PRESET_COLORS.map(color => (
             <button

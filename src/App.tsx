@@ -60,6 +60,7 @@ const WhatsAppSettingsPage = lazy(() => import("./pages/settings/WhatsAppSetting
 const UsersPage = lazy(() => import("./pages/settings/UsersPage"));
 const PermissionsPage = lazy(() => import("./pages/settings/PermissionsPage"));
 const FirefliesSettingsPage = lazy(() => import("./pages/settings/FirefliesSettingsPage"));
+const ContractTemplateSettingsPage = lazy(() => import("./pages/settings/ContractTemplateSettingsPage"));
 
 function PageLoader() {
   return (
@@ -147,6 +148,7 @@ export default function App() {
           <Route path="/settings/users" element={<UsersPage />} />
           <Route path="/settings/permissions" element={<PermissionsPage />} />
           <Route path="/settings/fireflies" element={<FirefliesSettingsPage />} />
+          <Route path="/settings/contracts" element={<ContractTemplateSettingsPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

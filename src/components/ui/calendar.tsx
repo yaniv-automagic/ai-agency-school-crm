@@ -15,6 +15,7 @@ function Calendar({
 }: CalendarProps) {
   return (
     <DayPicker
+      dir="rtl"
       showOutsideDays={showOutsideDays}
       className={cn("p-3", className)}
       classNames={{
@@ -27,8 +28,8 @@ function Calendar({
           buttonVariants({ variant: "outline" }),
           "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
         ),
-        nav_button_previous: "absolute left-1",
-        nav_button_next: "absolute right-1",
+        nav_button_previous: "absolute right-1",
+        nav_button_next: "absolute left-1",
         table: "w-full border-collapse space-y-1",
         head_row: "flex",
         head_cell:
@@ -42,7 +43,7 @@ function Calendar({
         day_range_end: "day-range-end",
         day_selected:
           "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-        day_today: "bg-accent text-accent-foreground",
+        day_today: "ring-1 ring-primary text-foreground",
         day_outside:
           "day-outside text-muted-foreground opacity-50 aria-selected:bg-accent/50 aria-selected:text-muted-foreground aria-selected:opacity-30",
         day_disabled: "text-muted-foreground opacity-50",

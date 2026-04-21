@@ -129,7 +129,7 @@ function WidgetContent({ widget }: { widget: GridWidget }) {
 // ── RTL Handling ──
 
 function rtlToLtr(widgets: GridWidget[]) {
-  return widgets.map(w => ({ i: w.i, x: COLS - w.x - w.w, y: w.y, w: w.w, h: w.h, minW: w.config.type === "number" ? 2 : 3, minH: 2 }));
+  return widgets.map(w => ({ i: w.i, x: COLS - w.x - w.w, y: w.y, w: w.w, h: w.h, minW: w.config.type === "number" ? 2 : 3, minH: 1 }));
 }
 
 function ltrToRtl(layout: any[], existingWidgets: GridWidget[]): GridWidget[] {
@@ -232,7 +232,11 @@ export default function DynamicDashboard() {
 
   const refreshAll = () => loadAllData(widgets);
 
-  const layout = useMemo(() => rtlToLtr(widgets), [widgets]);
+  const layout = useMemo(() => {
+    const items = rtlToLtr(widgets);
+    if (!editMode) return items.map(item => ({ ...item, static: true }));
+    return items;
+  }, [widgets, editMode]);
 
   return (
     <div className="space-y-4">

@@ -10,23 +10,27 @@ export function useMeetings(filters?: {
   deal_id?: string;
   meeting_type?: MeetingType;
   status?: MeetingStatus;
+  assigned_to?: string;
   from_date?: string;
   to_date?: string;
+  search?: string;
 }) {
   return useQuery({
     queryKey: [...KEY, filters],
     queryFn: async () => {
       let q = supabase
         .from("crm_meetings")
-        .select("*, contact:crm_contacts(id, first_name, last_name, email, phone)")
+        .select("*, contact:crm_contacts(id, first_name, last_name, email, phone, status), assigned_member:crm_team_members!assigned_to(id, display_name, avatar_url)")
         .order("scheduled_at", { ascending: false });
 
       if (filters?.contact_id) q = q.eq("contact_id", filters.contact_id);
       if (filters?.deal_id) q = q.eq("deal_id", filters.deal_id);
       if (filters?.meeting_type) q = q.eq("meeting_type", filters.meeting_type);
       if (filters?.status) q = q.eq("status", filters.status);
+      if (filters?.assigned_to) q = q.eq("assigned_to", filters.assigned_to);
       if (filters?.from_date) q = q.gte("scheduled_at", filters.from_date);
       if (filters?.to_date) q = q.lte("scheduled_at", filters.to_date);
+      if (filters?.search) q = q.or(`title.ilike.%${filters.search}%`);
 
       const { data, error } = await q;
       if (error) throw error;
@@ -83,23 +87,23 @@ export function useUpdateMeeting() {
   });
 }
 
-export function useMeetingStats() {
+export function useMeetingStats(meetingType?: MeetingType) {
   return useQuery({
-    queryKey: [...KEY, "stats"],
+    queryKey: [...KEY, "stats", meetingType],
     queryFn: async () => {
-      const { data: all } = await supabase.from("crm_meetings").select("status, outcome, meeting_type");
-      if (!all) return { total: 0, scheduled: 0, completed: 0, noShow: 0, showRate: 0, closeRate: 0 };
+      let q = supabase.from("crm_meetings").select("status, outcome, meeting_type");
+      if (meetingType) q = q.eq("meeting_type", meetingType);
+      const { data: all } = await q;
+      if (!all) return { scheduled: 0, cancelled: 0, completed: 0, showRate: 0 };
 
-      const total = all.length;
       const scheduled = all.filter(m => m.status === "scheduled" || m.status === "confirmed").length;
+      const cancelled = all.filter(m => m.status === "cancelled").length;
       const completed = all.filter(m => m.status === "completed").length;
       const noShow = all.filter(m => m.status === "no_show").length;
-      const showRate = total > 0 ? (completed / (completed + noShow)) * 100 : 0;
-      const sales = all.filter(m => m.meeting_type === "sales_consultation" && m.status === "completed");
-      const won = sales.filter(m => m.outcome === "won").length;
-      const closeRate = sales.length > 0 ? (won / sales.length) * 100 : 0;
+      const decidedTotal = completed + noShow;
+      const showRate = decidedTotal > 0 ? Math.round((completed / decidedTotal) * 100) : 0;
 
-      return { total, scheduled, completed, noShow, showRate: Math.round(showRate), closeRate: Math.round(closeRate) };
+      return { scheduled, cancelled, completed, showRate };
     },
   });
 }

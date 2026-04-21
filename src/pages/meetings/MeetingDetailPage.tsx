@@ -1,11 +1,9 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowRight, ExternalLink, Calendar, Clock, Video, User, FileText, CheckCircle, ChevronDown } from "lucide-react";
+import { ArrowRight, ExternalLink, Calendar, Clock, Video, User, FileText, CheckCircle, ChevronDown, Download } from "lucide-react";
 import { useMeeting, useUpdateMeeting } from "@/hooks/useMeetings";
 import { MEETING_TYPES, MEETING_STATUSES, MEETING_OUTCOMES } from "@/lib/constants";
-import { cn, formatCurrency, timeAgo } from "@/lib/utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { MeetingOutcome } from "@/types/crm";
+import { cn, formatCurrency } from "@/lib/utils";
 
 export default function MeetingDetailPage() {
   const { id } = useParams();
@@ -14,16 +12,6 @@ export default function MeetingDetailPage() {
   const updateMeeting = useUpdateMeeting();
 
   const [showFullTranscript, setShowFullTranscript] = useState(false);
-
-  const [outcomeForm, setOutcomeForm] = useState<{
-    outcome: MeetingOutcome | "";
-    outcome_notes: string;
-    outcome_deal_value: string;
-  }>({
-    outcome: "",
-    outcome_notes: "",
-    outcome_deal_value: "",
-  });
 
   if (isLoading) {
     return (
@@ -48,28 +36,12 @@ export default function MeetingDetailPage() {
   const type = MEETING_TYPES.find((t) => t.value === meeting.meeting_type);
   const outcome = meeting.outcome ? MEETING_OUTCOMES.find((o) => o.value === meeting.outcome) : null;
 
-  const handleOutcomeSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!outcomeForm.outcome) return;
-    await updateMeeting.mutateAsync({
-      id: meeting.id,
-      status: "completed",
-      outcome: outcomeForm.outcome as MeetingOutcome,
-      outcome_notes: outcomeForm.outcome_notes || null,
-      outcome_deal_value: outcomeForm.outcome_deal_value
-        ? parseFloat(outcomeForm.outcome_deal_value)
-        : null,
-    });
-  };
-
   const handleStatusChange = async (newStatus: string) => {
     await updateMeeting.mutateAsync({
       id: meeting.id,
       status: newStatus as any,
     });
   };
-
-  const showOutcomeForm = meeting.status === "completed" && !meeting.outcome;
 
   return (
     <div className="space-y-6">
@@ -86,9 +58,6 @@ export default function MeetingDetailPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold">{meeting.title}</h1>
-          <p className="text-muted-foreground mt-1">
-            {meeting.contact?.first_name} {meeting.contact?.last_name}
-          </p>
           <div className="flex items-center gap-2 mt-2">
             <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary", type?.color)}>
               {type?.label}
@@ -105,39 +74,29 @@ export default function MeetingDetailPage() {
         </div>
 
         {/* Status actions */}
-        {meeting.status === "scheduled" && (
+        {(meeting.status === "scheduled" || meeting.status === "confirmed") && (
           <div className="flex items-center gap-2">
             <button
-              onClick={() => handleStatusChange("confirmed")}
+              onClick={() => handleStatusChange("completed")}
+              className="px-3 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              סמן התקיימה
+            </button>
+            <button
+              onClick={() => handleStatusChange("rescheduled")}
               className="px-3 py-2 text-sm border border-input rounded-lg hover:bg-secondary transition-colors"
             >
-              אשר פגישה
+              נדחתה
             </button>
             <button
-              onClick={() => handleStatusChange("completed")}
-              className="px-3 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors"
+              onClick={() => handleStatusChange("cancelled")}
+              className="px-3 py-2 text-sm text-destructive border border-input rounded-lg hover:bg-destructive/10 transition-colors"
             >
-              סמן התקיימה
+              בוטלה
             </button>
             <button
               onClick={() => handleStatusChange("no_show")}
-              className="px-3 py-2 text-sm text-destructive border border-input rounded-lg hover:bg-destructive/10 transition-colors"
-            >
-              לא הגיע
-            </button>
-          </div>
-        )}
-        {meeting.status === "confirmed" && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleStatusChange("completed")}
-              className="px-3 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors"
-            >
-              סמן התקיימה
-            </button>
-            <button
-              onClick={() => handleStatusChange("no_show")}
-              className="px-3 py-2 text-sm text-destructive border border-input rounded-lg hover:bg-destructive/10 transition-colors"
+              className="px-3 py-2 text-sm border border-input rounded-lg hover:bg-secondary transition-colors"
             >
               לא הגיע
             </button>
@@ -295,69 +254,6 @@ export default function MeetingDetailPage() {
             </div>
           )}
 
-          {/* Outcome Recording Form */}
-          {showOutcomeForm && (
-            <div className="bg-card border border-border rounded-xl p-4">
-              <h3 className="font-semibold mb-3">תיעוד תוצאה</h3>
-              <form onSubmit={handleOutcomeSubmit} className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium mb-1 block">תוצאה *</label>
-                  <Select
-                    value={outcomeForm.outcome || "__all__"}
-                    onValueChange={(val) =>
-                      setOutcomeForm((p) => ({ ...p, outcome: val === "__all__" ? "" : val as MeetingOutcome }))
-                    }
-                  >
-                    <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
-                      <SelectValue placeholder="בחר תוצאה" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__all__">בחר תוצאה</SelectItem>
-                      {MEETING_OUTCOMES.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>
-                          {o.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-1 block">הערות</label>
-                  <textarea
-                    value={outcomeForm.outcome_notes}
-                    onChange={(e) => setOutcomeForm((p) => ({ ...p, outcome_notes: e.target.value }))}
-                    rows={3}
-                    className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-                    placeholder="הערות לגבי תוצאת הפגישה..."
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-1 block">ערך עסקה</label>
-                  <input
-                    type="number"
-                    value={outcomeForm.outcome_deal_value}
-                    onChange={(e) =>
-                      setOutcomeForm((p) => ({ ...p, outcome_deal_value: e.target.value }))
-                    }
-                    className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                    placeholder="0"
-                    dir="ltr"
-                    min={0}
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={updateMeeting.isPending || !outcomeForm.outcome}
-                  className="px-4 py-2.5 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
-                >
-                  {updateMeeting.isPending ? "שומר..." : "שמור תוצאה"}
-                </button>
-              </form>
-            </div>
-          )}
         </div>
 
         {/* Sidebar */}
@@ -398,9 +294,20 @@ export default function MeetingDetailPage() {
                 <span className="text-muted-foreground">סוג:</span>
                 <span>{type?.label}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">נוצר</span>
-                <span className="text-xs">{timeAgo(meeting.created_at)}</span>
+              <div className="flex items-center gap-2">
+                <Calendar size={14} className="text-muted-foreground shrink-0" />
+                <span className="text-muted-foreground">נוצר:</span>
+                <span>
+                  {new Date(meeting.created_at).toLocaleDateString("he-IL", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}{" "}
+                  {new Date(meeting.created_at).toLocaleTimeString("he-IL", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
               </div>
             </div>
           </div>
@@ -408,23 +315,17 @@ export default function MeetingDetailPage() {
           {/* Contact Card */}
           {meeting.contact && (
             <div className="bg-card border border-border rounded-xl p-4">
-              <h3 className="font-semibold text-sm mb-3">ליד</h3>
+              <h3 className="font-semibold text-sm mb-3">ליד / תלמיד</h3>
               <div
                 onClick={() => navigate(`/contacts/${meeting.contact!.id}`)}
-                className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/50 cursor-pointer"
+                className="p-2 rounded-lg hover:bg-secondary/50 cursor-pointer"
               >
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium text-sm">
-                  {meeting.contact.first_name?.charAt(0)}
-                  {meeting.contact.last_name?.charAt(0)}
-                </div>
-                <div>
-                  <p className="text-sm font-medium">
-                    {meeting.contact.first_name} {meeting.contact.last_name}
-                  </p>
-                  {meeting.contact.email && (
-                    <p className="text-xs text-muted-foreground">{meeting.contact.email}</p>
-                  )}
-                </div>
+                <p className="text-sm font-medium">
+                  {meeting.contact.first_name} {meeting.contact.last_name}
+                </p>
+                {meeting.contact.email && (
+                  <p className="text-xs text-muted-foreground mt-0.5">{meeting.contact.email}</p>
+                )}
               </div>
             </div>
           )}
@@ -447,20 +348,39 @@ export default function MeetingDetailPage() {
             </div>
           )}
 
-          {/* Recording URL */}
-          {meeting.recording_url && (
+          {/* Recording Downloads */}
+          {(meeting.recording_url || meeting.transcript_text) && (
             <div className="bg-card border border-border rounded-xl p-4">
               <h3 className="font-semibold text-sm mb-3">הקלטה</h3>
-              <a
-                href={meeting.recording_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-sm text-primary hover:underline"
-                dir="ltr"
-              >
-                <ExternalLink size={14} />
-                צפה בהקלטה
-              </a>
+              <div className="space-y-2">
+                {meeting.recording_url && (
+                  <a
+                    href={meeting.recording_url}
+                    download
+                    className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-input hover:bg-secondary transition-colors"
+                  >
+                    <Download size={14} />
+                    הורד הקלטה
+                  </a>
+                )}
+                {meeting.transcript_text && (
+                  <button
+                    onClick={() => {
+                      const blob = new Blob([meeting.transcript_text!], { type: "text/plain;charset=utf-8" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `transcript-${meeting.title || meeting.id}.txt`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg border border-input hover:bg-secondary transition-colors w-full"
+                  >
+                    <Download size={14} />
+                    הורד תמלול
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

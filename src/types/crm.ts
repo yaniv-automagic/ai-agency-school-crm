@@ -354,6 +354,7 @@ export interface Meeting {
   // Joined
   contact?: Contact;
   deal?: Deal;
+  assigned_member?: TeamMember;
 }
 
 // ── Program Enrollment ──

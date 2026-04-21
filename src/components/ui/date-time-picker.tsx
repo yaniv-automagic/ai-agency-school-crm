@@ -74,9 +74,9 @@ export function DateTimePicker({
         >
           <CalendarIcon className="h-4 w-4 opacity-50" />
           {parsed.date ? (
-            <span>
-              {format(parsed.date, "dd/MM/yyyy", { locale: he })}{" "}
-              {parsed.hours}:{parsed.minutes}
+            <span dir="ltr">
+              {parsed.hours}:{parsed.minutes}{" "}
+              {format(parsed.date, "dd/MM/yyyy", { locale: he })}
             </span>
           ) : (
             <span>{placeholder}</span>

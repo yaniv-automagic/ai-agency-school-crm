@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { ArrowRight, Mail, Phone, MessageCircle, MapPin, Edit, Trash2, Video, Calendar, UserCircle, Kanban, FileSignature, Send, Hash } from "lucide-react";
+import { ArrowRight, Mail, Phone, MessageCircle, MapPin, Edit, Trash2, Video, Calendar, UserCircle, Kanban, FileSignature, Send, Hash, Link } from "lucide-react";
 import { useContact, useDeleteContact, useUpdateContact } from "@/hooks/useContacts";
 import { useActivities, useCreateActivity } from "@/hooks/useActivities";
 import { useQuery } from "@tanstack/react-query";
@@ -23,6 +23,7 @@ import ActivityTimeline from "@/components/contacts/ActivityTimeline";
 import { useContractTemplates, useCreateContract, useSendContract } from "@/hooks/useContracts";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 
 export default function ContactDetailPage() {
   const { id } = useParams();
@@ -91,6 +92,8 @@ export default function ContactDetailPage() {
   const [showClosedDealPopup, setShowClosedDealPopup] = useState(false);
   const [pendingStageId, setPendingStageId] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
+  const [isVirtual, setIsVirtual] = useState(false);
+  const [linkMode, setLinkMode] = useState<"auto" | "manual">("auto");
   const [meetingData, setMeetingData] = useState({
     title: "",
     meeting_type: "sales_consultation" as string,
@@ -151,6 +154,10 @@ export default function ContactDetailPage() {
 
   const handleCreateMeeting = async (e: React.FormEvent) => {
     e.preventDefault();
+    let meetingUrl: string | undefined = undefined;
+    if (isVirtual) {
+      meetingUrl = linkMode === "manual" ? (meetingData.meeting_url || undefined) : "auto_generate";
+    }
     await createMeeting.mutateAsync({
       contact_id: contact.id,
       title: meetingData.title || `פגישה עם ${contact.first_name} ${contact.last_name}`,
@@ -158,10 +165,12 @@ export default function ContactDetailPage() {
       scheduled_at: meetingData.scheduled_at,
       duration_minutes: meetingData.duration_minutes,
       description: meetingData.description || undefined,
-      meeting_url: meetingData.meeting_url || undefined,
+      meeting_url: meetingUrl,
       status: "scheduled",
     } as any);
     setShowMeetingForm(false);
+    setIsVirtual(false);
+    setLinkMode("auto");
     setMeetingData({ title: "", meeting_type: "sales_consultation", scheduled_at: "", duration_minutes: 30, description: "", meeting_url: "" });
   };
 
@@ -982,18 +991,41 @@ export default function ContactDetailPage() {
                 </p>
               )}
 
+              {(createContract.isPending || sendContract.isPending) && (
+                <div className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                  <div className="h-4 w-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin shrink-0" />
+                  <div className="text-sm">
+                    <p className="font-medium text-primary">
+                      {createContract.isPending ? "יוצר הסכם..." : "מייצר PDF ושולח מייל עם לינק חתימה..."}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">זה עלול לקחת מספר שניות</p>
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
                   disabled={createContract.isPending || sendContract.isPending || !selectedTemplateId || !allVariablesFilled}
-                  className="flex-1 px-4 py-2.5 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-all"
                 >
-                  {createContract.isPending || sendContract.isPending ? "יוצר ושולח הסכם..." : "צור ושלח הסכם"}
+                  {(createContract.isPending || sendContract.isPending) ? (
+                    <>
+                      <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      שולח...
+                    </>
+                  ) : (
+                    <>
+                      <Send size={15} />
+                      צור ושלח הסכם
+                    </>
+                  )}
                 </button>
                 <button
                   type="button"
+                  disabled={createContract.isPending || sendContract.isPending}
                   onClick={() => { setShowContractForm(false); setSelectedTemplateId(""); setContractVariables({}); setSelectedDealId(""); setSelectedProductId(""); }}
-                  className="px-4 py-2.5 text-sm font-medium border border-input rounded-lg hover:bg-secondary"
+                  className="px-4 py-2.5 text-sm font-medium border border-input rounded-lg hover:bg-secondary disabled:opacity-50"
                 >
                   ביטול
                 </button>
@@ -1064,15 +1096,58 @@ export default function ContactDetailPage() {
                   className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
-              <div>
-                <label className="text-sm font-medium mb-1 block">לינק לפגישה</label>
-                <input
-                  value={meetingData.meeting_url}
-                  onChange={e => setMeetingData(d => ({ ...d, meeting_url: e.target.value }))}
-                  placeholder="https://zoom.us/j/..."
-                  className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                  dir="ltr"
-                />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">פגישה וירטואלית</label>
+                  <Switch
+                    checked={isVirtual}
+                    onCheckedChange={(checked) => {
+                      setIsVirtual(checked);
+                      if (!checked) setMeetingData(d => ({ ...d, meeting_url: "" }));
+                    }}
+                  />
+                </div>
+                {isVirtual && (
+                  <div className="space-y-3 pr-1">
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="radio"
+                          name="contactLinkMode"
+                          checked={linkMode === "auto"}
+                          onChange={() => {
+                            setLinkMode("auto");
+                            setMeetingData(d => ({ ...d, meeting_url: "" }));
+                          }}
+                          className="accent-primary h-4 w-4"
+                        />
+                        צור לינק אוטומטי
+                      </label>
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="radio"
+                          name="contactLinkMode"
+                          checked={linkMode === "manual"}
+                          onChange={() => setLinkMode("manual")}
+                          className="accent-primary h-4 w-4"
+                        />
+                        לינק ידני
+                      </label>
+                    </div>
+                    {linkMode === "manual" && (
+                      <div className="flex items-center gap-2">
+                        <Link size={16} className="text-muted-foreground shrink-0" />
+                        <input
+                          value={meetingData.meeting_url}
+                          onChange={e => setMeetingData(d => ({ ...d, meeting_url: e.target.value }))}
+                          placeholder="https://zoom.us/j/..."
+                          className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                          dir="ltr"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium mb-1 block">הערות</label>

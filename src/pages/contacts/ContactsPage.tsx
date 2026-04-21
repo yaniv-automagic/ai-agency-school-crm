@@ -11,15 +11,22 @@ import { CSS } from "@dnd-kit/utilities";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useContacts, useUpdateContact } from "@/hooks/useContacts";
-import { usePipelines } from "@/hooks/useDeals";
+import { usePipelines, useCreateDeal } from "@/hooks/useDeals";
+import { useCreateActivity } from "@/hooks/useActivities";
+import { useCreateTask } from "@/hooks/useTasks";
+import { useCreateEnrollment, useUpdateEnrollment } from "@/hooks/useEnrollments";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 import { CONTACT_SOURCES } from "@/lib/constants";
-import { cn, formatPhone, formatDateTime } from "@/lib/utils";
+import { cn, formatPhone, formatDateTime, formatCurrency } from "@/lib/utils";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import ContactForm from "@/components/contacts/ContactForm";
 import { ExportButton, ImportButton } from "@/components/contacts/ImportExportContacts";
 import BulkActions from "@/components/contacts/BulkActions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Contact, PipelineStage } from "@/types/crm";
+import { toast } from "sonner";
+import type { Contact, PipelineStage, Product } from "@/types/crm";
 
 // ── Column definitions ──
 interface ColumnDef {
@@ -43,10 +50,11 @@ const ALL_COLUMNS: ColumnDef[] = [
   { key: "stage", label: "שלב", defaultVisible: true,
     render: (c, { getStage, openStagePicker }) => {
       const stage = getStage(c);
+      const color = stage?.color || "#6b7280";
       return (
         <button onClick={(e) => { e.stopPropagation(); openStagePicker(c.id, e); }}
-          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors">
-          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: stage?.color || "#6b7280" }} />
+          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium text-white hover:opacity-80 transition-colors"
+          style={{ backgroundColor: color }}>
           {stage?.name || "ללא שלב"}
         </button>
       );
@@ -177,6 +185,11 @@ export default function ContactsPage() {
   const [newViewName, setNewViewName] = useState("");
   const [filterGroups, setFilterGroups] = useState<FilterGroup[]>([]);
   const [assigneeFilter, setAssigneeFilter] = useState<string>("__all__");
+  const [pendingStageId, setPendingStageId] = useState<string | null>(null);
+  const [pendingContactId, setPendingContactId] = useState<string | null>(null);
+  const [showFollowupPopup, setShowFollowupPopup] = useState(false);
+  const [showLossPopup, setShowLossPopup] = useState(false);
+  const [showClosedDealPopup, setShowClosedDealPopup] = useState(false);
 
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
     const saved = localStorage.getItem(STORAGE_COLS);
@@ -193,9 +206,22 @@ export default function ContactsPage() {
   const { teamMember } = useAuth();
   const { members } = useTeamMembers();
   const { data: pipelines } = usePipelines();
+  const createActivity = useCreateActivity();
+  const createTask = useCreateTask();
+  const createDeal = useCreateDeal();
+  const createEnrollment = useCreateEnrollment();
+  const updateEnrollment = useUpdateEnrollment();
+  const { data: products } = useQuery({
+    queryKey: ["products"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("crm_products").select("*").eq("is_active", true).order("name");
+      if (error) throw error;
+      return data as Product[];
+    },
+  });
 
-  const activePipeline = selectedPipelineId ? pipelines?.find(p => p.id === selectedPipelineId) : pipelines?.find(p => p.is_default) || pipelines?.[0];
-  const stages = activePipeline?.stages || [];
+  const activePipeline = selectedPipelineId && selectedPipelineId !== "__all__" ? pipelines?.find(p => p.id === selectedPipelineId) : null;
+  const stages = activePipeline ? activePipeline.stages || [] : pipelines?.flatMap(p => p.stages || []) || [];
   const allStages = pipelines?.flatMap(p => p.stages || []) || [];
 
   const toggleSelect = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -204,11 +230,71 @@ export default function ContactsPage() {
   const { data: contacts, isLoading } = useContacts({ search: search || undefined, stage_id: stageFilter === "__all__" ? undefined : stageFilter });
   const getStage = useCallback((c: Contact) => c.stage || allStages.find(s => s.id === c.stage_id), [allStages]);
 
+  // ── Stage change with popups (same logic as ContactDetailPage) ──
+  const handleStageChange = (contactId: string, stageId: string) => {
+    const stage = allStages.find(s => s.id === stageId);
+    const stageName = stage?.name?.toLowerCase() || "";
+    setPendingContactId(contactId);
+    setPendingStageId(stageId);
+
+    if (stageName.includes("פולואפ") || stageName.includes("follow")) {
+      setShowFollowupPopup(true);
+    } else if (stageName.includes("לא נסגר") || stageName.includes("לא רלוונטי")) {
+      setShowLossPopup(true);
+    } else if (stageName.includes("נסגר") && !stageName.includes("לא נסגר")) {
+      handleClosedStage(contactId, stageId);
+    } else {
+      updateContact.mutate({ id: contactId, stage_id: stageId } as any);
+      setPendingContactId(null);
+      setPendingStageId(null);
+    }
+  };
+
+  const handleClosedStage = async (contactId: string, stageId: string) => {
+    const { data: signedContracts } = await supabase
+      .from("crm_contracts").select("id").eq("contact_id", contactId).eq("status", "signed").limit(1);
+    if (!signedContracts || signedContracts.length === 0) {
+      const proceed = await confirmDialog({ title: "אין הסכם חתום", description: "לא נמצא הסכם חתום עבור לקוח זה. להמשיך בכל זאת?", confirmText: "המשך", cancelText: "ביטול" });
+      if (!proceed) { setPendingStageId(null); setPendingContactId(null); return; }
+    }
+    const { data: existingDeals } = await supabase.from("crm_deals").select("id").eq("contact_id", contactId).limit(1);
+    if (!existingDeals || existingDeals.length === 0) {
+      setShowClosedDealPopup(true);
+      return;
+    }
+    await finishClosedStage(contactId, stageId);
+  };
+
+  const finishClosedStage = async (contactId: string, stageId: string) => {
+    await updateContact.mutateAsync({ id: contactId, stage_id: stageId } as any);
+    const { data: latestDeals } = await supabase.from("crm_deals").select("id, product_id").eq("contact_id", contactId).order("created_at", { ascending: false });
+    const { data: latestEnrollments } = await supabase.from("crm_program_enrollments").select("id, status, start_date").eq("contact_id", contactId).limit(1);
+    const existingEnrollment = latestEnrollments?.[0];
+    if (existingEnrollment) {
+      await updateEnrollment.mutateAsync({ id: existingEnrollment.id, status: "active", start_date: existingEnrollment.start_date || new Date().toISOString().split("T")[0] });
+    } else {
+      const dealWithProduct = (latestDeals || []).find(d => d.product_id);
+      if (dealWithProduct?.product_id) {
+        await createEnrollment.mutateAsync({ contact_id: contactId, deal_id: dealWithProduct.id, product_id: dealWithProduct.product_id, status: "active", start_date: new Date().toISOString().split("T")[0], total_sessions: 0, completed_sessions: 0, portal_access_granted: false } as any);
+      }
+    }
+    await createActivity.mutateAsync({ contact_id: contactId, type: "stage_change", subject: "שינוי שלב — נסגר", body: "העסקה נסגרה בהצלחה", performed_by: teamMember?.id || null });
+    toast.success("העסקה נסגרה בהצלחה! הרשמה לתכנית נוצרה.");
+    setPendingStageId(null);
+    setPendingContactId(null);
+  };
+
   // ── Compound filtering ──
   const totalConditions = filterGroups.reduce((n, g) => n + g.conditions.length, 0);
   const filteredContacts = useMemo(() => {
     if (!contacts) return contacts;
     let result = contacts;
+
+    // Pipeline quick filter — filter contacts whose stage belongs to the selected pipeline
+    if (activePipeline) {
+      const pipelineStageIds = new Set((activePipeline.stages || []).map((s: PipelineStage) => s.id));
+      result = result.filter(c => c.stage_id && pipelineStageIds.has(c.stage_id));
+    }
 
     // Assignee quick filter
     if (assigneeFilter !== "__all__") {
@@ -230,7 +316,7 @@ export default function ContactsPage() {
     }
 
     return result;
-  }, [contacts, filterGroups, assigneeFilter, teamMember?.id]);
+  }, [contacts, filterGroups, assigneeFilter, teamMember?.id, activePipeline]);
 
   // ── Columns ──
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -362,9 +448,12 @@ export default function ContactsPage() {
             className="w-full pr-10 pl-4 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring" />
         </div>
         {pipelines && pipelines.length > 1 && (
-          <Select value={activePipeline?.id || ""} onValueChange={(v) => { setSelectedPipelineId(v); setStageFilter("__all__"); }}>
+          <Select value={selectedPipelineId || "__all__"} onValueChange={(v) => { setSelectedPipelineId(v); setStageFilter("__all__"); }}>
             <SelectTrigger className="w-auto px-3 py-2 text-sm border border-input rounded-lg bg-background"><SelectValue placeholder="צנרת" /></SelectTrigger>
-            <SelectContent>{pipelines.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+            <SelectContent>
+              <SelectItem value="__all__">כל הצנרות</SelectItem>
+              {pipelines.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+            </SelectContent>
           </Select>
         )}
         <Select value={stageFilter} onValueChange={setStageFilter}>
@@ -560,7 +649,7 @@ export default function ContactsPage() {
                 <div key={p.id}>
                   {pipelines && pipelines.length > 1 && <div className="px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-muted/30">{p.name}</div>}
                   {p.stages?.map((s: PipelineStage) => (
-                    <button key={s.id} onClick={() => { updateContact.mutate({ id: statusPickerId, stage_id: s.id } as any); setStatusPickerId(null); setPickerPos(null); }}
+                    <button key={s.id} onClick={() => { handleStageChange(statusPickerId!, s.id); setStatusPickerId(null); setPickerPos(null); }}
                       className={cn("w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary text-right",
                         pickerContact?.stage_id === s.id && "bg-secondary/50 font-medium")}>
                       <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color || "#6b7280" }} />{s.name}
@@ -598,6 +687,69 @@ export default function ContactsPage() {
           </div>
         </>, document.body
       )}
+
+      {/* Followup popup */}
+      {showFollowupPopup && pendingStageId && pendingContactId && (() => {
+        const c = filteredContacts?.find(x => x.id === pendingContactId);
+        if (!c) return null;
+        return (
+          <FollowupPopup
+            contact={c}
+            onConfirm={async (dateTime, notes) => {
+              await updateContact.mutateAsync({ id: pendingContactId, stage_id: pendingStageId } as any);
+              await createActivity.mutateAsync({ contact_id: pendingContactId, type: "stage_change", subject: "שינוי שלב — פולואפ", body: notes ? `מועד פולואפ: ${formatDateTime(dateTime)}\n${notes}` : `מועד פולואפ: ${formatDateTime(dateTime)}`, performed_by: teamMember?.id || null });
+              await createTask.mutateAsync({ title: `פולואפ — ${c.first_name} ${c.last_name}`, contact_id: pendingContactId, type: "follow_up", priority: "high", status: "pending", due_date: dateTime, assigned_to: c.assigned_to || null } as any);
+              toast.success("פולואפ נקבע ומשימה נוצרה");
+              setShowFollowupPopup(false); setPendingStageId(null); setPendingContactId(null);
+            }}
+            onCancel={() => { setShowFollowupPopup(false); setPendingStageId(null); setPendingContactId(null); }}
+          />
+        );
+      })()}
+
+      {/* Loss reason popup */}
+      {showLossPopup && pendingStageId && pendingContactId && (() => {
+        const c = filteredContacts?.find(x => x.id === pendingContactId);
+        if (!c) return null;
+        return (
+          <LossReasonPopup
+            contact={c}
+            stageName={allStages.find(s => s.id === pendingStageId)?.name || ""}
+            onConfirm={async (reason, disqualification, notes) => {
+              await updateContact.mutateAsync({ id: pendingContactId, stage_id: pendingStageId, loss_reason: reason, disqualification_reason: disqualification || null, loss_notes: notes || null } as any);
+              const body = [`סיבה: ${reason}`, disqualification && `סיבת פסילה: ${disqualification}`, notes && `הערות: ${notes}`].filter(Boolean).join("\n");
+              await createActivity.mutateAsync({ contact_id: pendingContactId, type: "stage_change", subject: `שינוי שלב — ${allStages.find(s => s.id === pendingStageId)?.name}`, body, performed_by: teamMember?.id || null });
+              setShowLossPopup(false); setPendingStageId(null); setPendingContactId(null);
+            }}
+            onCancel={() => { setShowLossPopup(false); setPendingStageId(null); setPendingContactId(null); }}
+          />
+        );
+      })()}
+
+      {/* Closed/won deal popup */}
+      {showClosedDealPopup && pendingStageId && pendingContactId && (() => {
+        const c = filteredContacts?.find(x => x.id === pendingContactId);
+        if (!c) return null;
+        return (
+          <ClosedDealPopup
+            contact={c}
+            products={products || []}
+            onConfirm={async (dealData) => {
+              const defaultPipeline = pipelines?.[0];
+              const defaultDealStage = defaultPipeline?.stages?.[0];
+              await createDeal.mutateAsync({
+                contact_id: pendingContactId, title: dealData.title, value: dealData.amount,
+                product_id: dealData.product_id || null, notes: dealData.notes || null,
+                pipeline_id: defaultPipeline?.id || "", stage_id: defaultDealStage?.id || "",
+                status: "won", currency: "ILS", actual_close: new Date().toISOString(),
+              } as any);
+              setShowClosedDealPopup(false);
+              await finishClosedStage(pendingContactId, pendingStageId);
+            }}
+            onCancel={() => { setShowClosedDealPopup(false); setPendingStageId(null); setPendingContactId(null); }}
+          />
+        );
+      })()}
     </div>
   );
 }
@@ -717,5 +869,181 @@ function FilterValueInput({ field, value, onChange, members, stages, pipelines }
   return (
     <input value={value} onChange={e => onChange(e.target.value)}
       placeholder="ערך..." className="flex-1 px-2 py-1 text-xs border border-input rounded-lg bg-background outline-none" />
+  );
+}
+
+// ── Followup Popup ──
+function FollowupPopup({ contact, onConfirm, onCancel }: {
+  contact: Contact; onConfirm: (dateTime: string, notes: string) => void; onCancel: () => void;
+}) {
+  const [form, setForm] = useState({ dateTime: "", notes: "" });
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={onCancel}>
+      <div className="bg-card rounded-2xl shadow-xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="p-6 border-b border-border">
+          <h2 className="text-lg font-semibold">קביעת פולואפ</h2>
+          <p className="text-sm text-muted-foreground mt-1">{contact.first_name} {contact.last_name}</p>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="text-sm font-medium mb-1 block">מועד פולואפ *</label>
+            <DateTimePicker value={form.dateTime} onChange={v => setForm(f => ({ ...f, dateTime: v }))} placeholder="בחר תאריך ושעה" />
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1 block">הערות</label>
+            <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3}
+              className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none" placeholder="הערות לפולואפ..." />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => { if (form.dateTime) onConfirm(new Date(form.dateTime).toISOString(), form.notes); }} disabled={!form.dateTime}
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50">קבע פולואפ</button>
+            <button onClick={onCancel} className="px-4 py-2.5 text-sm font-medium border border-input rounded-lg hover:bg-secondary">ביטול</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Loss Reason Popup ──
+const LOSS_REASONS = [
+  "לא עלה לפגישה", "חרגול שבור", "מחיר גבוה ביחס לתקציב",
+  "בחר להתקדם עם מתחרה", "רוצה לנסות קודם לבד", "התכנית פחות מתאימה",
+  "לא מרגיש שזה הזמן הנכון", "ספק לגבי יכולת אישית / רקע טכני",
+  "חשש מהתחייבות או שינוי מקצועי", "חוסר הבנה של הערך / התמורה",
+  "ממתין למימון / הכנסה עתידית", "עדיין בשלב בירור / השוואה",
+  "לא מעוניין", "לא עבר את שלב הסינון לפגישת הזנקה",
+  "לא תואמה פגישה - אין מענה", "אחר",
+];
+const DISQUALIFICATION_REASONS = [
+  "לא עלה לפגישה", "חרגול שבור", "מחיר גבוה ביחס לתקציב", "בחר להתקדם עם מתחרה",
+  "רוצה לנסות קודם לבד", "התכנית פחות מתאימה", "לא מרגיש שזה הזמן הנכון",
+  "ספק לגבי יכולת אישית / רקע טכני", "חשש מהתחייבות או שינוי מקצועי",
+  "חוסר הבנה של הערך / התמורה", "ממתין למימון / הכנסה עתידית",
+  "עדיין בשלב בירור / השוואה", "לא מעוניין", "לא עבר את שלב הסינון לפגישת הזנקה",
+  "לא תואמה פגישה - אין מענה", "אחר",
+];
+
+function LossReasonPopup({ contact, stageName, onConfirm, onCancel }: {
+  contact: Contact; stageName: string;
+  onConfirm: (reason: string, disqualification: string | null, notes: string) => void; onCancel: () => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [disqualification, setDisqualification] = useState("");
+  const [notes, setNotes] = useState("");
+  const isDisqualify = stageName.includes("לא רלוונטי");
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={onCancel}>
+      <div className="bg-card rounded-2xl shadow-xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="p-6 border-b border-border">
+          <h2 className="text-lg font-semibold">{stageName}</h2>
+          <p className="text-sm text-muted-foreground mt-1">{contact.first_name} {contact.last_name}</p>
+        </div>
+        <div className="p-6 space-y-4">
+          {!isDisqualify && (
+            <div>
+              <label className="text-sm font-medium mb-1 block">סיבה שלא נסגר *</label>
+              <Select value={reason || "__none__"} onValueChange={v => setReason(v === "__none__" ? "" : v)}>
+                <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"><SelectValue placeholder="בחר סיבה" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">בחר סיבה</SelectItem>
+                  {LOSS_REASONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {isDisqualify && (
+            <div>
+              <label className="text-sm font-medium mb-1 block">סיבת פסילה *</label>
+              <Select value={disqualification || "__none__"} onValueChange={v => setDisqualification(v === "__none__" ? "" : v)}>
+                <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background"><SelectValue placeholder="בחר סיבה" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">בחר סיבה</SelectItem>
+                  {DISQUALIFICATION_REASONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div>
+            <label className="text-sm font-medium mb-1 block">הערות</label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
+              className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none" placeholder="הערות נוספות..." />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => {
+              if (isDisqualify && !disqualification) return;
+              if (!isDisqualify && !reason) return;
+              onConfirm(reason || disqualification, isDisqualify ? disqualification : null, notes);
+            }} disabled={isDisqualify ? !disqualification : !reason}
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-destructive rounded-lg hover:bg-destructive/90 disabled:opacity-50">אישור</button>
+            <button onClick={onCancel} className="px-4 py-2.5 text-sm font-medium border border-input rounded-lg hover:bg-secondary">ביטול</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Closed Deal Popup ──
+function ClosedDealPopup({ contact, products, onConfirm, onCancel }: {
+  contact: { first_name: string; last_name: string };
+  products: Product[];
+  onConfirm: (data: { title: string; amount: number; product_id: string; notes: string }) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [form, setForm] = useState({ title: `עסקה — ${contact.first_name} ${contact.last_name}`, amount: "", product_id: "", notes: "" });
+  const [submitting, setSubmitting] = useState(false);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={onCancel}>
+      <div className="bg-card rounded-2xl shadow-xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="p-6 border-b border-border">
+          <h2 className="text-lg font-semibold">יצירת עסקה</h2>
+          <p className="text-sm text-muted-foreground mt-1">לא נמצאה עסקה קיימת עבור {contact.first_name} {contact.last_name}</p>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="text-sm font-medium mb-1 block">שם העסקה</label>
+            <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring" />
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1 block">סכום *</label>
+            <input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="0"
+              className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring" />
+          </div>
+          {products.length > 0 && (
+            <div>
+              <label className="text-sm font-medium mb-1 block">מוצר</label>
+              <Select value={form.product_id || "__none__"} onValueChange={v => setForm(f => ({ ...f, product_id: v === "__none__" ? "" : v }))}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="בחר מוצר" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">ללא</SelectItem>
+                  {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div>
+            <label className="text-sm font-medium mb-1 block">הערות</label>
+            <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2}
+              className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button onClick={async () => {
+              if (!form.amount) return;
+              setSubmitting(true);
+              await onConfirm({ title: form.title, amount: Number(form.amount), product_id: form.product_id, notes: form.notes });
+              setSubmitting(false);
+            }} disabled={!form.amount || submitting}
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50">
+              {submitting ? "שומר..." : "צור עסקה וסגור"}
+            </button>
+            <button onClick={onCancel} className="px-4 py-2.5 text-sm font-medium border border-input rounded-lg hover:bg-secondary">ביטול</button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
