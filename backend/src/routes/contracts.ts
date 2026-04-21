@@ -469,21 +469,26 @@ contractRouter.post("/:id/send", async (req: Request, res: Response) => {
     // Compute document hash
     const documentHash = computeHash(contract.body_html);
 
-    // Generate unsigned PDF
-    const pdfBuffer = await generateContractPdf({
-      title: contract.title,
-      bodyHtml: contract.body_html,
-      contactName: `${contact.first_name} ${contact.last_name}`,
-    });
+    // Generate unsigned PDF (non-blocking — don't fail the send if PDF fails)
+    let pdfUrl: string | null = null;
+    try {
+      const pdfBuffer = await generateContractPdf({
+        title: contract.title,
+        bodyHtml: contract.body_html,
+        contactName: `${contact.first_name} ${contact.last_name}`,
+      });
 
-    // Upload to storage
-    const storagePath = `contracts/${contract.id}/unsigned.pdf`;
-    await supabase.storage.from("crm-files").upload(storagePath, pdfBuffer, {
-      contentType: "application/pdf",
-      upsert: true,
-    });
+      const storagePath = `contracts/${contract.id}/unsigned.pdf`;
+      await supabase.storage.from("crm-files").upload(storagePath, pdfBuffer, {
+        contentType: "application/pdf",
+        upsert: true,
+      });
 
-    const { data: publicUrl } = supabase.storage.from("crm-files").getPublicUrl(storagePath);
+      const { data: publicUrl } = supabase.storage.from("crm-files").getPublicUrl(storagePath);
+      pdfUrl = publicUrl?.publicUrl || null;
+    } catch (pdfErr) {
+      console.error("[Contracts] PDF generation failed (continuing without PDF):", pdfErr);
+    }
 
     // Calculate expiration
     const expiresAt = new Date();
@@ -501,7 +506,7 @@ contractRouter.post("/:id/send", async (req: Request, res: Response) => {
       .update({
         status: "sent",
         sent_at: new Date().toISOString(),
-        pdf_url: publicUrl?.publicUrl || null,
+        pdf_url: pdfUrl,
         document_hash: documentHash,
         sign_token: signToken,
         expires_at: expiresAt.toISOString(),
@@ -513,9 +518,9 @@ contractRouter.post("/:id/send", async (req: Request, res: Response) => {
       document_hash: documentHash,
       expires_at: expiresAt.toISOString(),
     });
-    await logAuditEvent(contract.id, "pdf_generated", "system", null, null, null, {
-      storage_path: storagePath,
-    });
+    if (pdfUrl) {
+      await logAuditEvent(contract.id, "pdf_generated", "system", null, null, null, { pdf_url: pdfUrl });
+    }
 
     // Send signing invitation email
     const signUrl = `${APP_URL}/sign/${signToken}`;
@@ -568,9 +573,9 @@ contractRouter.post("/:id/send", async (req: Request, res: Response) => {
       document_hash: documentHash,
       expires_at: expiresAt.toISOString(),
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error("[Contracts] Error sending contract:", err);
-    res.status(500).json({ error: "שגיאה בשליחת החוזה" });
+    res.status(500).json({ error: `שגיאה בשליחת החוזה: ${err.message || err}` });
   }
 });
 
