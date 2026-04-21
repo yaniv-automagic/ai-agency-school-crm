@@ -7,6 +7,7 @@ export const googleCalendarRouter = Router();
 
 const SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/calendar.readonly",
 ];
 
 function getOAuth2Client() {
