@@ -80,6 +80,8 @@ export default function ContactDetailPage() {
   const [showMeetingForm, setShowMeetingForm] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [contractVariables, setContractVariables] = useState<Record<string, string>>({});
+  const [selectedDealId, setSelectedDealId] = useState("");
+  const [selectedProductId, setSelectedProductId] = useState("");
   const [showTaskCreate, setShowTaskCreate] = useState(false);
   const [showCommunityInput, setShowCommunityInput] = useState(false);
   const [communityName, setCommunityName] = useState("");
@@ -195,19 +197,30 @@ export default function ContactDetailPage() {
     "todayDate", "todayDateHebrew", "todayDay", "contractDate",
     "contractTitle", "contractNumber",
     "dealTitle", "dealValue", "dealCurrency",
+    "productName", "productPrice",
     "first_name", "last_name", "full_name", "date",
     "שם_מלא", "שם_פרטי", "שם_משפחה", "אימייל", "טלפון", "חברה", "עיר", "תאריך",
   ]);
 
-  // Auto-fill variables from contact/deal data
-  const autoFillVariables = (vars: string[]): Record<string, string> => {
+  // Keys that trigger deal/product dropdowns instead of text inputs
+  const DEAL_KEYS = new Set(["dealTitle", "dealValue", "dealCurrency"]);
+  const PRODUCT_KEYS = new Set(["productName", "productPrice"]);
+
+  // Auto-fill variables from contact/deal/product data
+  const autoFillVariables = (vars: string[], dealId?: string, productId?: string): Record<string, string> => {
     const map: Record<string, string> = {};
     const contactFullName = `${contact.first_name} ${contact.last_name}`.trim();
     const today = new Date().toLocaleDateString("he-IL");
     const dayName = new Date().toLocaleDateString("he-IL", { weekday: "long" });
 
+    const deal = dealId ? deals?.find(d => d.id === dealId) : deals?.[0];
+    const product = productId
+      ? products?.find(p => p.id === productId)
+      : deal?.product_id
+        ? products?.find(p => p.id === deal.product_id)
+        : undefined;
+
     const autoMap: Record<string, string> = {
-      // English keys (from TEMPLATE_VARIABLE_GROUPS)
       firstName: contact.first_name || "",
       lastName: contact.last_name || "",
       fullName: contactFullName,
@@ -224,11 +237,11 @@ export default function ContactDetailPage() {
       contractDate: today,
       contractTitle: "",
       contractNumber: "",
-      // Deal data (use first deal if available)
-      dealTitle: deals?.[0]?.title || "",
-      dealValue: deals?.[0]?.value ? new Intl.NumberFormat("he-IL").format(deals[0].value) : "",
-      dealCurrency: deals?.[0]?.currency || "ILS",
-      // Hebrew key variants
+      dealTitle: deal?.title || "",
+      dealValue: deal?.value ? new Intl.NumberFormat("he-IL").format(deal.value) : "",
+      dealCurrency: deal?.currency || "ILS",
+      productName: product?.name || "",
+      productPrice: product?.price ? new Intl.NumberFormat("he-IL").format(product.price) : "",
       "שם_מלא": contactFullName,
       "שם_פרטי": contact.first_name || "",
       "שם_משפחה": contact.last_name || "",
@@ -249,8 +262,37 @@ export default function ContactDetailPage() {
     return map;
   };
 
+  const handleDealSelect = (dealId: string) => {
+    setSelectedDealId(dealId);
+    const deal = deals?.find(d => d.id === dealId);
+    // Auto-select product from deal if available
+    const prodId = deal?.product_id || selectedProductId;
+    if (deal?.product_id) setSelectedProductId(deal.product_id);
+    // Re-fill variables with this deal/product
+    if (selectedTemplateId) {
+      const template = contractTemplates?.find(t => t.id === selectedTemplateId);
+      if (template) {
+        const vars = parseTemplateVariables(template.body_html);
+        setContractVariables(prev => ({ ...prev, ...autoFillVariables(vars, dealId, prodId) }));
+      }
+    }
+  };
+
+  const handleProductSelect = (productId: string) => {
+    setSelectedProductId(productId);
+    if (selectedTemplateId) {
+      const template = contractTemplates?.find(t => t.id === selectedTemplateId);
+      if (template) {
+        const vars = parseTemplateVariables(template.body_html);
+        setContractVariables(prev => ({ ...prev, ...autoFillVariables(vars, selectedDealId, productId) }));
+      }
+    }
+  };
+
   const handleTemplateSelect = (templateId: string) => {
     setSelectedTemplateId(templateId);
+    setSelectedDealId("");
+    setSelectedProductId("");
     const template = contractTemplates?.find(t => t.id === templateId);
     if (template) {
       const vars = parseTemplateVariables(template.body_html);
@@ -275,6 +317,7 @@ export default function ContactDetailPage() {
 
     const result = await createContract.mutateAsync({
       contact_id: contact.id,
+      deal_id: selectedDealId || deals?.[0]?.id || null,
       template_id: template.id,
       title,
       body_html: body,
@@ -294,6 +337,8 @@ export default function ContactDetailPage() {
     setShowContractForm(false);
     setSelectedTemplateId("");
     setContractVariables({});
+    setSelectedDealId("");
+    setSelectedProductId("");
     toast.success("ההסכם נוצר ונשלח");
     navigate(`/contracts/${result.id}`);
   };
@@ -851,12 +896,50 @@ export default function ContactDetailPage() {
                 )}
               </div>
 
+              {/* Deal & Product selectors - show when template has deal/product variables */}
+              {selectedTemplateId && Object.keys(contractVariables).some(k => DEAL_KEYS.has(k)) && deals && deals.length > 0 && (
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block text-right">בחירת עסקה</label>
+                  <Select value={selectedDealId || undefined} onValueChange={handleDealSelect} dir="rtl">
+                    <SelectTrigger className="w-full text-sm text-right">
+                      <SelectValue placeholder="בחר עסקה..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {deals.map(d => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.title} - {new Intl.NumberFormat("he-IL", { style: "currency", currency: d.currency || "ILS", minimumFractionDigits: 0 }).format(d.value)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {selectedTemplateId && Object.keys(contractVariables).some(k => PRODUCT_KEYS.has(k)) && products && products.length > 0 && (
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block text-right">בחירת מוצר</label>
+                  <Select value={selectedProductId || undefined} onValueChange={handleProductSelect} dir="rtl">
+                    <SelectTrigger className="w-full text-sm text-right">
+                      <SelectValue placeholder="בחר מוצר..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {products.map(p => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name} - {new Intl.NumberFormat("he-IL", { style: "currency", currency: p.currency || "ILS", minimumFractionDigits: 0 }).format(p.price)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {/* Variable filling section */}
               {selectedTemplateId && Object.keys(contractVariables).length > 0 && (
                 <div className="space-y-3">
                   <label className="text-sm font-medium block border-b border-border pb-1 text-right">משתני ההסכם</label>
-                  {Object.entries(contractVariables).map(([key, value]) => {
-                    return (
+                  {Object.entries(contractVariables)
+                    .filter(([key]) => !DEAL_KEYS.has(key) && !PRODUCT_KEYS.has(key))
+                    .map(([key, value]) => (
                       <div key={key}>
                         <label className="text-xs text-muted-foreground mb-1 block text-right">{VARIABLE_LABELS[key] || key.replace(/_/g, " ")}</label>
                         <input
@@ -866,8 +949,7 @@ export default function ContactDetailPage() {
                           dir="rtl"
                         />
                       </div>
-                    );
-                  })}
+                    ))}
                 </div>
               )}
 
@@ -888,7 +970,7 @@ export default function ContactDetailPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setShowContractForm(false); setSelectedTemplateId(""); setContractVariables({}); }}
+                  onClick={() => { setShowContractForm(false); setSelectedTemplateId(""); setContractVariables({}); setSelectedDealId(""); setSelectedProductId(""); }}
                   className="px-4 py-2.5 text-sm font-medium border border-input rounded-lg hover:bg-secondary"
                 >
                   ביטול
