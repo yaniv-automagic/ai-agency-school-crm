@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowRight, Send, Copy, CheckCircle2, Lock, Download, FileText, Shield } from "lucide-react";
-import { useContract } from "@/hooks/useContracts";
+import { ArrowRight, Send, Copy, CheckCircle2, Lock, Download, FileText, Shield, XCircle } from "lucide-react";
+import { useContract, useUpdateContract } from "@/hooks/useContracts";
 import { useContractAuditLog, useSendContract } from "@/hooks/useContracts";
 import { CONTRACT_STATUSES } from "@/lib/constants";
 import { cn, timeAgo } from "@/lib/utils";
@@ -46,7 +46,9 @@ export default function ContractDetailPage() {
   const { data: contract, isLoading } = useContract(id);
   const { data: auditLog } = useContractAuditLog(id);
   const sendContract = useSendContract();
+  const updateContract = useUpdateContract();
   const [showSendDialog, setShowSendDialog] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   if (isLoading) {
     return (
@@ -72,6 +74,16 @@ export default function ContractDetailPage() {
       navigator.clipboard.writeText(url);
       toast.success("קישור החתימה הועתק");
     }
+  };
+
+  const handleCancelContract = async () => {
+    await updateContract.mutateAsync({
+      id: contract.id,
+      status: "cancelled",
+      sign_token: null,
+    });
+    setShowCancelConfirm(false);
+    toast.success("ההסכם בוטל, קישור החתימה כבר לא פעיל");
   };
 
   return (
@@ -121,6 +133,15 @@ export default function ContractDetailPage() {
             >
               <Copy size={16} />
               העתק קישור חתימה
+            </button>
+          )}
+          {(contract.status === "sent" || contract.status === "viewed") && !contract.locked && (
+            <button
+              onClick={() => setShowCancelConfirm(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+            >
+              <XCircle size={16} />
+              ביטול הסכם
             </button>
           )}
           {contract.signed_pdf_url && (
@@ -356,6 +377,39 @@ export default function ContractDetailPage() {
           }}
           isSending={sendContract.isPending}
         />
+      )}
+
+      {/* Cancel Confirmation Dialog */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" dir="rtl">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowCancelConfirm(false)} />
+          <div className="relative bg-card border border-border rounded-xl shadow-xl w-full max-w-sm mx-4 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <XCircle size={20} className="text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold">ביטול הסכם</h3>
+            </div>
+            <p className="text-sm text-muted-foreground mb-6">
+              פעולה זו תבטל את ההסכם ותשבית את קישור החתימה. לא ניתן יהיה לחתום על ההסכם דרך הקישור הקיים.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleCancelContract}
+                disabled={updateContract.isPending}
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {updateContract.isPending ? "מבטל..." : "בטל הסכם"}
+              </button>
+              <button
+                onClick={() => setShowCancelConfirm(false)}
+                className="px-4 py-2.5 text-sm font-medium border border-input rounded-lg hover:bg-secondary transition-colors"
+              >
+                חזרה
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
