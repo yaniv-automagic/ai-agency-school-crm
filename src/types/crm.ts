@@ -442,9 +442,39 @@ export interface Contract {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  // Signing compliance fields
+  document_hash: string | null;
+  signed_document_hash: string | null;
+  signer_name_confirmed: string | null;
+  signer_email_confirmed: string | null;
+  signer_user_agent: string | null;
+  consent_given_at: string | null;
+  document_reviewed_at: string | null;
+  certificate_id: string | null;
+  signing_ceremony_data: Record<string, unknown>;
+  locked: boolean;
   // Joined
   contact?: Contact;
   deal?: Deal;
+}
+
+export type ContractAuditEventType =
+  | "contract_created" | "contract_edited" | "contract_sent" | "contract_viewed"
+  | "contract_downloaded" | "identity_verified" | "document_reviewed"
+  | "consent_given" | "signature_started" | "signature_completed"
+  | "pdf_generated" | "signed_pdf_generated" | "email_sent_to_signer"
+  | "email_sent_to_owner" | "contract_expired" | "contract_cancelled";
+
+export interface ContractAuditLog {
+  id: string;
+  contract_id: string;
+  event_type: ContractAuditEventType;
+  actor_type: "team_member" | "signer" | "system";
+  actor_id: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
 }
 
 // ── Facebook Ads ──

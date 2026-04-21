@@ -1,15 +1,52 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowRight, Send, Copy, CheckCircle2 } from "lucide-react";
-import { useContract, useUpdateContract } from "@/hooks/useContracts";
+import { ArrowRight, Send, Copy, CheckCircle2, Lock, Download, FileText, Shield } from "lucide-react";
+import { useContract } from "@/hooks/useContracts";
+import { useContractAuditLog, useSendContract } from "@/hooks/useContracts";
 import { CONTRACT_STATUSES } from "@/lib/constants";
 import { cn, timeAgo } from "@/lib/utils";
 import { toast } from "sonner";
+import SendContractDialog from "@/components/contracts/SendContractDialog";
+
+const AUDIT_EVENT_LABELS: Record<string, string> = {
+  contract_created: "חוזה נוצר",
+  contract_edited: "חוזה נערך",
+  contract_sent: "חוזה נשלח",
+  contract_viewed: "חוזה נצפה",
+  contract_downloaded: "חוזה הורד",
+  identity_verified: "זהות אומתה",
+  document_reviewed: "מסמך נקרא",
+  consent_given: "הסכמה ניתנה",
+  signature_started: "חתימה החלה",
+  signature_completed: "חתימה הושלמה",
+  pdf_generated: "PDF נוצר",
+  signed_pdf_generated: "PDF חתום נוצר",
+  email_sent_to_signer: "מייל נשלח לחותם",
+  email_sent_to_owner: "מייל נשלח לבעלים",
+  contract_expired: "חוזה פג תוקף",
+  contract_cancelled: "חוזה בוטל",
+};
+
+const AUDIT_EVENT_COLORS: Record<string, string> = {
+  contract_created: "bg-gray-400",
+  contract_sent: "bg-blue-500",
+  contract_viewed: "bg-amber-500",
+  identity_verified: "bg-purple-500",
+  document_reviewed: "bg-indigo-500",
+  consent_given: "bg-cyan-500",
+  signature_completed: "bg-green-500",
+  signed_pdf_generated: "bg-green-400",
+  email_sent_to_signer: "bg-blue-400",
+  email_sent_to_owner: "bg-blue-400",
+};
 
 export default function ContractDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { data: contract, isLoading } = useContract(id);
-  const updateContract = useUpdateContract();
+  const { data: auditLog } = useContractAuditLog(id);
+  const sendContract = useSendContract();
+  const [showSendDialog, setShowSendDialog] = useState(false);
 
   if (isLoading) {
     return (
@@ -28,15 +65,6 @@ export default function ContractDetailPage() {
   }
 
   const status = CONTRACT_STATUSES.find((s) => s.value === contract.status);
-
-  const handleSendForSigning = async () => {
-    await updateContract.mutateAsync({
-      id: contract.id,
-      status: "sent",
-      sent_at: new Date().toISOString(),
-    });
-    toast.success("החוזה נשלח לחתימה");
-  };
 
   const handleCopySignLink = () => {
     if (contract.sign_token) {
@@ -69,13 +97,18 @@ export default function ContractDetailPage() {
           >
             {status?.label}
           </span>
+          {contract.locked && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+              <Lock size={12} />
+              נעול
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
-          {contract.status === "draft" && (
+          {contract.status === "draft" && !contract.locked && (
             <button
-              onClick={handleSendForSigning}
-              disabled={updateContract.isPending}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+              onClick={() => setShowSendDialog(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors"
             >
               <Send size={16} />
               שלח לחתימה
@@ -89,6 +122,28 @@ export default function ContractDetailPage() {
               <Copy size={16} />
               העתק קישור חתימה
             </button>
+          )}
+          {contract.signed_pdf_url && (
+            <a
+              href={contract.signed_pdf_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-input rounded-lg hover:bg-secondary transition-colors"
+            >
+              <Download size={16} />
+              הורד PDF חתום
+            </a>
+          )}
+          {contract.pdf_url && !contract.signed_pdf_url && (
+            <a
+              href={contract.pdf_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-input rounded-lg hover:bg-secondary transition-colors"
+            >
+              <FileText size={16} />
+              הורד PDF
+            </a>
           )}
         </div>
       </div>
@@ -125,17 +180,54 @@ export default function ContractDetailPage() {
                   </p>
                 )}
               </div>
-              {contract.signed_at && (
-                <p className="text-sm text-muted-foreground mt-3">
-                  נחתם ב-{new Date(contract.signed_at).toLocaleDateString("he-IL")}{" "}
-                  בשעה {new Date(contract.signed_at).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
-                </p>
-              )}
-              {contract.signer_ip && (
-                <p className="text-xs text-muted-foreground mt-1" dir="ltr">
-                  IP: {contract.signer_ip}
-                </p>
-              )}
+              <div className="mt-3 space-y-1">
+                {contract.signer_name_confirmed && (
+                  <p className="text-sm text-muted-foreground">
+                    חותם: {contract.signer_name_confirmed}
+                  </p>
+                )}
+                {contract.signed_at && (
+                  <p className="text-sm text-muted-foreground">
+                    נחתם ב-{new Date(contract.signed_at).toLocaleDateString("he-IL")}{" "}
+                    בשעה {new Date(contract.signed_at).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                )}
+                {contract.signer_ip && (
+                  <p className="text-xs text-muted-foreground" dir="ltr">
+                    IP: {contract.signer_ip}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Document Integrity (if signed) */}
+          {contract.status === "signed" && (contract.document_hash || contract.certificate_id) && (
+            <div className="bg-card border border-border rounded-xl p-6">
+              <h3 className="font-semibold mb-4 flex items-center gap-2">
+                <Shield size={18} className="text-blue-600" />
+                שלמות מסמך ותעודת חתימה
+              </h3>
+              <div className="space-y-3 text-sm">
+                {contract.certificate_id && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">מזהה תעודה</span>
+                    <span className="font-mono text-xs">{contract.certificate_id}</span>
+                  </div>
+                )}
+                {contract.document_hash && (
+                  <div>
+                    <span className="text-muted-foreground block mb-1">Document Hash (SHA-256)</span>
+                    <span className="font-mono text-xs break-all" dir="ltr">{contract.document_hash}</span>
+                  </div>
+                )}
+                {contract.signed_document_hash && (
+                  <div>
+                    <span className="text-muted-foreground block mb-1">Signed PDF Hash (SHA-256)</span>
+                    <span className="font-mono text-xs break-all" dir="ltr">{contract.signed_document_hash}</span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -192,48 +284,79 @@ export default function ContractDetailPage() {
             </div>
           )}
 
-          {/* Timeline */}
+          {/* Audit Trail */}
           <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-            <h3 className="font-semibold text-sm">ציר זמן</h3>
+            <h3 className="font-semibold text-sm">מעקב אירועים</h3>
             <div className="space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-gray-400 mt-1.5 shrink-0" />
-                <div>
-                  <p className="text-sm">נוצר</p>
-                  <p className="text-xs text-muted-foreground">{timeAgo(contract.created_at)}</p>
-                </div>
-              </div>
-              {contract.sent_at && (
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0" />
-                  <div>
-                    <p className="text-sm">נשלח</p>
-                    <p className="text-xs text-muted-foreground">{timeAgo(contract.sent_at)}</p>
+              {auditLog && auditLog.length > 0 ? (
+                auditLog.map((event) => (
+                  <div key={event.id} className="flex items-start gap-3">
+                    <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${AUDIT_EVENT_COLORS[event.event_type] || "bg-gray-400"}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm">{AUDIT_EVENT_LABELS[event.event_type] || event.event_type}</p>
+                      <p className="text-xs text-muted-foreground">{timeAgo(event.created_at)}</p>
+                      {event.ip_address && (
+                        <p className="text-xs text-muted-foreground" dir="ltr">IP: {event.ip_address}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-              {contract.viewed_at && (
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full bg-amber-500 mt-1.5 shrink-0" />
-                  <div>
-                    <p className="text-sm">נצפה</p>
-                    <p className="text-xs text-muted-foreground">{timeAgo(contract.viewed_at)}</p>
+                ))
+              ) : (
+                // Fallback to basic timeline
+                <>
+                  <div className="flex items-start gap-3">
+                    <div className="w-2 h-2 rounded-full bg-gray-400 mt-1.5 shrink-0" />
+                    <div>
+                      <p className="text-sm">נוצר</p>
+                      <p className="text-xs text-muted-foreground">{timeAgo(contract.created_at)}</p>
+                    </div>
                   </div>
-                </div>
-              )}
-              {contract.signed_at && (
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5 shrink-0" />
-                  <div>
-                    <p className="text-sm">נחתם</p>
-                    <p className="text-xs text-muted-foreground">{timeAgo(contract.signed_at)}</p>
-                  </div>
-                </div>
+                  {contract.sent_at && (
+                    <div className="flex items-start gap-3">
+                      <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                      <div>
+                        <p className="text-sm">נשלח</p>
+                        <p className="text-xs text-muted-foreground">{timeAgo(contract.sent_at)}</p>
+                      </div>
+                    </div>
+                  )}
+                  {contract.viewed_at && (
+                    <div className="flex items-start gap-3">
+                      <div className="w-2 h-2 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                      <div>
+                        <p className="text-sm">נצפה</p>
+                        <p className="text-xs text-muted-foreground">{timeAgo(contract.viewed_at)}</p>
+                      </div>
+                    </div>
+                  )}
+                  {contract.signed_at && (
+                    <div className="flex items-start gap-3">
+                      <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5 shrink-0" />
+                      <div>
+                        <p className="text-sm">נחתם</p>
+                        <p className="text-xs text-muted-foreground">{timeAgo(contract.signed_at)}</p>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Send Contract Dialog */}
+      {showSendDialog && (
+        <SendContractDialog
+          contract={contract}
+          onClose={() => setShowSendDialog(false)}
+          onSend={async (params) => {
+            await sendContract.mutateAsync({ id: contract.id, ...params });
+            setShowSendDialog(false);
+          }}
+          isSending={sendContract.isPending}
+        />
+      )}
     </div>
   );
 }

@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import type { Contract, ContractTemplate, ContractStatus } from "@/types/crm";
+import type { Contract, ContractTemplate, ContractStatus, ContractAuditLog } from "@/types/crm";
 import { toast } from "sonner";
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
 
 const KEY = ["contracts"];
 
@@ -94,5 +96,42 @@ export function useCreateContractTemplate() {
       return data;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["contract-templates"] }); toast.success("תבנית חוזה נוצרה"); },
+  });
+}
+
+// ── Signing Compliance Hooks ──
+
+export function useContractAuditLog(contractId: string | undefined) {
+  return useQuery({
+    queryKey: ["contract-audit-log", contractId],
+    queryFn: async () => {
+      if (!contractId) return [];
+      const res = await fetch(`${BACKEND_URL}/api/contracts/${contractId}/audit-log`);
+      if (!res.ok) throw new Error("Failed to fetch audit log");
+      return (await res.json()) as ContractAuditLog[];
+    },
+    enabled: !!contractId,
+  });
+}
+
+export function useSendContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...params }: { id: string; email_subject?: string; email_body?: string; expires_in_days?: number }) => {
+      const res = await fetch(`${BACKEND_URL}/api/contracts/${id}/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(params),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "שגיאה בשליחה");
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ["contract-audit-log"] });
+      toast.success("החוזה נשלח לחתימה");
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 }

@@ -8,10 +8,12 @@ import { processAutomationQueue } from "./engine/processor.js";
 import { processScheduledAutomations } from "./engine/scheduled.js";
 import { webhookRouter } from "./routes/webhooks.js";
 import { healthRouter } from "./routes/health.js";
+import { contractRouter } from "./routes/contracts.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+app.set("trust proxy", true);
 app.use(cors());
 app.use(express.json({ limit: "5mb" }));
 
@@ -31,6 +33,7 @@ app.get("/crm-tracker.js", (_req, res) => {
 // Routes
 app.use("/api", healthRouter);
 app.use("/api/webhooks", webhookRouter);
+app.use("/api/contracts", contractRouter);
 
 // ── Automation Queue Processor ──
 // Polls crm_automation_queue every 30 seconds for new events
