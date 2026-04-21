@@ -90,12 +90,35 @@ export function useContractTemplates() {
 export function useCreateContractTemplate() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (template: Partial<ContractTemplate>) => {
+    mutationFn: async (template: Partial<ContractTemplate> & { blocks_json?: Record<string, unknown>[]; canvas_settings?: Record<string, unknown> }) => {
       const { data, error } = await supabase.from("crm_contract_templates").insert(template).select().single();
       if (error) throw error;
       return data;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["contract-templates"] }); toast.success("תבנית חוזה נוצרה"); },
+  });
+}
+
+export function useUpdateContractTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string } & Partial<ContractTemplate> & { blocks_json?: Record<string, unknown>[]; canvas_settings?: Record<string, unknown> }) => {
+      const { error } = await supabase.from("crm_contract_templates").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["contract-templates"] }); },
+  });
+}
+
+export function useDeleteContractTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("crm_contract_templates").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["contract-templates"] }); toast.success("תבנית נמחקה"); },
+    onError: (e: Error) => toast.error(`שגיאה: ${e.message}`),
   });
 }
 
@@ -106,7 +129,10 @@ export function useContractAuditLog(contractId: string | undefined) {
     queryKey: ["contract-audit-log", contractId],
     queryFn: async () => {
       if (!contractId) return [];
-      const res = await fetch(`${BACKEND_URL}/api/contracts/${contractId}/audit-log`);
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${BACKEND_URL}/api/contracts/${contractId}/audit-log`, {
+        headers: { Authorization: `Bearer ${session?.access_token || ""}` },
+      });
       if (!res.ok) throw new Error("Failed to fetch audit log");
       return (await res.json()) as ContractAuditLog[];
     },
@@ -118,9 +144,13 @@ export function useSendContract() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...params }: { id: string; email_subject?: string; email_body?: string; expires_in_days?: number }) => {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(`${BACKEND_URL}/api/contracts/${id}/send`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token || ""}`,
+        },
         body: JSON.stringify(params),
       });
       const data = await res.json();
