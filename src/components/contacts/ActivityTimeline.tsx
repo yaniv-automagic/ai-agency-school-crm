@@ -11,6 +11,7 @@ import { useCreateTask } from "@/hooks/useTasks";
 import { useContact } from "@/hooks/useContacts";
 import { useAuth } from "@/contexts/AuthContext";
 import { sendEmail } from "@/lib/email-api";
+import { wrapInBrandTemplate } from "@/lib/email-templates";
 import { ACTIVITY_TYPES, TASK_PRIORITIES } from "@/lib/constants";
 import { cn, formatDateTime } from "@/lib/utils";
 import { toast } from "sonner";
@@ -109,7 +110,7 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
         tenantId: teamMember?.tenant_id || "",
         to: recipient,
         subject: emailSubject,
-        html: emailBody.replace(/\n/g, "<br>"),
+        html: wrapInBrandTemplate(emailBody, contact?.first_name),
         contactId,
         dealId: dealId || undefined,
       });

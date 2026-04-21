@@ -404,8 +404,24 @@ contractRouter.post("/sign/:token/sign", async (req: Request, res: Response) => 
       storage_path: storagePath,
     });
 
+    // Log activity in timeline
+    await supabase.from("crm_activities").insert({
+      tenant_id: contract.tenant_id,
+      contact_id: contract.contact_id,
+      deal_id: contract.deal_id || null,
+      type: "system",
+      subject: `חוזה "${contract.title}" נחתם`,
+      body: `${signerName} חתם/ה על החוזה בהצלחה`,
+      metadata: {
+        contract_id: contract.id,
+        certificate_id: certificateId,
+        signed_pdf_url: publicUrl?.publicUrl || null,
+        event: "contract_signed",
+      },
+    });
+
     // Send emails (fire-and-forget)
-    sendSignedCopyToSigner(contract.title, signerName, signerEmail, publicUrl?.publicUrl || "").catch(console.error);
+    sendSignedCopyToSigner(contract.title, signerName, signerEmail, publicUrl?.publicUrl || "", contract.tenant_id).catch(console.error);
     sendSigningNotificationToOwner(contract, signerName, contact).catch(console.error);
 
     res.json({
@@ -504,12 +520,47 @@ contractRouter.post("/:id/send", async (req: Request, res: Response) => {
     // Send signing invitation email
     const signUrl = `${APP_URL}/sign/${signToken}`;
     const subject = email_subject || `${contract.title} - חוזה לחתימה`;
-    const body = email_body
-      ? `<div dir="rtl" style="font-family: sans-serif;">${email_body}<br><br><a href="${signUrl}" style="display:inline-block;padding:12px 32px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">לחתימה על החוזה</a></div>`
+    const customContent = email_body
+      ? `
+    <tr>
+      <td class="px-40" style="padding:44px 40px 16px;text-align:right;direction:rtl;">
+        <h1 style="margin:0 0 16px;font-size:28px;line-height:1.25;font-weight:800;color:#0A0820;">
+          שלום ${contact.first_name},<br>
+          <span style="color:#DC1FFF;">חוזה מוכן לחתימתך</span>
+        </h1>
+        <p style="margin:0 0 24px;font-size:16px;line-height:1.65;color:#555555;">${email_body}</p>
+        <div style="text-align:center;margin:8px 0 16px;">
+          <a href="${signUrl}" class="cta" style="display:inline-block;background:linear-gradient(180deg,#712FF1 0%,#DC1FFF 100%);color:#FFFFFF;font-size:18px;font-weight:700;padding:16px 40px;border-radius:50px;text-decoration:none;box-shadow:0 0 28px rgba(220,31,255,0.45);">
+            לחתימה על ההסכם
+          </a>
+        </div>
+        <p style="margin:0;font-size:12px;color:#777777;text-align:center;">חתימה אלקטרונית מאובטחת</p>
+      </td>
+    </tr>`
+      : null;
+    const body = customContent
+      ? brandedWrapper("light", `${contact.first_name}, חוזה "${contract.title}" מחכה לחתימתך`, customContent)
       : buildSigningInvitationEmail(contact.first_name, contract.title, signUrl);
 
-    await sendEmail(contact.email, subject, body);
+    await sendEmail(contact.email, subject, body, contract.tenant_id);
     await logAuditEvent(contract.id, "email_sent_to_signer", "system", contact.email, null, null);
+
+    // Log activity in timeline
+    await supabase.from("crm_activities").insert({
+      tenant_id: contract.tenant_id,
+      contact_id: contract.contact_id,
+      deal_id: contract.deal_id || null,
+      type: "email",
+      direction: "outbound",
+      subject: subject,
+      body: `חוזה "${contract.title}" נשלח לחתימה`,
+      metadata: {
+        contract_id: contract.id,
+        sign_url: signUrl,
+        sent_via: "contract",
+        expires_at: expiresAt.toISOString(),
+      },
+    });
 
     res.json({
       success: true,
@@ -580,66 +631,178 @@ contractRouter.post("/:id/generate-pdf", async (req: Request, res: Response) => 
   }
 });
 
-// ── Email Templates ──
+// ── Email Templates (branded — AI Agency School design language) ──
 
-function buildSigningInvitationEmail(firstName: string, contractTitle: string, signUrl: string): string {
-  return `<!DOCTYPE html>
-<html dir="rtl" lang="he">
-<head><meta charset="UTF-8"></head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; direction: rtl; padding: 40px 20px; background: #f5f5f5;">
-  <div style="max-width: 520px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-    <h1 style="font-size: 20px; color: #111; margin-bottom: 8px;">שלום ${firstName},</h1>
-    <p style="color: #555; line-height: 1.7; margin-bottom: 24px;">
-      חוזה <strong>"${contractTitle}"</strong> מוכן לחתימתך.
-      <br>לחצ/י על הכפתור למטה כדי לסקור ולחתום על החוזה באופן מאובטח.
-    </p>
-    <div style="text-align: center; margin: 32px 0;">
-      <a href="${signUrl}" style="display: inline-block; padding: 14px 40px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
-        לחתימה על החוזה
-      </a>
-    </div>
-    <p style="color: #999; font-size: 13px; margin-top: 24px;">
-      החתימה מתבצעת באופן אלקטרוני מאובטח בהתאם לחוק חתימה אלקטרונית, תשס"א-2001.
-    </p>
-  </div>
+const FONT = "'Heebo','Assistant','Noto Sans Hebrew','Segoe UI',Arial,sans-serif";
+const LOGO_URL = "https://sqazqjmbnczeargwywxu.supabase.co/storage/v1/render/image/public/crm-files/brand/logo-gold-transparent.png?width=400&quality=90";
+
+function brandedWrapper(variant: "light" | "dark", preheader: string, content: string): string {
+  const isDark = variant === "dark";
+  const bgOuter = isDark ? "#0A0820" : "#F3F0FA";
+  const bgCard = isDark ? "#12082A" : "#FEFBFF";
+  const shadow = isDark ? "0 0 32px rgba(220,31,255,0.18)" : "0 10px 40px rgba(75,32,130,0.10)";
+  const border = isDark ? "border:1px solid rgba(220,31,255,0.12);" : "";
+  const headerBg = isDark ? "#0A0820" : "#FEFBFF";
+  const headerBorder = isDark ? "border-bottom:1px solid rgba(220,31,255,0.15);" : "border-bottom:1px solid #E8E6F0;";
+  const footerBg = isDark ? "#0A0820" : "#F7F3FF";
+  const footerBorder = isDark ? "border-top:1px solid rgba(220,31,255,0.1);" : "border-top:1px solid #E8E6F0;";
+  const footerColor = isDark ? "#6E6589" : "#777777";
+  const linkColor = isDark ? "#C9A449" : "#712FF1";
+  const dotColor = isDark ? "#4B2082" : "#C9C4D9";
+  const year = new Date().getFullYear();
+
+  return `<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="x-apple-disable-message-reformatting">
+<title>AI Agency School</title>
+<!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
+<style>
+@media (max-width:620px){
+  .container{width:100%!important;}
+  .px-40{padding-left:24px!important;padding-right:24px!important;}
+  .cta{font-size:16px!important;padding:14px 28px!important;}
+  .logo{width:140px!important;height:auto!important;}
+}
+</style>
+</head>
+<body style="margin:0;padding:0;background:${bgOuter};font-family:${FONT};-webkit-font-smoothing:antialiased;">
+
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${bgOuter};">${preheader}</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${bgOuter};">
+<tr><td align="center" style="padding:24px 12px;">
+
+  <table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0"
+         style="width:600px;max-width:600px;background:${bgCard};border-radius:20px;overflow:hidden;box-shadow:${shadow};${border}">
+
+    <!-- HEADER -->
+    <tr>
+      <td style="padding:28px 40px;background:${headerBg};${headerBorder}text-align:center;">
+        <img src="${LOGO_URL}" alt="AI Agency School" class="logo" width="200" height="auto" style="display:inline-block;border:0;outline:none;">
+      </td>
+    </tr>
+
+    <!-- CONTENT -->
+    ${content}
+
+    <!-- FOOTER -->
+    <tr>
+      <td style="padding:28px 40px;background:${footerBg};${footerBorder}text-align:center;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto 16px;">
+          <tr>
+            <td style="padding:0 10px;"><a href="https://www.youtube.com/@yaniv.benlolo" style="color:${linkColor};font-size:13px;font-weight:600;">YouTube</a></td>
+            <td style="padding:0 10px;color:${dotColor};">·</td>
+            <td style="padding:0 10px;"><a href="https://www.instagram.com/nitzan.ai/" style="color:${linkColor};font-size:13px;font-weight:600;">Instagram</a></td>
+            <td style="padding:0 10px;color:${dotColor};">·</td>
+            <td style="padding:0 10px;"><a href="https://aiagencyschool.co.il" style="color:${linkColor};font-size:13px;font-weight:600;">aiagencyschool.co.il</a></td>
+          </tr>
+        </table>
+        <p style="margin:0;font-size:12px;line-height:1.6;color:${footerColor};direction:rtl;">© ${year} AI Agency School</p>
+      </td>
+    </tr>
+
+  </table>
+</td></tr>
+</table>
 </body>
 </html>`;
 }
 
-async function sendSignedCopyToSigner(contractTitle: string, signerName: string, signerEmail: string, pdfUrl: string) {
-  const html = `<!DOCTYPE html>
-<html dir="rtl" lang="he">
-<head><meta charset="UTF-8"></head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; direction: rtl; padding: 40px 20px; background: #f5f5f5;">
-  <div style="max-width: 520px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-    <div style="text-align: center; margin-bottom: 24px;">
-      <div style="width: 60px; height: 60px; background: #dcfce7; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;">
-        <span style="font-size: 28px;">✓</span>
-      </div>
-    </div>
-    <h1 style="font-size: 20px; color: #111; text-align: center; margin-bottom: 8px;">החוזה נחתם בהצלחה</h1>
-    <p style="color: #555; line-height: 1.7; margin-bottom: 24px; text-align: center;">
-      שלום ${signerName},<br>
-      חוזה <strong>"${contractTitle}"</strong> נחתם בהצלחה.
-      ${pdfUrl ? '<br>ניתן להוריד את העותק החתום בקישור למטה.' : ''}
-    </p>
-    ${pdfUrl ? `
-    <div style="text-align: center; margin: 24px 0;">
-      <a href="${pdfUrl}" style="display: inline-block; padding: 12px 32px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600;">
-        הורדת חוזה חתום
-      </a>
-    </div>` : ''}
-  </div>
-</body>
-</html>`;
+function buildSigningInvitationEmail(firstName: string, contractTitle: string, signUrl: string): string {
+  const content = `
+    <tr>
+      <td class="px-40" style="padding:44px 40px 16px;text-align:right;direction:rtl;">
+        <h1 style="margin:0 0 16px;font-size:28px;line-height:1.25;font-weight:800;color:#0A0820;">
+          שלום ${firstName},<br>
+          <span style="color:#DC1FFF;">חוזה מוכן לחתימתך</span>
+        </h1>
+        <p style="margin:0;font-size:16px;line-height:1.65;color:#555555;">
+          חוזה <strong>"${contractTitle}"</strong> מוכן לסקירה וחתימה.
+        </p>
+      </td>
+    </tr>
 
-  await sendEmail(signerEmail, `העתק חוזה חתום - ${contractTitle}`, html);
+    <tr><td style="padding:0 40px;"><div style="height:1px;background:#E8E6F0;"></div></td></tr>
+
+    <tr>
+      <td class="px-40" style="padding:32px 40px;direction:rtl;text-align:right;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F7F3FF;border-right:4px solid #DC1FFF;border-radius:10px;margin:0 0 24px;">
+          <tr><td style="padding:18px 22px;">
+            <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#712FF1;">מה צריך לעשות?</p>
+            <p style="margin:0;font-size:15px;color:#333333;line-height:1.6;">לחצ/י על הכפתור למטה, סקור/י את ההסכם וחתום/י באופן מאובטח.</p>
+          </td></tr>
+        </table>
+
+        <div style="text-align:center;margin:8px 0 32px;">
+          <!--[if mso]>
+          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
+            href="${signUrl}" style="height:52px;v-text-anchor:middle;width:260px;" arcsize="100%" stroke="f" fillcolor="#712FF1">
+            <w:anchorlock/><center style="color:#FFFFFF;font-family:Arial,sans-serif;font-size:18px;font-weight:700;">לחתימה על ההסכם</center>
+          </v:roundrect>
+          <![endif]-->
+          <!--[if !mso]><!-- -->
+          <a href="${signUrl}" class="cta" style="display:inline-block;background:linear-gradient(180deg,#712FF1 0%,#DC1FFF 100%);color:#FFFFFF;font-size:18px;font-weight:700;padding:16px 40px;border-radius:50px;text-decoration:none;box-shadow:0 0 28px rgba(220,31,255,0.45);font-family:${FONT};">
+            לחתימה על ההסכם
+          </a>
+          <!--<![endif]-->
+        </div>
+
+        <p style="margin:0;font-size:12px;color:#777777;text-align:center;direction:rtl;">
+          החתימה מתבצעת באופן אלקטרוני מאובטח בהתאם לחוק חתימה אלקטרונית, תשס"א-2001.
+        </p>
+      </td>
+    </tr>`;
+
+  return brandedWrapper("light", `${firstName}, חוזה "${contractTitle}" מחכה לחתימתך`, content);
+}
+
+async function sendSignedCopyToSigner(contractTitle: string, signerName: string, signerEmail: string, pdfUrl: string, tenantId?: string) {
+  const content = `
+    <tr>
+      <td class="px-40" style="padding:44px 40px 16px;text-align:center;direction:rtl;">
+        <div style="width:64px;height:64px;background:rgba(0,208,132,0.12);border-radius:50%;display:inline-block;line-height:64px;margin-bottom:16px;">
+          <span style="font-size:28px;color:#00D084;">✓</span>
+        </div>
+        <h1 style="margin:0 0 12px;font-size:28px;font-weight:800;color:#0A0820;">
+          ההסכם <span style="color:#00D084;">נחתם בהצלחה</span>
+        </h1>
+        <p style="margin:0;font-size:16px;line-height:1.65;color:#555555;">
+          שלום ${signerName},<br>
+          חוזה <strong>"${contractTitle}"</strong> נחתם בהצלחה.
+          ${pdfUrl ? "<br>ניתן להוריד את העותק החתום בכפתור למטה." : ""}
+        </p>
+      </td>
+    </tr>
+
+    <tr><td style="padding:0 40px;"><div style="height:1px;background:#E8E6F0;"></div></td></tr>
+
+    ${pdfUrl ? `<tr>
+      <td class="px-40" style="padding:32px 40px;text-align:center;direction:rtl;">
+        <!--[if mso]>
+        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
+          href="${pdfUrl}" style="height:52px;v-text-anchor:middle;width:260px;" arcsize="100%" stroke="f" fillcolor="#712FF1">
+          <w:anchorlock/><center style="color:#FFFFFF;font-family:Arial,sans-serif;font-size:17px;font-weight:700;">הורדת ההסכם החתום</center>
+        </v:roundrect>
+        <![endif]-->
+        <!--[if !mso]><!-- -->
+        <a href="${pdfUrl}" class="cta" style="display:inline-block;background:linear-gradient(180deg,#712FF1 0%,#DC1FFF 100%);color:#FFFFFF;font-size:17px;font-weight:700;padding:15px 36px;border-radius:50px;text-decoration:none;box-shadow:0 0 24px rgba(220,31,255,0.35);font-family:${FONT};">
+          הורדת ההסכם החתום
+        </a>
+        <!--<![endif]-->
+      </td>
+    </tr>` : ""}`;
+
+  const html = brandedWrapper("light", `ההסכם "${contractTitle}" נחתם בהצלחה`, content);
+  await sendEmail(signerEmail, `העתק חוזה חתום — ${contractTitle}`, html, tenantId);
 }
 
 async function sendSigningNotificationToOwner(contract: any, signerName: string, contact: any) {
   if (!contract.created_by) return;
 
-  // Get owner email
   const { data: owner } = await supabase
     .from("crm_team_members")
     .select("email")
@@ -649,24 +812,41 @@ async function sendSigningNotificationToOwner(contract: any, signerName: string,
   if (!owner?.email) return;
 
   const contractUrl = `${APP_URL}/contracts/${contract.id}`;
-  const html = `<!DOCTYPE html>
-<html dir="rtl" lang="he">
-<head><meta charset="UTF-8"></head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; direction: rtl; padding: 40px 20px; background: #f5f5f5;">
-  <div style="max-width: 520px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-    <h1 style="font-size: 20px; color: #111; margin-bottom: 16px;">חוזה נחתם!</h1>
-    <p style="color: #555; line-height: 1.7;">
-      <strong>${signerName}</strong> חתם/ה על החוזה <strong>"${contract.title}"</strong>.
-    </p>
-    <div style="text-align: center; margin: 24px 0;">
-      <a href="${contractUrl}" style="display: inline-block; padding: 12px 32px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600;">
-        צפייה בחוזה
-      </a>
-    </div>
-  </div>
-</body>
-</html>`;
 
-  await sendEmail(owner.email, `חוזה נחתם - ${contract.title} - ${signerName}`, html);
+  const content = `
+    <tr>
+      <td class="px-40" style="padding:48px 40px 32px;text-align:right;direction:rtl;background:radial-gradient(circle at 15% 0%,rgba(113,47,241,0.35) 0%,transparent 55%);">
+        <div style="display:inline-block;background:rgba(0,208,132,0.15);color:#00D084;font-size:12px;font-weight:700;padding:6px 14px;border-radius:999px;margin-bottom:16px;">
+          חתימה התקבלה ✓
+        </div>
+        <h1 style="margin:0 0 14px;font-size:28px;line-height:1.25;font-weight:800;color:#FFFFFF;">
+          <span style="color:#DC1FFF;">${signerName}</span> חתם/ה על ההסכם
+        </h1>
+        <p style="margin:0;font-size:16px;line-height:1.6;color:#C9C4D9;">
+          חוזה <strong style="color:#FFFFFF;">"${contract.title}"</strong> נחתם בהצלחה.
+        </p>
+      </td>
+    </tr>
+
+    <tr><td style="padding:0 40px;"><div style="height:2px;background:linear-gradient(90deg,transparent 0%,#DC1FFF 50%,transparent 100%);"></div></td></tr>
+
+    <tr>
+      <td class="px-40" style="padding:32px 40px;text-align:center;direction:rtl;">
+        <!--[if mso]>
+        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
+          href="${contractUrl}" style="height:52px;v-text-anchor:middle;width:260px;" arcsize="100%" stroke="f" fillcolor="#712FF1">
+          <w:anchorlock/><center style="color:#FFFFFF;font-family:Arial,sans-serif;font-size:17px;font-weight:700;">צפייה בחוזה</center>
+        </v:roundrect>
+        <![endif]-->
+        <!--[if !mso]><!-- -->
+        <a href="${contractUrl}" class="cta" style="display:inline-block;background:linear-gradient(180deg,#712FF1 0%,#DC1FFF 100%);color:#FFFFFF;font-size:17px;font-weight:700;padding:15px 36px;border-radius:50px;text-decoration:none;box-shadow:0 0 24px rgba(220,31,255,0.35);font-family:${FONT};">
+          צפייה בחוזה
+        </a>
+        <!--<![endif]-->
+      </td>
+    </tr>`;
+
+  const html = brandedWrapper("dark", `${signerName} חתם/ה על "${contract.title}"`, content);
+  await sendEmail(owner.email, `חוזה נחתם — ${contract.title} — ${signerName}`, html, contract.tenant_id);
   await logAuditEvent(contract.id, "email_sent_to_owner", "system", owner.email, null, null);
 }

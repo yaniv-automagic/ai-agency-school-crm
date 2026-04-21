@@ -20,7 +20,7 @@ import ContactForm from "@/components/contacts/ContactForm";
 import DealForm from "@/components/deals/DealForm";
 import WhatsAppChat from "@/components/whatsapp/WhatsAppChat";
 import ActivityTimeline from "@/components/contacts/ActivityTimeline";
-import { useContractTemplates, useCreateContract } from "@/hooks/useContracts";
+import { useContractTemplates, useCreateContract, useSendContract } from "@/hooks/useContracts";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -43,6 +43,7 @@ export default function ContactDetailPage() {
   const createMeeting = useCreateMeeting();
   const { data: contractTemplates } = useContractTemplates();
   const createContract = useCreateContract();
+  const sendContract = useSendContract();
   const createDeal = useCreateDeal();
   const { data: enrollments } = useEnrollments({ contact_id: id });
   const createEnrollment = useCreateEnrollment();
@@ -302,10 +303,23 @@ export default function ContactDetailPage() {
     }
   };
 
+  // Check which variables are still empty
+  const emptyVariables = Object.entries(contractVariables).filter(([, value]) => !value.trim());
+  const allVariablesFilled = selectedTemplateId ? emptyVariables.length === 0 : false;
+
   const handleSendContract = async (e: React.FormEvent) => {
     e.preventDefault();
     const template = contractTemplates?.find(t => t.id === selectedTemplateId);
     if (!template) return;
+
+    // Validate all variables are filled
+    if (emptyVariables.length > 0) {
+      const labels = emptyVariables
+        .map(([key]) => VARIABLE_LABELS[key] || key)
+        .join(", ");
+      toast.error(`יש למלא את כל המשתנים: ${labels}`);
+      return;
+    }
 
     // Replace all variables in template body
     let body = template.body_html;
@@ -315,23 +329,20 @@ export default function ContactDetailPage() {
 
     const title = `${template.name} - ${contact.first_name} ${contact.last_name}`;
 
+    // 1. Create contract as draft
     const result = await createContract.mutateAsync({
       contact_id: contact.id,
       deal_id: selectedDealId || deals?.[0]?.id || null,
       template_id: template.id,
       title,
       body_html: body,
-      status: "sent",
-      sent_at: new Date().toISOString(),
+      status: "draft",
     } as any);
 
-    // Create timeline activity
-    await createActivity.mutateAsync({
-      contact_id: contact.id,
-      type: "system",
-      subject: "חוזה נשלח",
-      body: title,
-      performed_by: teamMember?.id || null,
+    // 2. Call backend to generate PDF, send branded email with signing link
+    await sendContract.mutateAsync({
+      id: result.id,
+      email_subject: `${title} — לחתימתך`,
     });
 
     setShowContractForm(false);
@@ -339,7 +350,6 @@ export default function ContactDetailPage() {
     setContractVariables({});
     setSelectedDealId("");
     setSelectedProductId("");
-    toast.success("ההסכם נוצר ונשלח");
     navigate(`/contracts/${result.id}`);
   };
 
@@ -495,9 +505,9 @@ export default function ContactDetailPage() {
               <div className="relative flex">
                 <button
                   onClick={() => setShowStatusPicker(!showStatusPicker)}
-                  className="inline-flex items-center py-0.5 px-2.5 rounded-full text-xs font-medium gap-1.5 bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer"
+                  className="inline-flex items-center py-0.5 px-2.5 rounded-full text-xs font-medium text-white hover:opacity-80 transition-colors cursor-pointer"
+                  style={{ backgroundColor: stage?.color || "#6b7280" }}
                 >
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: stage?.color || "#6b7280" }} />
                   {stage?.name || "ללא שלב"}
                 </button>
                 {showStatusPicker && (
@@ -941,11 +951,16 @@ export default function ContactDetailPage() {
                     .filter(([key]) => !DEAL_KEYS.has(key) && !PRODUCT_KEYS.has(key))
                     .map(([key, value]) => (
                       <div key={key}>
-                        <label className="text-xs text-muted-foreground mb-1 block text-right">{VARIABLE_LABELS[key] || key.replace(/_/g, " ")}</label>
+                        <label className={cn("text-xs mb-1 block text-right", !value.trim() ? "text-red-500 font-medium" : "text-muted-foreground")}>
+                          {VARIABLE_LABELS[key] || key.replace(/_/g, " ")} {!value.trim() && "*"}
+                        </label>
                         <input
                           value={value}
                           onChange={e => setContractVariables(prev => ({ ...prev, [key]: e.target.value }))}
-                          className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring text-right"
+                          className={cn(
+                            "w-full px-3 py-2 text-sm border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring text-right",
+                            !value.trim() ? "border-red-300 bg-red-50/50" : "border-input"
+                          )}
                           dir="rtl"
                         />
                       </div>
@@ -960,13 +975,20 @@ export default function ContactDetailPage() {
                 </div>
               )}
 
+              {selectedTemplateId && emptyVariables.length > 0 && (
+                <p className="text-xs text-red-500 flex items-center gap-1">
+                  <span className="inline-block w-1.5 h-1.5 bg-red-500 rounded-full" />
+                  {emptyVariables.length} {emptyVariables.length === 1 ? "משתנה ריק" : "משתנים ריקים"} — יש למלא את כל השדות לפני שליחה
+                </p>
+              )}
+
               <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
-                  disabled={createContract.isPending || !selectedTemplateId}
+                  disabled={createContract.isPending || sendContract.isPending || !selectedTemplateId || !allVariablesFilled}
                   className="flex-1 px-4 py-2.5 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50"
                 >
-                  {createContract.isPending ? "שולח..." : "צור ושלח הסכם"}
+                  {createContract.isPending || sendContract.isPending ? "יוצר ושולח הסכם..." : "צור ושלח הסכם"}
                 </button>
                 <button
                   type="button"

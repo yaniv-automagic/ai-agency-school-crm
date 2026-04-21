@@ -85,14 +85,38 @@ emailRouter.post("/test", authMiddleware, async (req: Request, res: Response) =>
     const { data: emailResult, error: sendError } = await resend.emails.send({
       from: `${fromName} <${fromEmail}>`,
       to: to || fromEmail,
-      subject: "בדיקת חיבור Resend - CRM",
-      html: `
-        <div dir="rtl" style="font-family: sans-serif; padding: 20px;">
-          <h2>✅ החיבור ל-Resend עובד!</h2>
-          <p>המייל הזה נשלח מה-CRM שלך כבדיקת חיבור.</p>
-          <p style="color: #888; font-size: 12px;">נשלח ב-${new Date().toLocaleString("he-IL")}</p>
-        </div>
-      `,
+      subject: "🚀 בדיקת חיבור Resend - CRM",
+      html: `<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#0A0820;font-family:'Noto Sans Hebrew',Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0A0820;">
+    <tr><td align="center" style="padding:40px 16px;">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+        <tr><td align="center" style="padding:0 0 32px;">
+          <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+            <td style="padding:12px 24px;background:linear-gradient(90deg,#712FF1,#DC1FFF);border-radius:12px;">
+              <span style="color:#fff;font-size:20px;font-weight:800;letter-spacing:1px;">AI Agency School</span>
+            </td>
+          </tr></table>
+        </td></tr>
+        <tr><td style="background-color:#13112B;border-radius:16px;border:1px solid rgba(220,31,255,0.15);">
+          <div style="height:3px;background:linear-gradient(90deg,#712FF1,#DC1FFF);"></div>
+          <div style="padding:40px 36px;">
+            <p style="margin:0 0 16px;font-size:18px;font-weight:600;color:#ffffff;">✅ החיבור ל-Resend עובד!</p>
+            <p style="margin:0 0 12px;font-size:15px;color:#c8c3d4;line-height:1.8;">המייל הזה נשלח מה-CRM שלך כבדיקת חיבור.</p>
+            <p style="margin:0;font-size:12px;color:#6b6480;">נשלח ב-${new Date().toLocaleString("he-IL")}</p>
+          </div>
+        </td></tr>
+        <tr><td style="padding:32px 0 0;" align="center">
+          <div style="width:40px;height:2px;background:linear-gradient(90deg,#712FF1,#DC1FFF);border-radius:2px;margin:0 auto 16px;"></div>
+          <p style="font-size:12px;color:#6b6480;">AI Agency School<br><a href="https://aiagencyschool.co.il" style="color:#DC1FFF;text-decoration:none;">aiagencyschool.co.il</a></p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
     });
 
     if (sendError) {
