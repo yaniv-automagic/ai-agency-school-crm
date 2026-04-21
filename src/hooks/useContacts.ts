@@ -68,7 +68,7 @@ export function useCreateContact() {
     mutationFn: async (contact: Partial<Contact>) => {
       const { data, error } = await supabase
         .from("crm_contacts")
-        .insert(contact)
+        .insert({ marketing_consent: true, marketing_consent_at: new Date().toISOString(), ...contact })
         .select()
         .single();
       if (error) throw error;
@@ -93,7 +93,7 @@ export function useUpdateContact() {
         .from("crm_contacts")
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq("id", id)
-        .select()
+        .select("*, stage:crm_pipeline_stages(*), assigned_member:crm_team_members!assigned_to(*)")
         .single();
       if (error) throw error;
       return data as Contact;

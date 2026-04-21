@@ -16,7 +16,7 @@ export function useActivities(filters?: {
     queryFn: async () => {
       let query = supabase
         .from("crm_activities")
-        .select("*")
+        .select("*, performer:crm_team_members!performed_by(*)")
         .order("performed_at", { ascending: false });
 
       if (filters?.contact_id) query = query.eq("contact_id", filters.contact_id);

@@ -13,7 +13,15 @@ interface LandingPageMapping {
   label: string;
   pipeline_id: string | null;
   stage_id: string | null;
+  entry_type: string | null;
 }
+
+const ENTRY_TYPES = [
+  { value: "vsl", label: "VSL" },
+  { value: "webinar", label: "וובינר" },
+  { value: "organic", label: "אורגני" },
+  { value: "direct", label: "ישיר" },
+];
 
 interface DiscoveredPage {
   url: string;
@@ -120,6 +128,7 @@ export default function LandingPageMappingsPage() {
         label: label || "",
         pipeline_id: null,
         stage_id: null,
+        entry_type: null,
       },
     ]);
   };
@@ -145,6 +154,7 @@ export default function LandingPageMappingsPage() {
         label: m.label || null,
         pipeline_id: m.pipeline_id || null,
         stage_id: m.stage_id || null,
+        entry_type: m.entry_type || null,
       };
       if (m.id.startsWith("new-")) {
         await supabase.from("crm_landing_page_mappings").insert(data);
@@ -241,6 +251,21 @@ export default function LandingPageMappingsPage() {
                     <SelectItem value="__none__">שלב ראשון</SelectItem>
                     {getStagesForPipeline(mapping.pipeline_id).map(s => (
                       <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={mapping.entry_type || "__none__"}
+                  onValueChange={v => updateMapping(idx, { entry_type: v === "__none__" ? null : v })}
+                >
+                  <SelectTrigger className="w-32 px-3 py-1.5 text-sm border border-input rounded-lg bg-background">
+                    <SelectValue placeholder="סוג כניסה" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">סוג כניסה</SelectItem>
+                    {ENTRY_TYPES.map(t => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

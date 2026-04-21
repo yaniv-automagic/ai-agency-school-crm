@@ -550,18 +550,25 @@ export default function ContactsPage() {
         <>
           <div className="fixed inset-0 z-40" onClick={() => { setStatusPickerId(null); setPickerPos(null); }} />
           <div className="fixed bg-card border border-border rounded-xl shadow-xl py-1 w-48 z-50 max-h-80 overflow-y-auto" style={{ top: pickerPos.top, right: pickerPos.right }} dir="rtl">
-            {pipelines?.map(p => (
-              <div key={p.id}>
-                {pipelines.length > 1 && <div className="px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-muted/30">{p.name}</div>}
-                {p.stages?.map(s => (
-                  <button key={s.id} onClick={() => { updateContact.mutate({ id: statusPickerId, stage_id: s.id } as any); setStatusPickerId(null); setPickerPos(null); }}
-                    className={cn("w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary text-right",
-                      filteredContacts?.find(c => c.id === statusPickerId)?.stage_id === s.id && "bg-secondary/50 font-medium")}>
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color || "#6b7280" }} />{s.name}
-                  </button>
-                ))}
-              </div>
-            ))}
+            {(() => {
+              const pickerContact = filteredContacts?.find(c => c.id === statusPickerId);
+              const contactPipeline = pickerContact?.stage_id
+                ? pipelines?.find(p => p.stages?.some((s: PipelineStage) => s.id === pickerContact.stage_id))
+                : null;
+              const relevantPipelines = contactPipeline ? [contactPipeline] : [pipelines?.find(p => p.is_default) || pipelines?.[0]].filter(Boolean);
+              return relevantPipelines.map(p => (
+                <div key={p.id}>
+                  {pipelines && pipelines.length > 1 && <div className="px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-muted/30">{p.name}</div>}
+                  {p.stages?.map((s: PipelineStage) => (
+                    <button key={s.id} onClick={() => { updateContact.mutate({ id: statusPickerId, stage_id: s.id } as any); setStatusPickerId(null); setPickerPos(null); }}
+                      className={cn("w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary text-right",
+                        pickerContact?.stage_id === s.id && "bg-secondary/50 font-medium")}>
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color || "#6b7280" }} />{s.name}
+                    </button>
+                  ))}
+                </div>
+              ));
+            })()}
           </div>
         </>, document.body
       )}

@@ -506,6 +506,8 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
       source: mapping?.source_tag || "website",
       status: "new",
       first_touch_at: new Date().toISOString(),
+      marketing_consent: true,
+      marketing_consent_at: new Date().toISOString(),
     };
 
     // Auto-detect fields + detect meeting-related fields
@@ -568,12 +570,6 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
     contact.landing_page_url = urlParams.page_url || urlParams.referrer || null;
     contact.referrer_url = urlParams.referrer || null;
 
-    // Detect entry type from landing page URL if not set
-    if (!contact.entry_type && contact.landing_page_url) {
-      const lpUrl = contact.landing_page_url.toLowerCase();
-      if (lpUrl.includes("vsl") || lpUrl.includes("שאלון")) contact.entry_type = "vsl";
-      else if (lpUrl.includes("webinar")) contact.entry_type = "webinar";
-    }
     if (!contact.first_name) contact.first_name = "ליד";
     if (!contact.last_name) contact.last_name = "חדש";
 
@@ -590,13 +586,18 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
     } else if (mapping?.pipeline_id && mapping?.stage_id) {
       contact.stage_id = mapping.stage_id;
     } else {
-      // 1. Check landing page mappings
+      // 1. Check landing page mappings — set both stage and entry_type
       const landingUrl = contact.landing_page_url || "";
       if (landingUrl) {
         const { data: lpMappings } = await supabase.from("crm_landing_page_mappings").select("*");
         const matched = lpMappings?.find(m => landingUrl.includes(m.url_pattern) || m.url_pattern.includes(landingUrl.split("?")[0]));
-        if (matched?.pipeline_id) {
-          contact.stage_id = matched.stage_id || matched.pipeline_id && allStages?.find(s => s.pipeline_id === matched.pipeline_id)?.id || null;
+        if (matched) {
+          if (matched.pipeline_id) {
+            contact.stage_id = matched.stage_id || allStages?.find(s => s.pipeline_id === matched.pipeline_id)?.id || null;
+          }
+          if (matched.entry_type && !contact.entry_type) {
+            contact.entry_type = matched.entry_type;
+          }
         }
       }
 
@@ -782,7 +783,7 @@ webhookRouter.post("/elementor", async (req, res) => {
   const payload = req.body;
   try {
     console.log("[Elementor] Webhook received:", JSON.stringify(payload).substring(0, 500));
-    const contact: Record<string, any> = { source: "website", status: "new", first_touch_at: new Date().toISOString() };
+    const contact: Record<string, any> = { source: "website", status: "new", first_touch_at: new Date().toISOString(), marketing_consent: true, marketing_consent_at: new Date().toISOString() };
 
     // Handle both our tracker format (fields: {}) and Elementor native webhook format (flat with Hebrew labels)
     const fields = payload.fields || payload;
@@ -800,9 +801,9 @@ webhookRouter.post("/elementor", async (req, res) => {
       else if (k.includes("email") || k.includes("מייל") || k.includes("אימייל")) contact.email = v;
       else if (k.includes("phone") || k.includes("טלפון") || k.includes("נייד")) { contact.phone = v; contact.whatsapp_phone = v; }
       else if (k.includes("הסכמה") || k.includes("consent") || k.includes("דיוור") || k.includes("agree")) {
-        if (v === "on" || v === "true" || v === "yes" || v === "1" || v === "כן") {
-          contact.marketing_consent = true;
-          contact.marketing_consent_at = new Date().toISOString();
+        if (v === "off" || v === "false" || v === "no" || v === "0" || v === "לא") {
+          contact.marketing_consent = false;
+          delete contact.marketing_consent_at;
         }
       }
       // Elementor native webhook sends "קישור לעמוד" with full URL including UTMs
@@ -843,13 +844,6 @@ webhookRouter.post("/elementor", async (req, res) => {
     if (meta.referrer) contact.referrer_url = meta.referrer;
     if (meta.entry_type) contact.entry_type = meta.entry_type;
 
-    // Detect entry type from URL
-    const landingUrl = (contact.landing_page_url || "").toLowerCase();
-    if (!contact.entry_type) {
-      if (landingUrl.includes("vsl") || landingUrl.includes("שאלון")) contact.entry_type = "vsl";
-      else if (landingUrl.includes("webinar")) contact.entry_type = "webinar";
-    }
-
     // Detect platform from utm_source or fbclid/gclid
     const utmSrc = (contact.utm_source || "").toLowerCase();
     const hasFbclid = !!(contact.custom_fields?.fbclid);
@@ -866,13 +860,18 @@ webhookRouter.post("/elementor", async (req, res) => {
     const { data: elPipelines } = await supabase.from("crm_pipelines").select("id, name, default_stage_id");
     const { data: elStages } = await supabase.from("crm_pipeline_stages").select("id, pipeline_id, order_index").order("order_index");
 
-    // 1. Check landing page mappings
+    // 1. Check landing page mappings — set both stage and entry_type
     const elLandingUrl = contact.landing_page_url || "";
     if (elLandingUrl) {
       const { data: elLpMappings } = await supabase.from("crm_landing_page_mappings").select("*");
       const elMatched = elLpMappings?.find(m => elLandingUrl.includes(m.url_pattern) || m.url_pattern.includes(elLandingUrl.split("?")[0]));
-      if (elMatched?.pipeline_id) {
-        contact.stage_id = elMatched.stage_id || elStages?.find(s => s.pipeline_id === elMatched.pipeline_id)?.id || null;
+      if (elMatched) {
+        if (elMatched.pipeline_id) {
+          contact.stage_id = elMatched.stage_id || elStages?.find(s => s.pipeline_id === elMatched.pipeline_id)?.id || null;
+        }
+        if (elMatched.entry_type && !contact.entry_type) {
+          contact.entry_type = elMatched.entry_type;
+        }
       }
     }
 
@@ -1061,6 +1060,72 @@ webhookRouter.post("/debug", async (req, res) => {
   } catch {};
 
   res.json({ received: true, keys: Object.keys(req.body) });
+});
+
+// ══════════════════════════════════════════════
+// Contract Signed Webhook
+// URL: POST /api/webhooks/contract-signed
+// ══════════════════════════════════════════════
+webhookRouter.post("/contract-signed", async (req, res) => {
+  try {
+    const { contract_id, signed_pdf_url, signer_name, signer_ip, signed_at } = req.body;
+
+    if (!contract_id) {
+      return res.status(400).json({ error: "Missing contract_id" });
+    }
+
+    // Fetch existing contract
+    const { data: contract, error: fetchErr } = await supabase
+      .from("crm_contracts")
+      .select("id, contact_id, title, status")
+      .eq("id", contract_id)
+      .single();
+
+    if (fetchErr || !contract) {
+      return res.status(404).json({ error: "Contract not found" });
+    }
+
+    // Update contract status to signed
+    const { error: updateErr } = await supabase
+      .from("crm_contracts")
+      .update({
+        status: "signed",
+        signed_at: signed_at || new Date().toISOString(),
+        signed_pdf_url: signed_pdf_url || null,
+        signer_ip: signer_ip || null,
+        signature_data: signer_name || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", contract_id);
+
+    if (updateErr) {
+      console.error("[Contract] Update error:", updateErr.message);
+      return res.status(500).json({ error: updateErr.message });
+    }
+
+    // Create timeline activity
+    if (contract.contact_id) {
+      await supabase.from("crm_activities").insert({
+        contact_id: contract.contact_id,
+        type: "system",
+        subject: "חוזה נחתם",
+        body: `${contract.title}${signer_name ? ` — נחתם ע״י ${signer_name}` : ""}`,
+        metadata: {
+          contract_id,
+          signed_pdf_url: signed_pdf_url || null,
+          signer_name: signer_name || null,
+          signer_ip: signer_ip || null,
+        },
+        performed_at: signed_at || new Date().toISOString(),
+      });
+    }
+
+    console.log(`[Contract] Contract ${contract_id} signed${signer_name ? ` by ${signer_name}` : ""}`);
+    res.json({ success: true, contract_id });
+  } catch (err: any) {
+    console.error("[Contract] Webhook error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ══════════════════════════════════════════════

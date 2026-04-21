@@ -6,10 +6,13 @@ import { useActivities, useCreateActivity } from "@/hooks/useActivities";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
-import { useDeals, usePipelines } from "@/hooks/useDeals";
+import { useDeals, useCreateDeal, usePipelines } from "@/hooks/useDeals";
+import { useEnrollments, useCreateEnrollment, useUpdateEnrollment } from "@/hooks/useEnrollments";
+import type { Product } from "@/types/crm";
 import { useTasks, useCreateTask } from "@/hooks/useTasks";
 import { useMeetings, useCreateMeeting } from "@/hooks/useMeetings";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
+import { useAuth } from "@/contexts/AuthContext";
 import { CONTACT_SOURCES, MEETING_TYPES } from "@/lib/constants";
 import { cn, formatPhone, formatDateTime, formatCurrency } from "@/lib/utils";
 import { useState } from "react";
@@ -31,6 +34,7 @@ export default function ContactDetailPage() {
   const { data: meetings } = useMeetings({ contact_id: id });
   const { data: pipelines } = usePipelines();
   const { members } = useTeamMembers();
+  const { teamMember } = useAuth();
   const deleteContact = useDeleteContact();
   const confirm = useConfirm();
   const updateContact = useUpdateContact();
@@ -39,6 +43,18 @@ export default function ContactDetailPage() {
   const createMeeting = useCreateMeeting();
   const { data: contractTemplates } = useContractTemplates();
   const createContract = useCreateContract();
+  const createDeal = useCreateDeal();
+  const { data: enrollments } = useEnrollments({ contact_id: id });
+  const createEnrollment = useCreateEnrollment();
+  const updateEnrollment = useUpdateEnrollment();
+  const { data: products } = useQuery({
+    queryKey: ["products"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("crm_products").select("*").eq("is_active", true).order("name");
+      if (error) throw error;
+      return data as Product[];
+    },
+  });
 
   // Cross-reference ad campaign from UTM
   const { data: matchedAdCampaign } = useQuery({
@@ -64,11 +80,13 @@ export default function ContactDetailPage() {
   const [showMeetingForm, setShowMeetingForm] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [contractTitle, setContractTitle] = useState("");
+  const [contractVariables, setContractVariables] = useState<Record<string, string>>({});
   const [showTaskCreate, setShowTaskCreate] = useState(false);
   const [showCommunityInput, setShowCommunityInput] = useState(false);
   const [communityName, setCommunityName] = useState("");
   const [showFollowupPopup, setShowFollowupPopup] = useState(false);
   const [showLossPopup, setShowLossPopup] = useState(false);
+  const [showClosedDealPopup, setShowClosedDealPopup] = useState(false);
   const [pendingStageId, setPendingStageId] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
   const [meetingData, setMeetingData] = useState({
@@ -111,6 +129,7 @@ export default function ContactDetailPage() {
       contact_id: contact.id,
       type: "note",
       body: noteText,
+      performed_by: teamMember?.id || null,
     });
     setNoteText("");
   };
@@ -144,35 +163,186 @@ export default function ContactDetailPage() {
     setMeetingData({ title: "", meeting_type: "sales_consultation", scheduled_at: "", duration_minutes: 30, description: "", meeting_url: "" });
   };
 
+  // Parse {{variable}} placeholders from template content
+  const parseTemplateVariables = (html: string): string[] => {
+    const matches = html.match(/\{\{([^}]+)\}\}/g);
+    if (!matches) return [];
+    const unique = [...new Set(matches.map(m => m.replace(/\{\{|\}\}/g, "").trim()))];
+    return unique;
+  };
+
+  // Auto-fill variables from contact data
+  const autoFillVariables = (vars: string[]): Record<string, string> => {
+    const map: Record<string, string> = {};
+    const contactFullName = `${contact.first_name} ${contact.last_name}`.trim();
+    const today = new Date().toLocaleDateString("he-IL");
+
+    const autoMap: Record<string, string> = {
+      "שם_מלא": contactFullName,
+      "שם_פרטי": contact.first_name || "",
+      "שם_משפחה": contact.last_name || "",
+      "אימייל": contact.email || "",
+      "טלפון": contact.phone || "",
+      "תעודת_זהות": contact.id_number || "",
+      "כתובת": contact.address || contact.city || "",
+      "תאריך": today,
+      "full_name": contactFullName,
+      "first_name": contact.first_name || "",
+      "last_name": contact.last_name || "",
+      "email": contact.email || "",
+      "phone": contact.phone || "",
+      "id_number": contact.id_number || "",
+      "address": contact.address || contact.city || "",
+      "date": today,
+      "company": contact.company || "",
+      "חברה": contact.company || "",
+      "עיר": contact.city || "",
+      "city": contact.city || "",
+    };
+
+    for (const v of vars) {
+      map[v] = autoMap[v] || "";
+    }
+    return map;
+  };
+
+  const handleTemplateSelect = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    const template = contractTemplates?.find(t => t.id === templateId);
+    if (template) {
+      const vars = parseTemplateVariables(template.body_html);
+      setContractVariables(autoFillVariables(vars));
+    } else {
+      setContractVariables({});
+    }
+  };
+
   const handleSendContract = async (e: React.FormEvent) => {
     e.preventDefault();
     const template = contractTemplates?.find(t => t.id === selectedTemplateId);
     if (!template) return;
 
-    // Replace variables in template body
+    // Replace all variables in template body
     let body = template.body_html;
-    body = body.replace(/\{\{first_name\}\}/g, contact.first_name);
-    body = body.replace(/\{\{last_name\}\}/g, contact.last_name);
-    body = body.replace(/\{\{full_name\}\}/g, `${contact.first_name} ${contact.last_name}`);
-    body = body.replace(/\{\{email\}\}/g, contact.email || "");
-    body = body.replace(/\{\{phone\}\}/g, contact.phone || "");
-    body = body.replace(/\{\{company\}\}/g, contact.company || "");
-    body = body.replace(/\{\{date\}\}/g, new Date().toLocaleDateString("he-IL"));
+    for (const [key, value] of Object.entries(contractVariables)) {
+      body = body.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
+    }
+
+    const title = contractTitle || `${template.name} - ${contact.first_name} ${contact.last_name}`;
 
     const result = await createContract.mutateAsync({
       contact_id: contact.id,
       template_id: template.id,
-      title: contractTitle || `${template.name} - ${contact.first_name} ${contact.last_name}`,
+      title,
       body_html: body,
       status: "sent",
       sent_at: new Date().toISOString(),
+    } as any);
+
+    // Create timeline activity
+    await createActivity.mutateAsync({
+      contact_id: contact.id,
+      type: "system",
+      subject: "חוזה נשלח",
+      body: title,
+      performed_by: teamMember?.id || null,
     });
 
     setShowContractForm(false);
     setSelectedTemplateId("");
     setContractTitle("");
+    setContractVariables({});
     toast.success("ההסכם נוצר ונשלח");
     navigate(`/contracts/${result.id}`);
+  };
+
+  // ── "נסגר" (closed/won) stage handler ──
+  const handleClosedStage = async (stageId: string) => {
+    // 1. Check for signed contract
+    const { data: signedContracts } = await supabase
+      .from("crm_contracts")
+      .select("id")
+      .eq("contact_id", contact.id)
+      .eq("status", "signed")
+      .limit(1);
+
+    if (!signedContracts || signedContracts.length === 0) {
+      const proceed = await confirm({
+        title: "אין הסכם חתום",
+        description: "לא נמצא הסכם חתום עבור לקוח זה. להמשיך בכל זאת?",
+        confirmText: "המשך",
+        cancelText: "ביטול",
+      });
+      if (!proceed) {
+        setPendingStageId(null);
+        return;
+      }
+    }
+
+    // 2. Check for deals
+    if (!deals || deals.length === 0) {
+      // Show deal creation popup
+      setShowClosedDealPopup(true);
+      return; // The popup's onConfirm will call finishClosedStage
+    }
+
+    // Already has deals — proceed
+    await finishClosedStage(stageId);
+  };
+
+  const finishClosedStage = async (stageId: string) => {
+    // 3. Update stage
+    await updateContact.mutateAsync({ id: contact.id, stage_id: stageId } as any);
+
+    // 4. Create/update enrollment — re-fetch latest data to include deals just created
+    const { data: latestDeals } = await supabase
+      .from("crm_deals")
+      .select("id, product_id")
+      .eq("contact_id", contact.id)
+      .order("created_at", { ascending: false });
+
+    const { data: latestEnrollments } = await supabase
+      .from("crm_program_enrollments")
+      .select("id, status, start_date")
+      .eq("contact_id", contact.id)
+      .limit(1);
+
+    const existingEnrollment = latestEnrollments && latestEnrollments.length > 0 ? latestEnrollments[0] : null;
+    if (existingEnrollment) {
+      await updateEnrollment.mutateAsync({
+        id: existingEnrollment.id,
+        status: "active",
+        start_date: existingEnrollment.start_date || new Date().toISOString().split("T")[0],
+      });
+    } else {
+      // Find product from deal
+      const dealWithProduct = (latestDeals || []).find(d => d.product_id);
+      if (dealWithProduct?.product_id) {
+        await createEnrollment.mutateAsync({
+          contact_id: contact.id,
+          deal_id: dealWithProduct.id,
+          product_id: dealWithProduct.product_id,
+          status: "active",
+          start_date: new Date().toISOString().split("T")[0],
+          total_sessions: 0,
+          completed_sessions: 0,
+          portal_access_granted: false,
+        } as any);
+      }
+    }
+
+    // 5. Create timeline activity
+    await createActivity.mutateAsync({
+      contact_id: contact.id,
+      type: "stage_change",
+      subject: "שינוי שלב — נסגר",
+      body: "העסקה נסגרה בהצלחה",
+      performed_by: teamMember?.id || null,
+    });
+
+    // 6. Success toast
+    toast.success("העסקה נסגרה בהצלחה! הרשמה לתכנית נוצרה.");
+    setPendingStageId(null);
   };
 
   const upcomingMeetings = meetings?.filter(m => m.status === "scheduled" || m.status === "confirmed") || [];
@@ -203,16 +373,16 @@ export default function ContactDetailPage() {
           <div className="flex items-center gap-1.5 mt-2 flex-wrap">
               {/* Source badge */}
               {source && (
-                <span style={{height:"22px",overflow:"hidden"}} className="inline-flex items-center px-2.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground">
+                <span className="inline-flex items-center py-0.5 px-2.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground">
                   {source.label}
                 </span>
               )}
 
               {/* Pipeline picker */}
-              <div className="relative">
+              <div className="relative flex">
                 <button
                   onClick={() => setShowPipelinePicker(!showPipelinePicker)}
-                  style={{height:"22px",overflow:"hidden"}} className="inline-flex items-center px-2.5 rounded-full text-xs font-medium gap-1.5 bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors cursor-pointer"
+                  className="inline-flex items-center py-0.5 px-2.5 rounded-full text-xs font-medium gap-1.5 bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors cursor-pointer"
                 >
                   {contactPipeline?.name || "ללא צנרת"}
                 </button>
@@ -235,10 +405,10 @@ export default function ContactDetailPage() {
               </div>
 
               {/* Status/Stage picker - only current pipeline stages */}
-              <div className="relative">
+              <div className="relative flex">
                 <button
                   onClick={() => setShowStatusPicker(!showStatusPicker)}
-                  style={{height:"22px",overflow:"hidden"}} className="inline-flex items-center px-2.5 rounded-full text-xs font-medium gap-1.5 bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer"
+                  className="inline-flex items-center py-0.5 px-2.5 rounded-full text-xs font-medium gap-1.5 bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer"
                 >
                   <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: stage?.color || "#6b7280" }} />
                   {stage?.name || "ללא שלב"}
@@ -256,6 +426,9 @@ export default function ContactDetailPage() {
                           } else if (stageName.includes("לא נסגר") || stageName.includes("לא רלוונטי")) {
                             setPendingStageId(s.id);
                             setShowLossPopup(true);
+                          } else if (stageName.includes("נסגר") && !stageName.includes("לא נסגר")) {
+                            setPendingStageId(s.id);
+                            handleClosedStage(s.id);
                           } else {
                             updateContact.mutate({ id: contact.id, stage_id: s.id } as any);
                           }
@@ -275,10 +448,10 @@ export default function ContactDetailPage() {
               </div>
 
               {/* Assignee picker */}
-              <div className="relative">
+              <div className="relative flex">
                 <button
                   onClick={() => setShowAssigneePicker(!showAssigneePicker)}
-                  style={{height:"22px",overflow:"hidden"}} className="inline-flex items-center px-2.5 rounded-full text-xs font-medium gap-1 bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer"
+                  className="inline-flex items-center py-0.5 px-2.5 rounded-full text-xs font-medium gap-1 bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer"
                 >
                   {contact.assigned_member ? (
                     <>
@@ -319,8 +492,7 @@ export default function ContactDetailPage() {
 
               {/* Marketing consent badge */}
               <button onClick={() => updateContact.mutate({ id: contact.id, marketing_consent: !contact.marketing_consent, marketing_consent_at: !contact.marketing_consent ? new Date().toISOString() : null } as any)}
-                style={{height:"22px",overflow:"hidden"}}
-                className={cn("inline-flex items-center px-2.5 rounded-full text-xs font-medium transition-colors",
+                className={cn("inline-flex items-center py-0.5 px-2.5 rounded-full text-xs font-medium transition-colors",
                   contact.marketing_consent ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-red-100 text-red-600 hover:bg-red-200")}>
                 {contact.marketing_consent ? "✓ אישר דיוור" : "✕ לא אישר דיוור"}
               </button>
@@ -334,6 +506,10 @@ export default function ContactDetailPage() {
               <MessageCircle size={14} /> WhatsApp
             </button>
           )}
+          <button onClick={() => setShowContractForm(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+            <FileSignature size={14} /> הסכם
+          </button>
           <button onClick={handleDelete}
             className="p-2 text-destructive border border-input rounded-lg hover:bg-destructive/10 transition-colors">
             <Trash2 size={14} />
@@ -594,10 +770,10 @@ export default function ContactDetailPage() {
       {showContractForm && (
         <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setShowContractForm(false)}>
           <div
-            className="fixed top-[15%] left-1/2 -translate-x-1/2 w-full max-w-md bg-card rounded-2xl shadow-xl overflow-hidden"
+            className="fixed top-[10%] left-1/2 -translate-x-1/2 w-full max-w-lg bg-card rounded-2xl shadow-xl overflow-hidden max-h-[80vh] flex flex-col"
             onClick={e => e.stopPropagation()}
           >
-            <div className="p-6 border-b border-border">
+            <div className="p-6 border-b border-border shrink-0">
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <FileSignature size={20} />
                 שליחת הסכם
@@ -606,10 +782,10 @@ export default function ContactDetailPage() {
                 ל{contact.first_name} {contact.last_name}
               </p>
             </div>
-            <form onSubmit={handleSendContract} className="p-6 space-y-4">
+            <form onSubmit={handleSendContract} className="p-6 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="text-sm font-medium mb-1 block">תבנית הסכם *</label>
-                <Select value={selectedTemplateId || undefined} onValueChange={setSelectedTemplateId}>
+                <Select value={selectedTemplateId || undefined} onValueChange={handleTemplateSelect}>
                   <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
                     <SelectValue placeholder="בחר תבנית" />
                   </SelectTrigger>
@@ -643,6 +819,24 @@ export default function ContactDetailPage() {
                 />
               </div>
 
+              {/* Variable filling section */}
+              {selectedTemplateId && Object.keys(contractVariables).length > 0 && (
+                <div className="space-y-3">
+                  <label className="text-sm font-medium block border-b border-border pb-1">משתני ההסכם</label>
+                  {Object.entries(contractVariables).map(([key, value]) => (
+                    <div key={key}>
+                      <label className="text-xs text-muted-foreground mb-1 block">{key.replace(/_/g, " ")}</label>
+                      <input
+                        value={value}
+                        onChange={e => setContractVariables(prev => ({ ...prev, [key]: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                        dir={/^[a-zA-Z]/.test(key) ? "ltr" : "rtl"}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {contact.email && (
                 <div className="bg-muted/50 rounded-lg px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
                   <Send size={14} />
@@ -660,7 +854,7 @@ export default function ContactDetailPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowContractForm(false)}
+                  onClick={() => { setShowContractForm(false); setSelectedTemplateId(""); setContractVariables({}); }}
                   className="px-4 py-2.5 text-sm font-medium border border-input rounded-lg hover:bg-secondary"
                 >
                   ביטול
@@ -779,8 +973,8 @@ export default function ContactDetailPage() {
           contact={contact}
           stageId={pendingStageId}
           onConfirm={async (dateTime, notes) => {
-            updateContact.mutate({ id: contact.id, stage_id: pendingStageId, next_followup_at: dateTime } as any);
-            await createActivity.mutateAsync({ contact_id: contact.id, type: "stage_change", subject: "שינוי שלב — פולואפ", body: notes ? `מועד פולואפ: ${formatDateTime(dateTime)}\n${notes}` : `מועד פולואפ: ${formatDateTime(dateTime)}` });
+            await updateContact.mutateAsync({ id: contact.id, stage_id: pendingStageId } as any);
+            await createActivity.mutateAsync({ contact_id: contact.id, type: "stage_change", subject: "שינוי שלב — פולואפ", body: notes ? `מועד פולואפ: ${formatDateTime(dateTime)}\n${notes}` : `מועד פולואפ: ${formatDateTime(dateTime)}`, performed_by: teamMember?.id || null });
             await createTask.mutateAsync({ title: `פולואפ — ${contact.first_name} ${contact.last_name}`, contact_id: contact.id, type: "follow_up", priority: "high", status: "pending", due_date: dateTime, assigned_to: contact.assigned_to || null } as any);
             toast.success("פולואפ נקבע ומשימה נוצרה");
             setShowFollowupPopup(false); setPendingStageId(null);
@@ -795,14 +989,128 @@ export default function ContactDetailPage() {
           contact={contact}
           stageName={allStages.find(s => s.id === pendingStageId)?.name || ""}
           onConfirm={async (reason, disqualification, notes) => {
-            updateContact.mutate({ id: contact.id, stage_id: pendingStageId, loss_reason: reason, disqualification_reason: disqualification || null, loss_notes: notes || null } as any);
+            await updateContact.mutateAsync({ id: contact.id, stage_id: pendingStageId, loss_reason: reason, disqualification_reason: disqualification || null, loss_notes: notes || null } as any);
             const body = [`סיבה: ${reason}`, disqualification && `סיבת פסילה: ${disqualification}`, notes && `הערות: ${notes}`].filter(Boolean).join("\n");
-            await createActivity.mutateAsync({ contact_id: contact.id, type: "stage_change", subject: `שינוי שלב — ${allStages.find(s => s.id === pendingStageId)?.name}`, body });
+            await createActivity.mutateAsync({ contact_id: contact.id, type: "stage_change", subject: `שינוי שלב — ${allStages.find(s => s.id === pendingStageId)?.name}`, body, performed_by: teamMember?.id || null });
             setShowLossPopup(false); setPendingStageId(null);
           }}
           onCancel={() => { setShowLossPopup(false); setPendingStageId(null); }}
         />
       )}
+
+      {/* Closed/won deal popup */}
+      {showClosedDealPopup && pendingStageId && (
+        <ClosedDealPopup
+          contact={contact}
+          products={products || []}
+          onConfirm={async (dealData) => {
+            // Find first pipeline + first stage for the deal
+            const defaultPipeline = pipelines?.[0];
+            const defaultDealStage = defaultPipeline?.stages?.[0];
+            await createDeal.mutateAsync({
+              contact_id: contact.id,
+              title: dealData.title,
+              value: dealData.amount,
+              product_id: dealData.product_id || null,
+              notes: dealData.notes || null,
+              pipeline_id: defaultPipeline?.id || "",
+              stage_id: defaultDealStage?.id || "",
+              status: "won",
+              currency: "ILS",
+              actual_close: new Date().toISOString(),
+            } as any);
+            setShowClosedDealPopup(false);
+            await finishClosedStage(pendingStageId);
+          }}
+          onCancel={() => { setShowClosedDealPopup(false); setPendingStageId(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Closed Deal Popup ──
+function ClosedDealPopup({ contact, products, onConfirm, onCancel }: {
+  contact: { first_name: string; last_name: string };
+  products: Product[];
+  onConfirm: (data: { title: string; amount: number; product_id: string; notes: string }) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [form, setForm] = useState({
+    title: `עסקה — ${contact.first_name} ${contact.last_name}`,
+    amount: "",
+    product_id: "",
+    notes: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!form.amount) return;
+    setSubmitting(true);
+    await onConfirm({
+      title: form.title,
+      amount: Number(form.amount),
+      product_id: form.product_id,
+      notes: form.notes,
+    });
+    setSubmitting(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={onCancel}>
+      <div className="bg-card rounded-2xl shadow-xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="p-6 border-b border-border">
+          <h2 className="text-lg font-semibold">יצירת עסקה</h2>
+          <p className="text-sm text-muted-foreground mt-1">לא נמצאה עסקה עבור {contact.first_name} {contact.last_name}. יש ליצור עסקה לפני סגירה.</p>
+        </div>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="text-sm font-medium mb-1 block">שם העסקה *</label>
+            <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring" />
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1 block">סכום *</label>
+            <input type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+              placeholder="0" dir="ltr"
+              className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring" />
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1 block">מוצר</label>
+            <Select value={form.product_id || "__none__"} onValueChange={v => {
+              const pid = v === "__none__" ? "" : v;
+              const product = products.find(p => p.id === pid);
+              setForm(f => ({
+                ...f,
+                product_id: pid,
+                ...(product ? { amount: String(product.price), title: `${product.name} — ${contact.first_name} ${contact.last_name}` } : {}),
+              }));
+            }}>
+              <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
+                <SelectValue placeholder="בחר מוצר" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">ללא מוצר</SelectItem>
+                {products.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.name} — {formatCurrency(p.price)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-sm font-medium mb-1 block">הערות</label>
+            <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={3}
+              className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none" placeholder="הערות לעסקה..." />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button onClick={handleSubmit} disabled={!form.amount || submitting}
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50">
+              {submitting ? "שומר..." : "צור עסקה וסגור"}
+            </button>
+            <button onClick={onCancel} className="px-4 py-2.5 text-sm font-medium border border-input rounded-lg hover:bg-secondary">ביטול</button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -825,8 +1133,7 @@ function FollowupPopup({ contact, stageId, onConfirm, onCancel }: {
         <div className="p-6 space-y-4">
           <div>
             <label className="text-sm font-medium mb-1 block">מועד פולואפ *</label>
-            <input type="datetime-local" value={form.dateTime} onChange={e => setForm(f => ({ ...f, dateTime: e.target.value }))} required
-              className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring" dir="ltr" />
+            <DateTimePicker value={form.dateTime} onChange={v => setForm(f => ({ ...f, dateTime: v }))} placeholder="בחר תאריך ושעה" />
           </div>
           <div>
             <label className="text-sm font-medium mb-1 block">הערות</label>

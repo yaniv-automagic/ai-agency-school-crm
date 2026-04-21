@@ -73,6 +73,7 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
       deal_id: dealId || null,
       type: "note",
       body: text,
+      performed_by: teamMember?.id || null,
     });
     resetForm();
   };
@@ -86,6 +87,7 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
       direction,
       subject: subject || null,
       body: text,
+      performed_by: teamMember?.id || null,
     });
     resetForm();
   };
@@ -344,7 +346,21 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
                       {activity.subject && (
                         <span className="text-sm text-muted-foreground">— {activity.subject}</span>
                       )}
-                      <span className="text-[11px] text-muted-foreground ml-auto">{formatDateTime(activity.performed_at)}</span>
+                      <span className="text-[11px] text-muted-foreground ml-auto flex items-center gap-1.5">
+                        {activity.performer && activity.type !== "system" && (
+                          <>
+                            {activity.performer.avatar_url ? (
+                              <img src={activity.performer.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
+                            ) : (
+                              <span className="w-4 h-4 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[8px] font-bold shrink-0">
+                                {activity.performer.display_name?.charAt(0)}
+                              </span>
+                            )}
+                            <span className="font-medium text-foreground/70">{activity.performer.display_name}</span>
+                          </>
+                        )}
+                        {formatDateTime(activity.performed_at)}
+                      </span>
                     </div>
 
                     {/* Fireflies — full card with mini player, summary, transcript */}
