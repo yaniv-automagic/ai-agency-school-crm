@@ -856,16 +856,14 @@ export default function ContactDetailPage() {
                 <div className="space-y-3">
                   <label className="text-sm font-medium block border-b border-border pb-1 text-right">משתני ההסכם</label>
                   {Object.entries(contractVariables).map(([key, value]) => {
-                    const isAuto = AUTO_FILL_KEYS.has(key) && !!value;
                     return (
                       <div key={key}>
                         <label className="text-xs text-muted-foreground mb-1 block text-right">{VARIABLE_LABELS[key] || key.replace(/_/g, " ")}</label>
                         <input
                           value={value}
                           onChange={e => setContractVariables(prev => ({ ...prev, [key]: e.target.value }))}
-                          className={`w-full px-3 py-2 text-sm border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-right ${isAuto ? "bg-muted text-muted-foreground" : "bg-background"}`}
+                          className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring text-right"
                           dir="rtl"
-                          readOnly={isAuto}
                         />
                       </div>
                     );
