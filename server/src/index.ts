@@ -6,6 +6,7 @@ import { contractRouter } from "./routes/contracts.js";
 import { emailRouter } from "./routes/email.js";
 import { formRouter } from "./routes/forms.js";
 import { integrationRouter } from "./routes/integrations.js";
+import { googleCalendarRouter } from "./routes/google-calendar.js";
 import { webhookRouter } from "./routes/webhooks.js";
 
 const app = express();
@@ -39,6 +40,7 @@ app.use("/api/contracts", contractRouter);
 app.use("/api/email", emailRouter);
 app.use("/api/forms", formRouter);
 app.use("/api/integrations", integrationRouter);
+app.use("/api/integrations/google-calendar", googleCalendarRouter);
 app.use("/api/webhooks", webhookRouter);
 
 app.listen(PORT, () => {
