@@ -79,7 +79,6 @@ export default function ContactDetailPage() {
   const [showAssigneePicker, setShowAssigneePicker] = useState(false);
   const [showMeetingForm, setShowMeetingForm] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
-  const [contractTitle, setContractTitle] = useState("");
   const [contractVariables, setContractVariables] = useState<Record<string, string>>({});
   const [showTaskCreate, setShowTaskCreate] = useState(false);
   const [showCommunityInput, setShowCommunityInput] = useState(false);
@@ -171,13 +170,65 @@ export default function ContactDetailPage() {
     return unique;
   };
 
-  // Auto-fill variables from contact data
+  // Hebrew labels for template variable keys
+  const VARIABLE_LABELS: Record<string, string> = {
+    firstName: "שם פרטי", lastName: "שם משפחה", fullName: "שם מלא",
+    email: "אימייל", phone: "טלפון", idNumber: "תעודת זהות",
+    address: "כתובת", city: "עיר", company: "חברה", jobTitle: "תפקיד",
+    dealTitle: "שם העסקה", dealValue: "סכום העסקה", dealCurrency: "מטבע",
+    productName: "שם המוצר", productPrice: "מחיר המוצר",
+    todayDate: "תאריך היום", todayDateHebrew: "תאריך עברי", todayDay: "יום בשבוע",
+    contractDate: "תאריך החוזה", expiryDate: "תאריך תפוגה",
+    companyName: "שם החברה", companyAddress: "כתובת החברה",
+    companyPhone: "טלפון החברה", companyEmail: "אימייל החברה", companyId: "ח.פ / ע.מ",
+    contractNumber: "מספר חוזה", contractTitle: "כותרת החוזה",
+    paymentTerms: "תנאי תשלום", numberOfPayments: "מספר תשלומים",
+    // Hebrew key variants
+    "שם_מלא": "שם מלא", "שם_פרטי": "שם פרטי", "שם_משפחה": "שם משפחה",
+    "אימייל": "אימייל", "טלפון": "טלפון", "תעודת_זהות": "תעודת זהות",
+    "כתובת": "כתובת", "עיר": "עיר", "חברה": "חברה", "תאריך": "תאריך",
+  };
+
+  // Variables that are auto-filled and should NOT show as editable fields
+  const AUTO_FILL_KEYS = new Set([
+    "firstName", "lastName", "fullName", "email", "phone", "company", "city", "jobTitle",
+    "todayDate", "todayDateHebrew", "todayDay", "contractDate",
+    "contractTitle", "contractNumber",
+    "dealTitle", "dealValue", "dealCurrency",
+    "first_name", "last_name", "full_name", "date",
+    "שם_מלא", "שם_פרטי", "שם_משפחה", "אימייל", "טלפון", "חברה", "עיר", "תאריך",
+  ]);
+
+  // Auto-fill variables from contact/deal data
   const autoFillVariables = (vars: string[]): Record<string, string> => {
     const map: Record<string, string> = {};
     const contactFullName = `${contact.first_name} ${contact.last_name}`.trim();
     const today = new Date().toLocaleDateString("he-IL");
+    const dayName = new Date().toLocaleDateString("he-IL", { weekday: "long" });
 
     const autoMap: Record<string, string> = {
+      // English keys (from TEMPLATE_VARIABLE_GROUPS)
+      firstName: contact.first_name || "",
+      lastName: contact.last_name || "",
+      fullName: contactFullName,
+      email: contact.email || "",
+      phone: contact.phone || "",
+      idNumber: contact.id_number || "",
+      address: contact.address || "",
+      city: contact.city || "",
+      company: contact.company || "",
+      jobTitle: contact.job_title || "",
+      todayDate: today,
+      todayDateHebrew: today,
+      todayDay: dayName,
+      contractDate: today,
+      contractTitle: "",
+      contractNumber: "",
+      // Deal data (use first deal if available)
+      dealTitle: deals?.[0]?.title || "",
+      dealValue: deals?.[0]?.value ? new Intl.NumberFormat("he-IL").format(deals[0].value) : "",
+      dealCurrency: deals?.[0]?.currency || "ILS",
+      // Hebrew key variants
       "שם_מלא": contactFullName,
       "שם_פרטי": contact.first_name || "",
       "שם_משפחה": contact.last_name || "",
@@ -186,22 +237,14 @@ export default function ContactDetailPage() {
       "תעודת_זהות": contact.id_number || "",
       "כתובת": contact.address || contact.city || "",
       "תאריך": today,
-      "full_name": contactFullName,
-      "first_name": contact.first_name || "",
-      "last_name": contact.last_name || "",
-      "email": contact.email || "",
-      "phone": contact.phone || "",
-      "id_number": contact.id_number || "",
-      "address": contact.address || contact.city || "",
-      "date": today,
-      "company": contact.company || "",
-      "חברה": contact.company || "",
-      "עיר": contact.city || "",
-      "city": contact.city || "",
+      full_name: contactFullName,
+      first_name: contact.first_name || "",
+      last_name: contact.last_name || "",
+      date: today,
     };
 
     for (const v of vars) {
-      map[v] = autoMap[v] || "";
+      map[v] = autoMap[v] ?? "";
     }
     return map;
   };
@@ -228,7 +271,7 @@ export default function ContactDetailPage() {
       body = body.replace(new RegExp(`\\{\\{${key}\\}\\}`, "g"), value);
     }
 
-    const title = contractTitle || `${template.name} - ${contact.first_name} ${contact.last_name}`;
+    const title = `${template.name} - ${contact.first_name} ${contact.last_name}`;
 
     const result = await createContract.mutateAsync({
       contact_id: contact.id,
@@ -250,7 +293,6 @@ export default function ContactDetailPage() {
 
     setShowContractForm(false);
     setSelectedTemplateId("");
-    setContractTitle("");
     setContractVariables({});
     toast.success("ההסכם נוצר ונשלח");
     navigate(`/contracts/${result.id}`);
@@ -809,28 +851,21 @@ export default function ContactDetailPage() {
                 )}
               </div>
 
-              <div>
-                <label className="text-sm font-medium mb-1 block">כותרת ההסכם</label>
-                <input
-                  value={contractTitle}
-                  onChange={e => setContractTitle(e.target.value)}
-                  placeholder={`הסכם - ${contact.first_name} ${contact.last_name}`}
-                  className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
-
-              {/* Variable filling section */}
-              {selectedTemplateId && Object.keys(contractVariables).length > 0 && (
+              {/* Variable filling section - only show fields that need manual input */}
+              {selectedTemplateId && Object.entries(contractVariables).filter(([key]) => !AUTO_FILL_KEYS.has(key) && !contractVariables[key]).length > 0 && (
                 <div className="space-y-3">
-                  <label className="text-sm font-medium block border-b border-border pb-1">משתני ההסכם</label>
-                  {Object.entries(contractVariables).map(([key, value]) => (
+                  <label className="text-sm font-medium block border-b border-border pb-1 text-right">משתני ההסכם</label>
+                  {Object.entries(contractVariables)
+                    .filter(([key]) => !AUTO_FILL_KEYS.has(key) || !contractVariables[key])
+                    .filter(([key]) => !AUTO_FILL_KEYS.has(key))
+                    .map(([key, value]) => (
                     <div key={key}>
-                      <label className="text-xs text-muted-foreground mb-1 block">{key.replace(/_/g, " ")}</label>
+                      <label className="text-xs text-muted-foreground mb-1 block text-right">{VARIABLE_LABELS[key] || key.replace(/_/g, " ")}</label>
                       <input
                         value={value}
                         onChange={e => setContractVariables(prev => ({ ...prev, [key]: e.target.value }))}
-                        className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                        dir={/^[a-zA-Z]/.test(key) ? "ltr" : "rtl"}
+                        className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring text-right"
+                        dir="rtl"
                       />
                     </div>
                   ))}
