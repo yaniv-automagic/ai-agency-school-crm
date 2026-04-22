@@ -651,7 +651,7 @@ function MeetingForm({ onClose, editMeeting }: { onClose: () => void; editMeetin
       contact_id: formData.contact_id,
       meeting_type: formData.meeting_type,
       title: formData.title,
-      scheduled_at: new Date(formData.scheduled_at).toISOString(),
+      scheduled_at: formData.scheduled_at,
       duration_minutes: formData.duration_minutes,
       meeting_url: meetingUrl,
       location: !isVirtual ? (formData.location || null) : null,
