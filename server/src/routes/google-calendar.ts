@@ -121,10 +121,16 @@ googleCalendarRouter.get("/status", authMiddleware, async (req: Request, res: Re
 
 // ── Calendar name mapping by meeting type ──
 const CALENDAR_NAMES: Record<string, string> = {
-  sales_consultation: "לוז מכירות",
-  mentoring_1on1: "לוז שירות",
-  mastermind_group: "לוז שירות",
+  sales_consultation: 'לו"ז מכירות',
+  mentoring_1on1: 'לו"ז שירות',
+  mastermind_group: 'לו"ז שירות',
 };
+
+async function findCalendarByName(calendar: any, name: string): Promise<string | null> {
+  const { data: list } = await calendar.calendarList.list();
+  const found = list.items?.find((c: any) => c.summary === name);
+  return found?.id || null;
+}
 
 async function getAuthenticatedCalendar(tenantId: string) {
   const { data } = await supabase
@@ -155,19 +161,6 @@ async function getAuthenticatedCalendar(tenantId: string) {
   return google.calendar({ version: "v3", auth: oauth2Client });
 }
 
-async function findOrCreateCalendar(calendar: any, name: string): Promise<string> {
-  // Look for existing calendar by name
-  const { data: list } = await calendar.calendarList.list();
-  const existing = list.items?.find((c: any) => c.summary === name);
-  if (existing) return existing.id;
-
-  // Create new calendar
-  const { data: created } = await calendar.calendars.insert({
-    requestBody: { summary: name, timeZone: "Asia/Jerusalem" },
-  });
-  return created.id;
-}
-
 // ── Create Google Calendar event for a meeting ──
 googleCalendarRouter.post("/events", authMiddleware, async (req: Request, res: Response) => {
   try {
@@ -192,11 +185,13 @@ googleCalendarRouter.post("/events", authMiddleware, async (req: Request, res: R
       return res.status(404).json({ error: "Meeting not found" });
     }
 
-    // Determine calendar
+    // Find target calendar
     const calendarName = CALENDAR_NAMES[meeting.meeting_type];
-    const calendarId = calendarName
-      ? await findOrCreateCalendar(calendar, calendarName)
-      : "primary";
+    let calendarId = "primary";
+    if (calendarName) {
+      const found = await findCalendarByName(calendar, calendarName);
+      if (found) calendarId = found;
+    }
 
     // Build attendees
     const attendees: any[] = [];
@@ -204,7 +199,6 @@ googleCalendarRouter.post("/events", authMiddleware, async (req: Request, res: R
       attendees.push({ email: meeting.contact.email, displayName: `${meeting.contact.first_name} ${meeting.contact.last_name}` });
     }
 
-    // Build event
     const startTime = new Date(meeting.scheduled_at);
     const endTime = new Date(startTime.getTime() + (meeting.duration_minutes || 60) * 60000);
 
