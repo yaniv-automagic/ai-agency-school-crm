@@ -666,17 +666,40 @@ function MeetingForm({ onClose, editMeeting }: { onClose: () => void; editMeetin
               />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block">משך (דקות)</label>
-              <input
-                type="number"
-                value={formData.duration_minutes}
-                onChange={(e) =>
-                  setFormData((p) => ({ ...p, duration_minutes: parseInt(e.target.value) || 60 }))
-                }
-                className={inputClass}
-                min={5}
-                dir="ltr"
-              />
+              <label className="text-sm font-medium mb-1 block">משך</label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  value={formData.duration_minutes >= 60 && formData.duration_minutes % 60 === 0
+                    ? formData.duration_minutes / 60
+                    : formData.duration_minutes}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value) || 1;
+                    const unit = formData.duration_minutes >= 60 && formData.duration_minutes % 60 === 0 ? "hours" : "minutes";
+                    setFormData((p) => ({ ...p, duration_minutes: unit === "hours" ? val * 60 : val }));
+                  }}
+                  className="flex-1 px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                  dir="ltr"
+                />
+                <Select
+                  value={formData.duration_minutes >= 60 && formData.duration_minutes % 60 === 0 ? "hours" : "minutes"}
+                  onValueChange={unit => {
+                    const current = formData.duration_minutes >= 60 && formData.duration_minutes % 60 === 0
+                      ? formData.duration_minutes / 60
+                      : formData.duration_minutes;
+                    setFormData((p) => ({ ...p, duration_minutes: unit === "hours" ? current * 60 : current }));
+                  }}
+                >
+                  <SelectTrigger className="w-24 px-3 py-2 text-sm border border-input rounded-lg bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="minutes">דקות</SelectItem>
+                    <SelectItem value="hours">שעות</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 

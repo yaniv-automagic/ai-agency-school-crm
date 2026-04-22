@@ -1082,19 +1082,40 @@ export default function ContactDetailPage() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium mb-1 block">משך (דקות)</label>
-                  <Select value={String(meetingData.duration_minutes)} onValueChange={v => setMeetingData(d => ({ ...d, duration_minutes: Number(v) }))}>
-                    <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
-                      <SelectValue placeholder="משך" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="15">15 דקות</SelectItem>
-                      <SelectItem value="30">30 דקות</SelectItem>
-                      <SelectItem value="45">45 דקות</SelectItem>
-                      <SelectItem value="60">60 דקות</SelectItem>
-                      <SelectItem value="90">90 דקות</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <label className="text-sm font-medium mb-1 block">משך</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      value={meetingData.duration_minutes >= 60 && meetingData.duration_minutes % 60 === 0
+                        ? meetingData.duration_minutes / 60
+                        : meetingData.duration_minutes}
+                      onChange={e => {
+                        const val = Number(e.target.value) || 1;
+                        const unit = meetingData.duration_minutes >= 60 && meetingData.duration_minutes % 60 === 0 ? "hours" : "minutes";
+                        setMeetingData(d => ({ ...d, duration_minutes: unit === "hours" ? val * 60 : val }));
+                      }}
+                      className="flex-1 px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                      dir="ltr"
+                    />
+                    <Select
+                      value={meetingData.duration_minutes >= 60 && meetingData.duration_minutes % 60 === 0 ? "hours" : "minutes"}
+                      onValueChange={unit => {
+                        const current = meetingData.duration_minutes >= 60 && meetingData.duration_minutes % 60 === 0
+                          ? meetingData.duration_minutes / 60
+                          : meetingData.duration_minutes;
+                        setMeetingData(d => ({ ...d, duration_minutes: unit === "hours" ? current * 60 : current }));
+                      }}
+                    >
+                      <SelectTrigger className="w-24 px-3 py-2 text-sm border border-input rounded-lg bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="minutes">דקות</SelectItem>
+                        <SelectItem value="hours">שעות</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
               <div>
