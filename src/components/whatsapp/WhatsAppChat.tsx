@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { useUserPreference } from "@/hooks/useUserPreferences";
 import type { Contact } from "@/types/crm";
 import type { WhatsAppMessage, WhatsAppTemplate } from "@/types/whatsapp";
 import { DEFAULT_TEMPLATES, formatPhoneForApi, phoneToJid } from "@/types/whatsapp";
@@ -36,13 +37,10 @@ export default function WhatsAppChat({ contact, onClose }: WhatsAppChatProps) {
   const phone = contact.phone || "";
   const formattedPhone = formatPhoneForApi(phone);
 
-  // Load custom templates from localStorage
-  const [customTemplates, setCustomTemplates] = useState<WhatsAppTemplate[]>(() => {
-    try {
-      const saved = localStorage.getItem("crm-wa-templates");
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
+  // Load custom templates from Supabase
+  const [dbTemplates, persistTemplates] = useUserPreference<WhatsAppTemplate[]>("wa-templates", []);
+  const [customTemplates, setCustomTemplates] = useState<WhatsAppTemplate[]>([]);
+  useEffect(() => { setCustomTemplates(dbTemplates); }, [dbTemplates]);
   const allTemplates = [...DEFAULT_TEMPLATES, ...customTemplates];
 
   // Check connection on mount - find user's instance
@@ -242,7 +240,7 @@ export default function WhatsAppChat({ contact, onClose }: WhatsAppChatProps) {
     };
     const updated = [...customTemplates, t];
     setCustomTemplates(updated);
-    localStorage.setItem("crm-wa-templates", JSON.stringify(updated));
+    persistTemplates(updated);
     toast.success("תבנית נשמרה");
   }, [customTemplates]);
 

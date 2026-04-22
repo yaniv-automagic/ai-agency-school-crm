@@ -14,6 +14,7 @@ import { useContacts } from "@/hooks/useContacts";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { ENROLLMENT_STATUSES } from "@/lib/constants";
 import { cn, formatDateTime } from "@/lib/utils";
+import { useUserPreference } from "@/hooks/useUserPreferences";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
 import type { ProgramEnrollment, EnrollmentStatus } from "@/types/crm";
@@ -135,8 +136,7 @@ const FILTER_OPS = [
   { key: "is_empty", label: "ריק" }, { key: "is_not_empty", label: "לא ריק" },
 ];
 
-const STORAGE_COLS = "crm-enrollments-columns";
-const STORAGE_VIEWS = "crm-enrollments-views";
+const DEFAULT_COLS = ALL_COLUMNS.filter(c => c.defaultVisible).map(c => c.key);
 
 function getEnrollmentFieldValue(e: ProgramEnrollment, field: string): string {
   switch (field) {
@@ -176,14 +176,13 @@ export default function EnrollmentsPage() {
   const [newViewName, setNewViewName] = useState("");
   const [filterGroups, setFilterGroups] = useState<FilterGroup[]>([]);
 
-  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
-    const saved = localStorage.getItem(STORAGE_COLS);
-    return saved ? JSON.parse(saved) : ALL_COLUMNS.filter(c => c.defaultVisible).map(c => c.key);
-  });
-  const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
-    const saved = localStorage.getItem(STORAGE_VIEWS);
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [dbColumns, persistColumns] = useUserPreference<string[]>("enrollments-columns", DEFAULT_COLS);
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_COLS);
+  const [dbViews, persistDbViews] = useUserPreference<SavedView[]>("enrollments-views", []);
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+
+  useEffect(() => { setVisibleColumns(dbColumns); }, [dbColumns]);
+  useEffect(() => { setSavedViews(dbViews); }, [dbViews]);
 
   const navigate = useNavigate();
   const confirmDialog = useConfirm();
@@ -235,14 +234,14 @@ export default function EnrollmentsPage() {
 
   // ── Columns ──
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-  const persistColumns = (cols: string[]) => { setVisibleColumns(cols); localStorage.setItem(STORAGE_COLS, JSON.stringify(cols)); };
-  const toggleColumn = (key: string) => persistColumns(visibleColumns.includes(key) ? visibleColumns.filter(k => k !== key) : [...visibleColumns, key]);
+  const updateColumns = (cols: string[]) => { setVisibleColumns(cols); persistColumns(cols); };
+  const toggleColumn = (key: string) => updateColumns(visibleColumns.includes(key) ? visibleColumns.filter(k => k !== key) : [...visibleColumns, key]);
   const handleColumnDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
     if (over && active.id !== over.id) {
       const oldIdx = visibleColumns.indexOf(active.id as string);
       const newIdx = visibleColumns.indexOf(over.id as string);
-      persistColumns(arrayMove(visibleColumns, oldIdx, newIdx));
+      updateColumns(arrayMove(visibleColumns, oldIdx, newIdx));
     }
   };
   const activeColumns = visibleColumns.map(k => ALL_COLUMNS.find(c => c.key === k)!).filter(Boolean);
@@ -256,16 +255,16 @@ export default function EnrollmentsPage() {
   const updateCondition = (gid: string, cid: string, updates: Partial<FilterCondition>) => setFilterGroups(prev => prev.map(g => g.id === gid ? { ...g, conditions: g.conditions.map(c => c.id === cid ? { ...c, ...updates } : c) } : g));
 
   // ── Views ──
-  const persistViews = (views: SavedView[]) => { setSavedViews(views); localStorage.setItem(STORAGE_VIEWS, JSON.stringify(views)); };
+  const updateViews = (views: SavedView[]) => { setSavedViews(views); persistDbViews(views); };
   const saveCurrentView = () => {
     if (!newViewName.trim()) return;
     const view: SavedView = { id: `v-${Date.now()}`, name: newViewName.trim(), columns: visibleColumns, filterGroups, statusFilter, assigneeFilter };
-    persistViews([...savedViews, view]);
+    updateViews([...savedViews, view]);
     setActiveViewId(view.id);
     setNewViewName(""); setShowNewView(false);
   };
   const loadView = (view: SavedView) => {
-    persistColumns(view.columns);
+    updateColumns(view.columns);
     setFilterGroups(view.filterGroups || []);
     if (view.statusFilter) setStatusFilter(view.statusFilter);
     setAssigneeFilter(view.assigneeFilter || "__all__");
@@ -274,7 +273,7 @@ export default function EnrollmentsPage() {
   const deleteView = async (id: string) => {
     const ok = await confirmDialog({ title: "מחיקת תצוגה", description: "למחוק את התצוגה?", confirmText: "מחק", cancelText: "ביטול", variant: "destructive" });
     if (!ok) return;
-    persistViews(savedViews.filter(v => v.id !== id));
+    updateViews(savedViews.filter(v => v.id !== id));
     if (activeViewId === id) setActiveViewId(null);
   };
   const handleViewDragEnd = (e: DragEndEvent) => {
@@ -282,7 +281,7 @@ export default function EnrollmentsPage() {
     if (over && active.id !== over.id) {
       const oldIdx = savedViews.findIndex(v => v.id === active.id);
       const newIdx = savedViews.findIndex(v => v.id === over.id);
-      persistViews(arrayMove(savedViews, oldIdx, newIdx));
+      updateViews(arrayMove(savedViews, oldIdx, newIdx));
     }
   };
 
@@ -302,7 +301,7 @@ export default function EnrollmentsPage() {
 
       {/* Views bar */}
       <div className="flex items-center gap-1.5 border-b border-border pb-2 overflow-x-auto">
-        <button onClick={() => { setActiveViewId(null); persistColumns(ALL_COLUMNS.filter(c => c.defaultVisible).map(c => c.key)); setFilterGroups([]); setStatusFilter("__all__"); setAssigneeFilter("__all__"); }}
+        <button onClick={() => { setActiveViewId(null); updateColumns(ALL_COLUMNS.filter(c => c.defaultVisible).map(c => c.key)); setFilterGroups([]); setStatusFilter("__all__"); setAssigneeFilter("__all__"); }}
           className={cn("px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors shrink-0",
             !activeViewId ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary")}>
           כל התלמידים

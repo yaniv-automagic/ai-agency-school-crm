@@ -14,7 +14,7 @@ interface IntegrationCard {
   icon: any;
   color: string;
   fields: { key: string; label: string; type?: string; placeholder?: string }[];
-  storagePrefix?: string; // for localStorage-based integrations
+  providerId?: string; // provider key for crm_integration_configs
   oauthConnect?: boolean; // true = use OAuth connect button instead of manual fields
 }
 
@@ -25,7 +25,7 @@ const INTEGRATIONS: IntegrationCard[] = [
     description: "חיבור WhatsApp Cloud API דרך Evolution API לשליחת הודעות ישירות מה-CRM",
     icon: MessageCircle,
     color: "text-emerald-500 bg-emerald-50",
-    storagePrefix: "evo",
+    providerId: "whatsapp",
     fields: [
       { key: "api-url", label: "Evolution API URL", placeholder: "http://localhost:8081" },
       { key: "api-key", label: "API Key", type: "password", placeholder: "your-api-key" },
@@ -38,7 +38,7 @@ const INTEGRATIONS: IntegrationCard[] = [
     description: "שליחת מיילים אוטומטיים וקמפיינים דרך Resend API",
     icon: Mail,
     color: "text-blue-500 bg-blue-50",
-    storagePrefix: "resend",
+    providerId: "email",
     fields: [
       { key: "api-key", label: "Resend API Key", type: "password", placeholder: "re_..." },
       { key: "from-email", label: "From Email", placeholder: "crm@yourdomain.com" },
@@ -60,7 +60,7 @@ const INTEGRATIONS: IntegrationCard[] = [
     description: "הגדרת webhook endpoints לחיבור עם Zapier, Make ושירותים חיצוניים",
     icon: Webhook,
     color: "text-purple-500 bg-purple-50",
-    storagePrefix: "webhook",
+    providerId: "webhooks",
     fields: [
       { key: "api-key", label: "CRM API Key", placeholder: "ייווצר אוטומטית" },
       { key: "webhook-secret", label: "Webhook Secret", type: "password", placeholder: "סוד לאימות webhooks" },
@@ -114,39 +114,38 @@ export default function IntegrationSettingsPage() {
     checkGcalStatus();
   }, [teamMember?.tenant_id, searchParams]);
 
-  // Load saved values
+  // Load saved values from Supabase
   useEffect(() => {
-    const values: Record<string, Record<string, string>> = {};
-    for (const integration of INTEGRATIONS) {
-      if (integration.oauthConnect) continue;
-      values[integration.id] = {};
-      for (const field of integration.fields) {
-        const key = `${integration.storagePrefix}-${field.key}`;
-        values[integration.id][field.key] = localStorage.getItem(key) || "";
+    if (!teamMember?.tenant_id) return;
+    (async () => {
+      const { data } = await supabase
+        .from("crm_integration_configs")
+        .select("provider, config")
+        .eq("tenant_id", teamMember.tenant_id);
+
+      const values: Record<string, Record<string, string>> = {};
+      for (const integration of INTEGRATIONS) {
+        if (integration.oauthConnect) continue;
+        const row = data?.find(d => d.provider === integration.id);
+        values[integration.id] = {};
+        for (const field of integration.fields) {
+          values[integration.id][field.key] = row?.config?.[field.key] || "";
+        }
       }
-    }
-    setFormValues(values);
-  }, []);
+      setFormValues(values);
+    })();
+  }, [teamMember?.tenant_id]);
 
   const handleSave = async (integrationId: string) => {
     const integration = INTEGRATIONS.find(i => i.id === integrationId)!;
     setSaving(integrationId);
 
-    for (const field of integration.fields) {
-      const key = `${integration.storagePrefix}-${field.key}`;
-      const value = formValues[integrationId]?.[field.key] || "";
-      if (value) {
-        localStorage.setItem(key, value);
-      } else {
-        localStorage.removeItem(key);
-      }
-    }
-
-    // Also save to Supabase for server-side access
     await supabase.from("crm_integration_configs").upsert({
+      tenant_id: teamMember?.tenant_id,
       provider: integrationId,
       config: formValues[integrationId] || {},
       is_active: true,
+      updated_at: new Date().toISOString(),
     }, { onConflict: "tenant_id,provider" });
 
     setSaving(null);

@@ -13,6 +13,7 @@ import type { GridWidget, WidgetConfig, KpiData, ChartDataPoint } from "@/types/
 import { CHART_COLORS } from "@/types/dashboard";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
+import { useUserPreference } from "@/hooks/useUserPreferences";
 import { fetchWidgetData } from "@/hooks/useDashboardData";
 import WidgetConfigPanel from "./WidgetConfigPanel";
 
@@ -160,14 +161,13 @@ export default function DynamicDashboard() {
   const [loading, setLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(1000);
+  const [dbLayout, persistLayout] = useUserPreference<GridWidget[]>("dashboard-layout", DEFAULT_WIDGETS);
 
   // Load saved layout or use defaults
   useEffect(() => {
-    const saved = localStorage.getItem("crm-dashboard-layout");
-    const initial = saved ? JSON.parse(saved) : DEFAULT_WIDGETS;
-    setWidgets(initial);
-    loadAllData(initial);
-  }, []);
+    setWidgets(dbLayout);
+    loadAllData(dbLayout);
+  }, [dbLayout]);
 
   // Measure container
   useEffect(() => {
@@ -194,7 +194,7 @@ export default function DynamicDashboard() {
   };
 
   const saveLayout = (ws: GridWidget[]) => {
-    localStorage.setItem("crm-dashboard-layout", JSON.stringify(ws));
+    persistLayout(ws);
   };
 
   const handleLayoutChange = useCallback((newLayout: any[]) => {

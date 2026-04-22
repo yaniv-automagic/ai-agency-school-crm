@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { cn, timeAgo } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import { useUserPreference } from "@/hooks/useUserPreferences";
 
 interface Notification {
   id: string;
@@ -125,11 +126,11 @@ const ICON_MAP: Record<string, { icon: any; cls: string }> = {
 export default function NotificationCenter() {
   const [open, setOpen] = useState(false);
   const { data: notifications } = useNotifications();
-  const [readIds, setReadIds] = useState<Set<string>>(() => {
-    try { return new Set(JSON.parse(localStorage.getItem("crm-notif-read") || "[]")); }
-    catch { return new Set(); }
-  });
+  const [dbReadIds, persistReadIds] = useUserPreference<string[]>("notif-read", []);
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
+
+  useEffect(() => { setReadIds(new Set(dbReadIds)); }, [dbReadIds]);
 
   const unreadCount = notifications?.filter(n => !readIds.has(n.id)).length || 0;
 
@@ -137,13 +138,13 @@ export default function NotificationCenter() {
     if (!notifications) return;
     const allIds = new Set([...readIds, ...notifications.map(n => n.id)]);
     setReadIds(allIds);
-    localStorage.setItem("crm-notif-read", JSON.stringify([...allIds]));
+    persistReadIds([...allIds]);
   };
 
   const handleClick = (n: Notification) => {
     const newRead = new Set([...readIds, n.id]);
     setReadIds(newRead);
-    localStorage.setItem("crm-notif-read", JSON.stringify([...newRead]));
+    persistReadIds([...newRead]);
     if (n.link) {
       navigate(n.link);
       setOpen(false);

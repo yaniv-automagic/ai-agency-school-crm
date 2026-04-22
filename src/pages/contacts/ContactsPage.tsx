@@ -20,6 +20,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { CONTACT_SOURCES } from "@/lib/constants";
 import { cn, formatPhone, formatDateTime, formatCurrency } from "@/lib/utils";
+import { useUserPreference } from "@/hooks/useUserPreferences";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import ContactForm from "@/components/contacts/ContactForm";
 import { ExportButton, ImportButton } from "@/components/contacts/ImportExportContacts";
@@ -142,8 +143,7 @@ const FILTER_OPS = [
   { key: "is_empty", label: "ריק" }, { key: "is_not_empty", label: "לא ריק" },
 ];
 
-const STORAGE_COLS = "crm-leads-columns";
-const STORAGE_VIEWS = "crm-leads-views";
+const DEFAULT_COLS = ALL_COLUMNS.filter(c => c.defaultVisible).map(c => c.key);
 
 // Fields that use dropdown values instead of free text
 const DROPDOWN_FIELDS: Record<string, string> = {
@@ -191,14 +191,14 @@ export default function ContactsPage() {
   const [showLossPopup, setShowLossPopup] = useState(false);
   const [showClosedDealPopup, setShowClosedDealPopup] = useState(false);
 
-  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
-    const saved = localStorage.getItem(STORAGE_COLS);
-    return saved ? JSON.parse(saved) : ALL_COLUMNS.filter(c => c.defaultVisible).map(c => c.key);
-  });
-  const [savedViews, setSavedViews] = useState<SavedView[]>(() => {
-    const saved = localStorage.getItem(STORAGE_VIEWS);
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [dbColumns, persistColumns] = useUserPreference<string[]>("leads-columns", DEFAULT_COLS);
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_COLS);
+  const [dbViews, persistDbViews] = useUserPreference<SavedView[]>("leads-views", []);
+  const [savedViews, setSavedViews] = useState<SavedView[]>([]);
+
+  // Sync from DB when loaded
+  useEffect(() => { setVisibleColumns(dbColumns); }, [dbColumns]);
+  useEffect(() => { setSavedViews(dbViews); }, [dbViews]);
 
   const navigate = useNavigate();
   const updateContact = useUpdateContact();
@@ -320,14 +320,14 @@ export default function ContactsPage() {
 
   // ── Columns ──
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-  const persistColumns = (cols: string[]) => { setVisibleColumns(cols); localStorage.setItem(STORAGE_COLS, JSON.stringify(cols)); };
-  const toggleColumn = (key: string) => persistColumns(visibleColumns.includes(key) ? visibleColumns.filter(k => k !== key) : [...visibleColumns, key]);
+  const updateColumns = (cols: string[]) => { setVisibleColumns(cols); persistColumns(cols); };
+  const toggleColumn = (key: string) => updateColumns(visibleColumns.includes(key) ? visibleColumns.filter(k => k !== key) : [...visibleColumns, key]);
   const handleColumnDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
     if (over && active.id !== over.id) {
       const oldIdx = visibleColumns.indexOf(active.id as string);
       const newIdx = visibleColumns.indexOf(over.id as string);
-      persistColumns(arrayMove(visibleColumns, oldIdx, newIdx));
+      updateColumns(arrayMove(visibleColumns, oldIdx, newIdx));
     }
   };
   const activeColumns = visibleColumns.map(k => ALL_COLUMNS.find(c => c.key === k)!).filter(Boolean);
@@ -341,16 +341,16 @@ export default function ContactsPage() {
   const updateCondition = (gid: string, cid: string, updates: Partial<FilterCondition>) => setFilterGroups(prev => prev.map(g => g.id === gid ? { ...g, conditions: g.conditions.map(c => c.id === cid ? { ...c, ...updates } : c) } : g));
 
   // ── Views ──
-  const persistViews = (views: SavedView[]) => { setSavedViews(views); localStorage.setItem(STORAGE_VIEWS, JSON.stringify(views)); };
+  const updateViews = (views: SavedView[]) => { setSavedViews(views); persistDbViews(views); };
   const saveCurrentView = () => {
     if (!newViewName.trim()) return;
     const view: SavedView = { id: `v-${Date.now()}`, name: newViewName.trim(), columns: visibleColumns, filterGroups, pipelineId: selectedPipelineId, stageId: stageFilter, assigneeFilter };
-    persistViews([...savedViews, view]);
+    updateViews([...savedViews, view]);
     setActiveViewId(view.id);
     setNewViewName(""); setShowNewView(false);
   };
   const loadView = (view: SavedView) => {
-    persistColumns(view.columns);
+    updateColumns(view.columns);
     setFilterGroups(view.filterGroups || []);
     if (view.pipelineId) setSelectedPipelineId(view.pipelineId);
     if (view.stageId) setStageFilter(view.stageId);
@@ -360,7 +360,7 @@ export default function ContactsPage() {
   const deleteView = async (id: string) => {
     const ok = await confirmDialog({ title: "מחיקת תצוגה", description: "למחוק את התצוגה?", confirmText: "מחק", cancelText: "ביטול", variant: "destructive" });
     if (!ok) return;
-    persistViews(savedViews.filter(v => v.id !== id));
+    updateViews(savedViews.filter(v => v.id !== id));
     if (activeViewId === id) setActiveViewId(null);
   };
   const handleViewDragEnd = (e: DragEndEvent) => {
@@ -368,7 +368,7 @@ export default function ContactsPage() {
     if (over && active.id !== over.id) {
       const oldIdx = savedViews.findIndex(v => v.id === active.id);
       const newIdx = savedViews.findIndex(v => v.id === over.id);
-      persistViews(arrayMove(savedViews, oldIdx, newIdx));
+      updateViews(arrayMove(savedViews, oldIdx, newIdx));
     }
   };
 
@@ -405,7 +405,7 @@ export default function ContactsPage() {
 
       {/* Views bar */}
       <div className="flex items-center gap-1.5 border-b border-border pb-2 overflow-x-auto">
-        <button onClick={() => { setActiveViewId(null); persistColumns(ALL_COLUMNS.filter(c => c.defaultVisible).map(c => c.key)); setFilterGroups([]); setStageFilter("__all__"); setAssigneeFilter("__all__"); }}
+        <button onClick={() => { setActiveViewId(null); updateColumns(ALL_COLUMNS.filter(c => c.defaultVisible).map(c => c.key)); setFilterGroups([]); setStageFilter("__all__"); setAssigneeFilter("__all__"); }}
           className={cn("px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors shrink-0",
             !activeViewId ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary")}>
           כל הלידים
