@@ -1,16 +1,18 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPortal } from "react-dom";
-import { Plus, X, Calendar, Ban, CheckCircle2, Search, Check, ChevronsUpDown, Pencil, Link, BarChart3 } from "lucide-react";
-import { useMeetings, useMeetingStats, useCreateMeeting, useUpdateMeeting } from "@/hooks/useMeetings";
+import { Plus, X, Calendar, Ban, CheckCircle2, Search, Check, ChevronsUpDown, Pencil, Link, BarChart3, Trash2, Users } from "lucide-react";
+import { useMeetings, useMeetingStats, useCreateMeeting, useUpdateMeeting, useDeleteMeetings } from "@/hooks/useMeetings";
 import { useCreateActivity } from "@/hooks/useActivities";
 import { useContacts } from "@/hooks/useContacts";
 import { useEnrollments } from "@/hooks/useEnrollments";
 import { useAuth } from "@/contexts/AuthContext";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { MEETING_TYPES, MEETING_STATUSES, CONTACT_STATUSES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
@@ -48,11 +50,18 @@ export default function MeetingsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("__all__");
   const [assigneeFilter, setAssigneeFilter] = useState<string>("__all__");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const navigate = useNavigate();
 
   const { members } = useTeamMembers();
+  const { teamMember } = useAuth();
   const updateMeeting = useUpdateMeeting();
+  const deleteMeetings = useDeleteMeetings();
+  const confirmDialog = useConfirm();
   const [picker, setPicker] = useState<PickerState>(null);
+
+  const toggleSelect = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const toggleAll = () => { if (!filteredMeetings) return; setSelectedIds(prev => prev.length === filteredMeetings.length ? [] : filteredMeetings.map(m => m.id)); };
 
   // Build filters for the hook
   const hookFilters = useMemo(() => {
@@ -214,6 +223,9 @@ export default function MeetingsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
+                <th className="w-10 px-3 py-3 text-center">
+                  <input type="checkbox" className="rounded accent-primary" checked={filteredMeetings?.length ? selectedIds.length === filteredMeetings.length : false} onChange={toggleAll} />
+                </th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">כותרת</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">תאריך</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">אחראי</th>
@@ -233,8 +245,12 @@ export default function MeetingsPage() {
                     <tr
                       key={meeting.id}
                       onClick={() => navigate(`/meetings/${meeting.id}`)}
-                      className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer transition-colors"
+                      className={cn("border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer transition-colors", selectedIds.includes(meeting.id) && "bg-primary/5")}
                     >
+                      {/* Checkbox */}
+                      <td className="px-3 py-3 text-center" onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" className="rounded accent-primary" checked={selectedIds.includes(meeting.id)} onChange={() => toggleSelect(meeting.id)} />
+                      </td>
                       {/* כותרת */}
                       <td className="px-4 py-3 font-medium">{meeting.title}</td>
 
@@ -323,7 +339,7 @@ export default function MeetingsPage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className="px-4 py-16 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-16 text-center text-muted-foreground">
                     <p className="text-lg font-medium mb-1">אין פגישות</p>
                     <p className="text-sm">צור פגישה חדשה כדי להתחיל</p>
                   </td>
@@ -397,6 +413,64 @@ export default function MeetingsPage() {
       )}
 
       {/* Create/Edit Meeting Slide-over Form */}
+      {/* Bulk Actions */}
+      {selectedIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 animate-in slide-in-from-bottom-4 duration-300">
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white rounded-2xl shadow-2xl">
+            <div className="flex items-center gap-2 pr-3 border-r border-white/20">
+              <Users size={15} />
+              <span className="text-sm font-semibold">{selectedIds.length}</span>
+              <span className="text-xs text-white/60">נבחרו</span>
+            </div>
+
+            {/* Change status */}
+            <div className="relative group">
+              <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors">
+                <CheckCircle2 size={13} />
+                שנה סטטוס
+              </button>
+              <div className="absolute bottom-full mb-2 right-0 bg-white text-gray-900 rounded-xl shadow-xl border border-gray-200 py-1 w-40 hidden group-hover:block" dir="rtl">
+                {MEETING_STATUSES.map(s => (
+                  <button key={s.value} onClick={async () => {
+                    for (const id of selectedIds) {
+                      await updateMeeting.mutateAsync({ id, status: s.value as MeetingStatus, _tenantId: teamMember?.tenant_id } as any);
+                    }
+                    setSelectedIds([]);
+                  }} className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-right">
+                    <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium", s.color)}>{s.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Delete */}
+            <button
+              onClick={async () => {
+                const ok = await confirmDialog({
+                  title: "מחיקת פגישות",
+                  description: `למחוק ${selectedIds.length} פגישות? פעולה זו לא ניתנת לביטול.`,
+                  confirmText: "מחק",
+                  cancelText: "ביטול",
+                  variant: "destructive",
+                });
+                if (!ok) return;
+                await deleteMeetings.mutateAsync(selectedIds);
+                toast.success(`${selectedIds.length} פגישות נמחקו`);
+                setSelectedIds([]);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-red-500/20 text-red-300 transition-colors"
+            >
+              <Trash2 size={13} />
+              מחק
+            </button>
+
+            <button onClick={() => setSelectedIds([])} className="p-1.5 rounded-full hover:bg-white/10 transition-colors mr-1">
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {showForm && <MeetingForm onClose={() => { setShowForm(false); setEditingMeeting(null); }} editMeeting={editingMeeting} />}
     </div>
   );

@@ -145,6 +145,18 @@ export function useUpdateMeeting() {
   });
 }
 
+export function useDeleteMeetings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.from("crm_meetings").delete().in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: KEY }); },
+    onError: (e: Error) => toast.error(`שגיאה: ${e.message}`),
+  });
+}
+
 export function useMeetingStats(meetingType?: MeetingType) {
   return useQuery({
     queryKey: [...KEY, "stats", meetingType],
