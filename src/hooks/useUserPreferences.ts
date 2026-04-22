@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 /**
  * Hook to persist user preferences in Supabase instead of localStorage.
- * Falls back to localStorage for unauthenticated state, then syncs to DB.
+ * Gracefully falls back to defaultValue if table doesn't exist or query fails.
  */
 export function useUserPreference<T>(key: string, defaultValue: T) {
   const { teamMember } = useAuth();
@@ -20,16 +20,20 @@ export function useUserPreference<T>(key: string, defaultValue: T) {
     if (!userId || !tenantId) return;
 
     (async () => {
-      const { data } = await supabase
-        .from("crm_user_preferences")
-        .select("value")
-        .eq("user_id", userId)
-        .eq("tenant_id", tenantId)
-        .eq("key", key)
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from("crm_user_preferences")
+          .select("value")
+          .eq("user_id", userId)
+          .eq("tenant_id", tenantId)
+          .eq("key", key)
+          .single();
 
-      if (data?.value !== undefined && data?.value !== null) {
-        setValue(data.value as T);
+        if (!error && data?.value !== undefined && data?.value !== null) {
+          setValue(data.value as T);
+        }
+      } catch {
+        // Table may not exist yet - use defaults silently
       }
       setLoaded(true);
     })();
@@ -53,7 +57,7 @@ export function useUserPreference<T>(key: string, defaultValue: T) {
             updated_at: new Date().toISOString(),
           },
           { onConflict: "user_id,tenant_id,key" }
-        ).then();
+        ).then(() => {}, () => {});
       }, 500);
     },
     [userId, tenantId, key]
