@@ -1067,8 +1067,8 @@ export default function ContactDetailPage() {
                   className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
+              <div className="grid grid-cols-5 gap-3">
+                <div className="col-span-2">
                   <label className="text-sm font-medium mb-1 block">סוג פגישה</label>
                   <Select value={meetingData.meeting_type} onValueChange={v => setMeetingData(d => ({ ...d, meeting_type: v }))}>
                     <SelectTrigger className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background">
@@ -1081,7 +1081,7 @@ export default function ContactDetailPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
+                <div className="col-span-3">
                   <label className="text-sm font-medium mb-1 block">משך</label>
                   <div className="flex gap-2">
                     <input
@@ -1095,7 +1095,7 @@ export default function ContactDetailPage() {
                         const unit = meetingData.duration_minutes >= 60 && meetingData.duration_minutes % 60 === 0 ? "hours" : "minutes";
                         setMeetingData(d => ({ ...d, duration_minutes: unit === "hours" ? val * 60 : val }));
                       }}
-                      className="flex-1 px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                      className="w-20 px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
                       dir="ltr"
                     />
                     <Select
@@ -1107,7 +1107,7 @@ export default function ContactDetailPage() {
                         setMeetingData(d => ({ ...d, duration_minutes: unit === "hours" ? current * 60 : current }));
                       }}
                     >
-                      <SelectTrigger className="w-24 px-3 py-2 text-sm border border-input rounded-lg bg-background">
+                      <SelectTrigger className="flex-1 px-3 py-2 text-sm border border-input rounded-lg bg-background">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
