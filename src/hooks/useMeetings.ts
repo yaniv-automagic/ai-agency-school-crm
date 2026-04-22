@@ -18,13 +18,17 @@ async function getAuthHeaders() {
 async function syncCalendarEvent(tenantId: string, meetingId: string, method: "POST" | "PUT") {
   try {
     const headers = await getAuthHeaders();
-    await fetch(`${BACKEND_URL}/api/integrations/google-calendar/events`, {
+    const res = await fetch(`${BACKEND_URL}/api/integrations/google-calendar/events`, {
       method,
       headers,
       body: JSON.stringify({ tenantId, meetingId }),
     });
-  } catch {
-    // Calendar sync is best-effort, don't block meeting operations
+    const data = await res.json();
+    if (!res.ok) {
+      console.warn("[Calendar Sync]", data.error || res.statusText);
+    }
+  } catch (err) {
+    console.warn("[Calendar Sync] Failed:", err);
   }
 }
 
@@ -84,6 +88,11 @@ export function useCreateMeeting() {
   return useMutation({
     mutationFn: async (meeting: Partial<Meeting> & { _tenantId?: string }) => {
       const { _tenantId, ...meetingData } = meeting;
+
+      // Set tenant_id
+      if (_tenantId && !meetingData.tenant_id) {
+        meetingData.tenant_id = _tenantId;
+      }
 
       // Auto-assign: if no assigned_to, get from contact
       if (!meetingData.assigned_to && meetingData.contact_id) {
