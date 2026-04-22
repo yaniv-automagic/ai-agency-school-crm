@@ -199,14 +199,17 @@ googleCalendarRouter.post("/events", authMiddleware, async (req: Request, res: R
       attendees.push({ email: meeting.contact.email, displayName: `${meeting.contact.first_name} ${meeting.contact.last_name}` });
     }
 
-    const startTime = new Date(meeting.scheduled_at);
-    const endTime = new Date(startTime.getTime() + (meeting.duration_minutes || 60) * 60000);
+    // scheduled_at is stored as UTC but represents local Israel time
+    // Strip the Z/offset so Google interprets it as Asia/Jerusalem local time
+    const raw = meeting.scheduled_at.replace(/Z$/, "").replace(/[+-]\d{2}:\d{2}$/, "");
+    const endRaw = new Date(new Date(raw).getTime() + (meeting.duration_minutes || 60) * 60000);
+    const endStr = endRaw.toISOString().replace("Z", "");
 
     const event: any = {
       summary: meeting.title,
       description: meeting.description || "",
-      start: { dateTime: startTime.toISOString(), timeZone: "Asia/Jerusalem" },
-      end: { dateTime: endTime.toISOString(), timeZone: "Asia/Jerusalem" },
+      start: { dateTime: raw, timeZone: "Asia/Jerusalem" },
+      end: { dateTime: endStr, timeZone: "Asia/Jerusalem" },
       attendees,
       sendUpdates: "all",
       reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 30 }] },
@@ -263,8 +266,9 @@ googleCalendarRouter.put("/events", authMiddleware, async (req: Request, res: Re
       ? meeting.google_event_id.split("::")
       : ["primary", meeting.google_event_id];
 
-    const startTime = new Date(meeting.scheduled_at);
-    const endTime = new Date(startTime.getTime() + (meeting.duration_minutes || 60) * 60000);
+    const raw = meeting.scheduled_at.replace(/Z$/, "").replace(/[+-]\d{2}:\d{2}$/, "");
+    const endRaw = new Date(new Date(raw).getTime() + (meeting.duration_minutes || 60) * 60000);
+    const endStr = endRaw.toISOString().replace("Z", "");
 
     const attendees: any[] = [];
     if (meeting.contact?.email) {
@@ -284,8 +288,8 @@ googleCalendarRouter.put("/events", authMiddleware, async (req: Request, res: Re
     const event: any = {
       summary: meeting.title,
       description: meeting.description || "",
-      start: { dateTime: startTime.toISOString(), timeZone: "Asia/Jerusalem" },
-      end: { dateTime: endTime.toISOString(), timeZone: "Asia/Jerusalem" },
+      start: { dateTime: raw, timeZone: "Asia/Jerusalem" },
+      end: { dateTime: endStr, timeZone: "Asia/Jerusalem" },
       attendees,
       status: statusMap[meeting.status] || "confirmed",
     };
