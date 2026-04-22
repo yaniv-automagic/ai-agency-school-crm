@@ -665,10 +665,10 @@ export default function ContactDetailPage() {
             )}
 
             {/* Meeting date */}
-            {upcomingMeetings.length > 0 && (
+            {meetings && meetings.filter(m => m.status === "scheduled" || m.status === "confirmed").length > 0 && (
               <div className="flex items-center gap-2 text-xs py-0.5">
                 <Calendar size={13} className="text-blue-500 shrink-0" />
-                <span className="font-medium text-foreground">{formatDateTime(upcomingMeetings[0].scheduled_at)}</span>
+                <span className="font-medium text-foreground">{formatDateTime(meetings.filter(m => m.status === "scheduled" || m.status === "confirmed")[0].scheduled_at)}</span>
               </div>
             )}
 
