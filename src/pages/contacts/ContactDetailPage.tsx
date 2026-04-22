@@ -158,9 +158,10 @@ export default function ContactDetailPage() {
     if (isVirtual) {
       meetingUrl = linkMode === "manual" ? (meetingData.meeting_url || undefined) : "auto_generate";
     }
+    const meetingTitle = meetingData.title || `פגישה עם ${contact.first_name} ${contact.last_name}`;
     await createMeeting.mutateAsync({
       contact_id: contact.id,
-      title: meetingData.title || `פגישה עם ${contact.first_name} ${contact.last_name}`,
+      title: meetingTitle,
       meeting_type: meetingData.meeting_type as any,
       scheduled_at: meetingData.scheduled_at,
       duration_minutes: meetingData.duration_minutes,
@@ -169,6 +170,13 @@ export default function ContactDetailPage() {
       status: "scheduled",
       _tenantId: teamMember?.tenant_id,
     } as any);
+    await createActivity.mutateAsync({
+      contact_id: contact.id,
+      type: "meeting",
+      subject: meetingTitle,
+      body: `פגישה נקבעה ל-${new Date(meetingData.scheduled_at).toLocaleString("he-IL")}`,
+      performed_by: teamMember?.id || null,
+    });
     setShowMeetingForm(false);
     setIsVirtual(false);
     setLinkMode("auto");
