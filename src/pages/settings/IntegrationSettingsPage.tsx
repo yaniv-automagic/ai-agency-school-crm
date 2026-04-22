@@ -63,7 +63,6 @@ const INTEGRATIONS: IntegrationCard[] = [
     providerId: "webhooks",
     fields: [
       { key: "api-key", label: "CRM API Key", placeholder: "ייווצר אוטומטית" },
-      { key: "webhook-secret", label: "Webhook Secret", type: "password", placeholder: "סוד לאימות webhooks" },
     ],
   },
 ];
