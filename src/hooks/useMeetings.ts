@@ -5,6 +5,29 @@ import { toast } from "sonner";
 
 const KEY = ["meetings"];
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
+
+async function getAuthHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${session?.access_token}`,
+  };
+}
+
+async function syncCalendarEvent(tenantId: string, meetingId: string, method: "POST" | "PUT") {
+  try {
+    const headers = await getAuthHeaders();
+    await fetch(`${BACKEND_URL}/api/integrations/google-calendar/events`, {
+      method,
+      headers,
+      body: JSON.stringify({ tenantId, meetingId }),
+    });
+  } catch {
+    // Calendar sync is best-effort, don't block meeting operations
+  }
+}
+
 export function useMeetings(filters?: {
   contact_id?: string;
   deal_id?: string;
@@ -59,9 +82,29 @@ export function useMeeting(id: string | undefined) {
 export function useCreateMeeting() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (meeting: Partial<Meeting>) => {
-      const { data, error } = await supabase.from("crm_meetings").insert(meeting).select().single();
+    mutationFn: async (meeting: Partial<Meeting> & { _tenantId?: string }) => {
+      const { _tenantId, ...meetingData } = meeting;
+
+      // Auto-assign: if no assigned_to, get from contact
+      if (!meetingData.assigned_to && meetingData.contact_id) {
+        const { data: contact } = await supabase
+          .from("crm_contacts")
+          .select("assigned_to")
+          .eq("id", meetingData.contact_id)
+          .single();
+        if (contact?.assigned_to) {
+          meetingData.assigned_to = contact.assigned_to;
+        }
+      }
+
+      const { data, error } = await supabase.from("crm_meetings").insert(meetingData).select().single();
       if (error) throw error;
+
+      // Create Google Calendar event (best-effort)
+      if (_tenantId) {
+        syncCalendarEvent(_tenantId, data.id, "POST");
+      }
+
       return data as Meeting;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: KEY }); toast.success("פגישה נוצרה"); },
@@ -72,7 +115,7 @@ export function useCreateMeeting() {
 export function useUpdateMeeting() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<Meeting> & { id: string }) => {
+    mutationFn: async ({ id, _tenantId, ...updates }: Partial<Meeting> & { id: string; _tenantId?: string }) => {
       const { data, error } = await supabase
         .from("crm_meetings")
         .update({ ...updates, updated_at: new Date().toISOString() })
@@ -80,6 +123,12 @@ export function useUpdateMeeting() {
         .select()
         .single();
       if (error) throw error;
+
+      // Sync to Google Calendar (best-effort)
+      if (_tenantId && data.google_event_id) {
+        syncCalendarEvent(_tenantId, id, "PUT");
+      }
+
       return data as Meeting;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: KEY }); toast.success("פגישה עודכנה"); },

@@ -81,7 +81,7 @@ export default function MeetingsPage() {
   }, [meetings, search]);
 
   const handleQuickUpdate = (meetingId: string, updates: Partial<Meeting>) => {
-    updateMeeting.mutate({ id: meetingId, ...updates });
+    updateMeeting.mutate({ id: meetingId, ...updates, _tenantId: teamMember?.tenant_id } as any);
     setPicker(null);
   };
 
@@ -584,9 +584,9 @@ function MeetingForm({ onClose, editMeeting }: { onClose: () => void; editMeetin
     };
 
     if (isEditing) {
-      await updateMeeting.mutateAsync({ id: editMeeting.id, ...payload });
+      await updateMeeting.mutateAsync({ id: editMeeting.id, ...payload, _tenantId: teamMember?.tenant_id } as any);
     } else {
-      await createMeeting.mutateAsync({ ...payload, status: "scheduled" });
+      await createMeeting.mutateAsync({ ...payload, status: "scheduled", _tenantId: teamMember?.tenant_id } as any);
     }
     onClose();
   };

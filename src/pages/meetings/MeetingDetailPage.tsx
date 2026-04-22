@@ -2,12 +2,14 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowRight, ExternalLink, Calendar, Clock, Video, User, FileText, CheckCircle, ChevronDown, Download } from "lucide-react";
 import { useMeeting, useUpdateMeeting } from "@/hooks/useMeetings";
+import { useAuth } from "@/contexts/AuthContext";
 import { MEETING_TYPES, MEETING_STATUSES, MEETING_OUTCOMES } from "@/lib/constants";
 import { cn, formatCurrency } from "@/lib/utils";
 
 export default function MeetingDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { teamMember } = useAuth();
   const { data: meeting, isLoading } = useMeeting(id);
   const updateMeeting = useUpdateMeeting();
 
@@ -40,7 +42,8 @@ export default function MeetingDetailPage() {
     await updateMeeting.mutateAsync({
       id: meeting.id,
       status: newStatus as any,
-    });
+      _tenantId: teamMember?.tenant_id,
+    } as any);
   };
 
   return (

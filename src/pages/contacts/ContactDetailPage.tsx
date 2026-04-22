@@ -13,7 +13,7 @@ import { useTasks, useCreateTask } from "@/hooks/useTasks";
 import { useMeetings, useCreateMeeting } from "@/hooks/useMeetings";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { useAuth } from "@/contexts/AuthContext";
-import { CONTACT_SOURCES, MEETING_TYPES } from "@/lib/constants";
+import { CONTACT_SOURCES, MEETING_TYPES, MEETING_STATUSES } from "@/lib/constants";
 import { cn, formatPhone, formatDateTime, formatCurrency } from "@/lib/utils";
 import { useState } from "react";
 import ContactForm from "@/components/contacts/ContactForm";
@@ -167,6 +167,7 @@ export default function ContactDetailPage() {
       description: meetingData.description || undefined,
       meeting_url: meetingUrl,
       status: "scheduled",
+      _tenantId: teamMember?.tenant_id,
     } as any);
     setShowMeetingForm(false);
     setIsVirtual(false);
@@ -451,8 +452,6 @@ export default function ContactDetailPage() {
     setPendingStageId(null);
   };
 
-  const upcomingMeetings = meetings?.filter(m => m.status === "scheduled" || m.status === "confirmed") || [];
-
   return (
     <div className="space-y-6">
       {/* Back button */}
@@ -712,7 +711,7 @@ export default function ContactDetailPage() {
             </div>
           </div>
 
-          {/* Upcoming Meetings */}
+          {/* Meetings */}
           <div className="bg-card border border-border rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-sm">פגישות</h3>
@@ -723,26 +722,36 @@ export default function ContactDetailPage() {
                 + קבע פגישה
               </button>
             </div>
-            {upcomingMeetings.length > 0 ? (
+            {meetings && meetings.length > 0 ? (
               <div className="space-y-2">
-                {upcomingMeetings.map(meeting => (
-                  <div
-                    key={meeting.id}
-                    onClick={() => navigate(`/meetings/${meeting.id}`)}
-                    className="p-2 rounded-lg hover:bg-secondary/50 cursor-pointer"
-                  >
-                    <p className="text-sm font-medium">{meeting.title}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Calendar size={12} className="text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(meeting.scheduled_at).toLocaleDateString("he-IL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-                      </span>
+                {meetings.slice(0, 5).map(meeting => {
+                  const statusDef = MEETING_STATUSES.find(s => s.value === meeting.status);
+                  return (
+                    <div
+                      key={meeting.id}
+                      onClick={() => navigate(`/meetings/${meeting.id}`)}
+                      className="p-2 rounded-lg hover:bg-secondary/50 cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium truncate">{meeting.title}</p>
+                        {statusDef && (
+                          <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap shrink-0", statusDef.color)}>
+                            {statusDef.label}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Calendar size={12} className="text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(meeting.scheduled_at).toLocaleDateString("he-IL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground">אין פגישות קרובות</p>
+              <p className="text-xs text-muted-foreground">אין פגישות</p>
             )}
           </div>
 

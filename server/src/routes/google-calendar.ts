@@ -120,6 +120,201 @@ googleCalendarRouter.get("/status", authMiddleware, async (req: Request, res: Re
   }
 });
 
+// ── Calendar name mapping by meeting type ──
+const CALENDAR_NAMES: Record<string, string> = {
+  sales_consultation: "לוז מכירות",
+  mentoring_1on1: "לוז שירות",
+  mastermind_group: "לוז שירות",
+};
+
+async function getAuthenticatedCalendar(tenantId: string) {
+  const { data } = await supabase
+    .from("crm_integration_configs")
+    .select("config")
+    .eq("tenant_id", tenantId)
+    .eq("provider", "google-calendar")
+    .single();
+
+  if (!data?.config?.access_token) return null;
+
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials({
+    access_token: data.config.access_token,
+    refresh_token: data.config.refresh_token,
+    expiry_date: data.config.expiry_date,
+  });
+
+  // Handle token refresh
+  oauth2Client.on("tokens", async (tokens) => {
+    const updated = { ...data.config, ...tokens };
+    await supabase.from("crm_integration_configs").update({
+      config: updated,
+      updated_at: new Date().toISOString(),
+    }).eq("tenant_id", tenantId).eq("provider", "google-calendar");
+  });
+
+  return google.calendar({ version: "v3", auth: oauth2Client });
+}
+
+async function findOrCreateCalendar(calendar: any, name: string): Promise<string> {
+  // Look for existing calendar by name
+  const { data: list } = await calendar.calendarList.list();
+  const existing = list.items?.find((c: any) => c.summary === name);
+  if (existing) return existing.id;
+
+  // Create new calendar
+  const { data: created } = await calendar.calendars.insert({
+    requestBody: { summary: name, timeZone: "Asia/Jerusalem" },
+  });
+  return created.id;
+}
+
+// ── Create Google Calendar event for a meeting ──
+googleCalendarRouter.post("/events", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { tenantId, meetingId } = req.body;
+    if (!tenantId || !meetingId) {
+      return res.status(400).json({ error: "Missing tenantId or meetingId" });
+    }
+
+    const calendar = await getAuthenticatedCalendar(tenantId);
+    if (!calendar) {
+      return res.status(400).json({ error: "Google Calendar לא מחובר" });
+    }
+
+    // Fetch meeting with contact
+    const { data: meeting } = await supabase
+      .from("crm_meetings")
+      .select("*, contact:crm_contacts(first_name, last_name, email, phone)")
+      .eq("id", meetingId)
+      .single();
+
+    if (!meeting) {
+      return res.status(404).json({ error: "Meeting not found" });
+    }
+
+    // Determine calendar
+    const calendarName = CALENDAR_NAMES[meeting.meeting_type];
+    const calendarId = calendarName
+      ? await findOrCreateCalendar(calendar, calendarName)
+      : "primary";
+
+    // Build attendees
+    const attendees: any[] = [];
+    if (meeting.contact?.email) {
+      attendees.push({ email: meeting.contact.email, displayName: `${meeting.contact.first_name} ${meeting.contact.last_name}` });
+    }
+
+    // Build event
+    const startTime = new Date(meeting.scheduled_at);
+    const endTime = new Date(startTime.getTime() + (meeting.duration_minutes || 60) * 60000);
+
+    const event: any = {
+      summary: meeting.title,
+      description: meeting.description || "",
+      start: { dateTime: startTime.toISOString(), timeZone: "Asia/Jerusalem" },
+      end: { dateTime: endTime.toISOString(), timeZone: "Asia/Jerusalem" },
+      attendees,
+      sendUpdates: "all",
+      reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 30 }] },
+    };
+
+    if (meeting.meeting_url && meeting.meeting_url !== "auto_generate") {
+      event.location = meeting.meeting_url;
+    }
+
+    const { data: created } = await calendar.events.insert({
+      calendarId,
+      requestBody: event,
+      sendUpdates: "all",
+    });
+
+    // Save google_event_id back to meeting
+    await supabase.from("crm_meetings").update({
+      google_event_id: `${calendarId}::${created.id}`,
+      updated_at: new Date().toISOString(),
+    }).eq("id", meetingId);
+
+    res.json({ ok: true, eventId: created.id, calendarId });
+  } catch (err: any) {
+    console.error("Google Calendar create event error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Update Google Calendar event ──
+googleCalendarRouter.put("/events", authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { tenantId, meetingId } = req.body;
+    if (!tenantId || !meetingId) {
+      return res.status(400).json({ error: "Missing tenantId or meetingId" });
+    }
+
+    const cal = await getAuthenticatedCalendar(tenantId);
+    if (!cal) {
+      return res.status(400).json({ error: "Google Calendar לא מחובר" });
+    }
+
+    const { data: meeting } = await supabase
+      .from("crm_meetings")
+      .select("*, contact:crm_contacts(first_name, last_name, email)")
+      .eq("id", meetingId)
+      .single();
+
+    if (!meeting?.google_event_id) {
+      return res.status(404).json({ error: "No linked Google event" });
+    }
+
+    // Parse calendarId::eventId
+    const [calendarId, eventId] = meeting.google_event_id.includes("::")
+      ? meeting.google_event_id.split("::")
+      : ["primary", meeting.google_event_id];
+
+    const startTime = new Date(meeting.scheduled_at);
+    const endTime = new Date(startTime.getTime() + (meeting.duration_minutes || 60) * 60000);
+
+    const attendees: any[] = [];
+    if (meeting.contact?.email) {
+      attendees.push({ email: meeting.contact.email, displayName: `${meeting.contact.first_name} ${meeting.contact.last_name}` });
+    }
+
+    // Map CRM status to Google event status
+    const statusMap: Record<string, string> = {
+      scheduled: "confirmed",
+      confirmed: "confirmed",
+      cancelled: "cancelled",
+      rescheduled: "tentative",
+      completed: "confirmed",
+      no_show: "confirmed",
+    };
+
+    const event: any = {
+      summary: meeting.title,
+      description: meeting.description || "",
+      start: { dateTime: startTime.toISOString(), timeZone: "Asia/Jerusalem" },
+      end: { dateTime: endTime.toISOString(), timeZone: "Asia/Jerusalem" },
+      attendees,
+      status: statusMap[meeting.status] || "confirmed",
+    };
+
+    if (meeting.meeting_url && meeting.meeting_url !== "auto_generate") {
+      event.location = meeting.meeting_url;
+    }
+
+    await cal.events.update({
+      calendarId,
+      eventId,
+      requestBody: event,
+      sendUpdates: "all",
+    });
+
+    res.json({ ok: true });
+  } catch (err: any) {
+    console.error("Google Calendar update event error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Disconnect Google Calendar ──
 googleCalendarRouter.post("/disconnect", authMiddleware, async (req: Request, res: Response) => {
   try {
