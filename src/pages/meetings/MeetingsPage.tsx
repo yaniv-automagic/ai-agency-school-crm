@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { Plus, X, Calendar, Ban, CheckCircle2, Search, Check, ChevronsUpDown, Pencil, Link, BarChart3, Trash2, Users } from "lucide-react";
 import { useMeetings, useMeetingStats, useCreateMeeting, useUpdateMeeting, useDeleteMeetings } from "@/hooks/useMeetings";
-import { useCreateActivity } from "@/hooks/useActivities";
 import { useContacts } from "@/hooks/useContacts";
 import { useEnrollments } from "@/hooks/useEnrollments";
 import { useAuth } from "@/contexts/AuthContext";
@@ -614,7 +613,6 @@ function ContactPicker({
 function MeetingForm({ onClose, editMeeting }: { onClose: () => void; editMeeting?: Meeting | null }) {
   const createMeeting = useCreateMeeting();
   const updateMeeting = useUpdateMeeting();
-  const createActivity = useCreateActivity();
   const { data: contacts } = useContacts();
   const { data: enrollments } = useEnrollments();
   const { members } = useTeamMembers();
@@ -662,16 +660,7 @@ function MeetingForm({ onClose, editMeeting }: { onClose: () => void; editMeetin
     if (isEditing) {
       await updateMeeting.mutateAsync({ id: editMeeting.id, ...payload, _tenantId: teamMember?.tenant_id } as any);
     } else {
-      await createMeeting.mutateAsync({ ...payload, status: "scheduled", _tenantId: teamMember?.tenant_id } as any);
-      if (payload.contact_id) {
-        await createActivity.mutateAsync({
-          contact_id: payload.contact_id,
-          type: "meeting",
-          subject: payload.title,
-          body: `פגישה נקבעה ל-${new Date(payload.scheduled_at).toLocaleString("he-IL")}`,
-          performed_by: teamMember?.id || null,
-        });
-      }
+      await createMeeting.mutateAsync({ ...payload, status: "scheduled", _tenantId: teamMember?.tenant_id, _performedBy: teamMember?.id } as any);
     }
     onClose();
   };

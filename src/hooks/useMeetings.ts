@@ -26,6 +26,8 @@ async function syncCalendarEvent(tenantId: string, meetingId: string, method: "P
     const data = await res.json();
     if (!res.ok) {
       console.warn("[Calendar Sync]", data.error || res.statusText);
+    } else {
+      console.log("[Calendar Sync] OK", method, meetingId);
     }
   } catch (err) {
     console.warn("[Calendar Sync] Failed:", err);
@@ -83,14 +85,19 @@ export function useMeeting(id: string | undefined) {
   });
 }
 
+interface CreateMeetingInput extends Partial<Meeting> {
+  _tenantId?: string;
+  _performedBy?: string;
+}
+
 export function useCreateMeeting() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (meeting: Partial<Meeting> & { _tenantId?: string }) => {
-      const { _tenantId, ...meetingData } = meeting;
+    mutationFn: async (input: CreateMeetingInput) => {
+      const { _tenantId, _performedBy, ...meetingData } = input;
 
       // Set tenant_id
-      if (_tenantId && !meetingData.tenant_id) {
+      if (_tenantId) {
         meetingData.tenant_id = _tenantId;
       }
 
@@ -106,25 +113,53 @@ export function useCreateMeeting() {
         }
       }
 
-      const { data, error } = await supabase.from("crm_meetings").insert(meetingData).select().single();
+      const { data, error } = await supabase
+        .from("crm_meetings")
+        .insert(meetingData)
+        .select()
+        .single();
       if (error) throw error;
 
-      // Create Google Calendar event (best-effort)
+      // Log timeline activity (best-effort)
+      try {
+        const scheduledDate = new Date(data.scheduled_at).toLocaleString("he-IL");
+        await supabase.from("crm_activities").insert({
+          tenant_id: _tenantId || null,
+          contact_id: data.contact_id,
+          type: "meeting",
+          subject: data.title,
+          body: `פגישה נקבעה ל-${scheduledDate}`,
+          performed_by: _performedBy || null,
+        });
+      } catch {
+        console.warn("[Meeting] Failed to log activity");
+      }
+
+      // Create Google Calendar event (best-effort, non-blocking)
       if (_tenantId) {
         syncCalendarEvent(_tenantId, data.id, "POST");
       }
 
       return data as Meeting;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: KEY }); toast.success("פגישה נוצרה"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ["activities"] });
+      toast.success("פגישה נוצרה");
+    },
     onError: (e: Error) => toast.error(`שגיאה: ${e.message}`),
   });
+}
+
+interface UpdateMeetingInput extends Partial<Meeting> {
+  id: string;
+  _tenantId?: string;
 }
 
 export function useUpdateMeeting() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, _tenantId, ...updates }: Partial<Meeting> & { id: string; _tenantId?: string }) => {
+    mutationFn: async ({ id, _tenantId, ...updates }: UpdateMeetingInput) => {
       const { data, error } = await supabase
         .from("crm_meetings")
         .update({ ...updates, updated_at: new Date().toISOString() })
