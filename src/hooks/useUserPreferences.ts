@@ -21,15 +21,15 @@ export function useUserPreference<T>(key: string, defaultValue: T) {
 
     (async () => {
       try {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from("crm_user_preferences")
           .select("value")
           .eq("user_id", userId)
           .eq("tenant_id", tenantId)
           .eq("key", key)
-          .single();
+          .maybeSingle();
 
-        if (!error && data?.value !== undefined && data?.value !== null) {
+        if (data?.value !== undefined && data?.value !== null) {
           setValue(data.value as T);
         }
       } catch {
