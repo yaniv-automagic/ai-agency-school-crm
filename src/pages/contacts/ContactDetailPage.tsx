@@ -66,7 +66,7 @@ export default function ContactDetailPage() {
       let q = supabase.from("crm_ad_campaigns").select("name, status, platform_campaign_id");
       if (contact?.ad_campaign_id) q = q.eq("platform_campaign_id", contact.ad_campaign_id);
       else if (contact?.utm_campaign) q = q.ilike("name", `%${contact.utm_campaign}%`);
-      const { data } = await q.limit(1).single();
+      const { data } = await q.limit(1).maybeSingle();
       return data as { name: string; status: string | null; platform_campaign_id: string } | null;
     },
     enabled: !!contact && !!(contact.ad_campaign_id || contact.utm_campaign),
