@@ -3,7 +3,7 @@
  * Communicates with backend endpoints (not Supabase directly).
  */
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
+const BACKEND_URL = import.meta.env.VITE_WEBHOOK_BACKEND_URL || import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
 
 interface ContractForSigning {
   id: string;

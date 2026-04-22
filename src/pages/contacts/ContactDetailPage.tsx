@@ -362,7 +362,6 @@ export default function ContactDetailPage() {
     setContractVariables({});
     setSelectedDealId("");
     setSelectedProductId("");
-    navigate(`/contracts/${result.id}`);
   };
 
   // ── "נסגר" (closed/won) stage handler ──

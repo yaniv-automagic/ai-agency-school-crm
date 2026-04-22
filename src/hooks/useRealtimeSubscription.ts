@@ -18,6 +18,11 @@ export function useRealtimeSubscription() {
       { table: "crm_tasks", queryKey: "tasks" },
       { table: "crm_activities", queryKey: "activities" },
       { table: "crm_pipelines", queryKey: "pipelines" },
+      { table: "crm_meetings", queryKey: "meetings" },
+      { table: "crm_contracts", queryKey: "contracts" },
+      { table: "crm_program_enrollments", queryKey: "enrollments" },
+      { table: "crm_notes", queryKey: "notes" },
+      { table: "crm_products", queryKey: "products" },
     ];
 
     for (const { table, queryKey } of tables) {
