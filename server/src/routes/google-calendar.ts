@@ -6,8 +6,7 @@ import { authMiddleware } from "../middleware/auth.js";
 export const googleCalendarRouter = Router();
 
 const SCOPES = [
-  "https://www.googleapis.com/auth/calendar.events",
-  "https://www.googleapis.com/auth/calendar.readonly",
+  "https://www.googleapis.com/auth/calendar",
 ];
 
 function getOAuth2Client() {
