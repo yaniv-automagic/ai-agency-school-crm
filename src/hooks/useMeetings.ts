@@ -168,8 +168,8 @@ export function useUpdateMeeting() {
         .single();
       if (error) throw error;
 
-      // Sync to Google Calendar (best-effort)
-      if (_tenantId && data.google_event_id) {
+      // Sync to Google Calendar (best-effort) - also handles deletion on cancel
+      if (_tenantId) {
         syncCalendarEvent(_tenantId, id, "PUT");
       }
 

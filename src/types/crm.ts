@@ -337,6 +337,7 @@ export interface Meeting {
   scheduled_at: string;
   duration_minutes: number;
   meeting_url: string | null;
+  location: string | null;
   recording_url: string | null;
   transcript_url: string | null;
   transcript_text: string | null;

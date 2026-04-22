@@ -629,6 +629,7 @@ function MeetingForm({ onClose, editMeeting }: { onClose: () => void; editMeetin
     scheduled_at: editMeeting?.scheduled_at ? new Date(editMeeting.scheduled_at).toISOString().slice(0, 16) : "",
     duration_minutes: editMeeting?.duration_minutes || 60,
     meeting_url: editMeeting?.meeting_url || "",
+    location: (editMeeting as any)?.location || "",
     description: editMeeting?.description || "",
     assigned_to: editMeeting?.assigned_to || teamMember?.id || "",
   });
@@ -653,6 +654,7 @@ function MeetingForm({ onClose, editMeeting }: { onClose: () => void; editMeetin
       scheduled_at: new Date(formData.scheduled_at).toISOString(),
       duration_minutes: formData.duration_minutes,
       meeting_url: meetingUrl,
+      location: !isVirtual ? (formData.location || null) : null,
       description: formData.description || null,
       assigned_to: formData.assigned_to || null,
     };
@@ -832,6 +834,17 @@ function MeetingForm({ onClose, editMeeting }: { onClose: () => void; editMeetin
                     />
                   </div>
                 )}
+              </div>
+            )}
+            {!isVirtual && (
+              <div>
+                <label className="text-sm font-medium mb-1 block">מיקום</label>
+                <input
+                  value={formData.location}
+                  onChange={(e) => setFormData((p) => ({ ...p, location: e.target.value }))}
+                  className={inputClass}
+                  placeholder="כתובת / שם המקום"
+                />
               </div>
             )}
           </div>

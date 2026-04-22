@@ -166,6 +166,7 @@ export default function ContactDetailPage() {
       duration_minutes: meetingData.duration_minutes,
       description: meetingData.description || undefined,
       meeting_url: meetingUrl,
+      location: !isVirtual ? (meetingData as any).location || undefined : undefined,
       status: "scheduled",
       _tenantId: teamMember?.tenant_id,
       _performedBy: teamMember?.id,
@@ -173,7 +174,7 @@ export default function ContactDetailPage() {
     setShowMeetingForm(false);
     setIsVirtual(false);
     setLinkMode("auto");
-    setMeetingData({ title: "", meeting_type: "sales_consultation", scheduled_at: "", duration_minutes: 30, description: "", meeting_url: "" });
+    setMeetingData({ title: "", meeting_type: "sales_consultation", scheduled_at: "", duration_minutes: 30, description: "", meeting_url: "", location: "" } as any);
   };
 
   // Parse {{variable}} placeholders from template content
@@ -1177,6 +1178,17 @@ export default function ContactDetailPage() {
                         />
                       </div>
                     )}
+                  </div>
+                )}
+                {!isVirtual && (
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">מיקום</label>
+                    <input
+                      value={(meetingData as any).location || ""}
+                      onChange={e => setMeetingData(d => ({ ...d, location: e.target.value }))}
+                      placeholder="כתובת / שם המקום"
+                      className="w-full px-3 py-2 text-sm border border-input rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
                   </div>
                 )}
               </div>

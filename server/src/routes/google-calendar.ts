@@ -215,7 +215,19 @@ googleCalendarRouter.post("/events", authMiddleware, async (req: Request, res: R
       reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 30 }] },
     };
 
-    if (meeting.meeting_url && meeting.meeting_url !== "auto_generate") {
+    if (meeting.location) {
+      event.location = meeting.location;
+    }
+
+    // Auto-generate Google Meet link
+    if (meeting.meeting_url === "auto_generate") {
+      event.conferenceData = {
+        createRequest: {
+          requestId: meetingId,
+          conferenceSolutionKey: { type: "hangoutsMeet" },
+        },
+      };
+    } else if (meeting.meeting_url) {
       event.location = meeting.meeting_url;
     }
 
@@ -223,15 +235,21 @@ googleCalendarRouter.post("/events", authMiddleware, async (req: Request, res: R
       calendarId,
       requestBody: event,
       sendUpdates: "all",
+      conferenceDataVersion: meeting.meeting_url === "auto_generate" ? 1 : 0,
     });
 
-    // Save google_event_id back to meeting
-    await supabase.from("crm_meetings").update({
+    // Save google_event_id and Meet link back to meeting
+    const meetLink = created.conferenceData?.entryPoints?.find((e: any) => e.entryPointType === "video")?.uri;
+    const updateData: any = {
       google_event_id: `${calendarId}::${created.id}`,
       updated_at: new Date().toISOString(),
-    }).eq("id", meetingId);
+    };
+    if (meetLink) {
+      updateData.meeting_url = meetLink;
+    }
+    await supabase.from("crm_meetings").update(updateData).eq("id", meetingId);
 
-    res.json({ ok: true, eventId: created.id, calendarId });
+    res.json({ ok: true, eventId: created.id, calendarId, meetLink });
   } catch (err: any) {
     console.error("Google Calendar create event error:", err);
     res.status(500).json({ error: err.message });
@@ -266,6 +284,16 @@ googleCalendarRouter.put("/events", authMiddleware, async (req: Request, res: Re
       ? meeting.google_event_id.split("::")
       : ["primary", meeting.google_event_id];
 
+    // If cancelled — delete from calendar entirely
+    if (meeting.status === "cancelled") {
+      await cal.events.delete({ calendarId, eventId, sendUpdates: "all" });
+      await supabase.from("crm_meetings").update({
+        google_event_id: null,
+        updated_at: new Date().toISOString(),
+      }).eq("id", meetingId);
+      return res.json({ ok: true, deleted: true });
+    }
+
     const raw = meeting.scheduled_at.replace(/Z$/, "").replace(/[+-]\d{2}:\d{2}$/, "");
     const endRaw = new Date(new Date(raw).getTime() + (meeting.duration_minutes || 60) * 60000);
     const endStr = endRaw.toISOString().replace("Z", "");
@@ -275,26 +303,17 @@ googleCalendarRouter.put("/events", authMiddleware, async (req: Request, res: Re
       attendees.push({ email: meeting.contact.email, displayName: `${meeting.contact.first_name} ${meeting.contact.last_name}` });
     }
 
-    // Map CRM status to Google event status
-    const statusMap: Record<string, string> = {
-      scheduled: "confirmed",
-      confirmed: "confirmed",
-      cancelled: "cancelled",
-      rescheduled: "tentative",
-      completed: "confirmed",
-      no_show: "confirmed",
-    };
-
     const event: any = {
       summary: meeting.title,
       description: meeting.description || "",
       start: { dateTime: raw, timeZone: "Asia/Jerusalem" },
       end: { dateTime: endStr, timeZone: "Asia/Jerusalem" },
       attendees,
-      status: statusMap[meeting.status] || "confirmed",
     };
 
-    if (meeting.meeting_url && meeting.meeting_url !== "auto_generate") {
+    if (meeting.location) {
+      event.location = meeting.location;
+    } else if (meeting.meeting_url && meeting.meeting_url !== "auto_generate") {
       event.location = meeting.meeting_url;
     }
 
