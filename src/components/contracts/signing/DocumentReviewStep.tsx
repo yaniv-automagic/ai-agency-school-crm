@@ -38,12 +38,12 @@ export default function DocumentReviewStep({ bodyHtml, isSubmitting, onConfirmRe
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-            <FileText size={20} className="text-blue-600" />
+          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+            <FileText size={20} className="text-primary" />
           </div>
           <div>
             <h3 className="text-lg font-semibold text-gray-900">סקירת המסמך</h3>
-            <p className="text-sm text-gray-500">שלב 2 מתוך 4 - קראו את החוזה במלואו</p>
+            <p className="text-sm text-gray-500">שלב 1 מתוך 3 - קראו את החוזה במלואו</p>
           </div>
         </div>
 
@@ -55,7 +55,7 @@ export default function DocumentReviewStep({ bodyHtml, isSubmitting, onConfirmRe
           </div>
           <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
             <div
-              className="h-full bg-blue-600 rounded-full transition-all duration-300"
+              className="h-full bg-primary rounded-full transition-all duration-300"
               style={{ width: `${scrollPercent}%` }}
             />
           </div>
@@ -88,7 +88,7 @@ export default function DocumentReviewStep({ bodyHtml, isSubmitting, onConfirmRe
         <button
           onClick={onConfirmReview}
           disabled={!hasScrolledToBottom || isSubmitting}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSubmitting ? (
             <>

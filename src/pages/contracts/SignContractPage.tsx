@@ -1,18 +1,16 @@
 import { useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useSigningCeremony } from "@/hooks/useSigningCeremony";
-import IdentityVerificationStep from "@/components/contracts/signing/IdentityVerificationStep";
 import DocumentReviewStep from "@/components/contracts/signing/DocumentReviewStep";
 import LegalConsentStep from "@/components/contracts/signing/LegalConsentStep";
 import SignatureStep from "@/components/contracts/signing/SignatureStep";
 import CompletionStep from "@/components/contracts/signing/CompletionStep";
 
 const STEP_NUMBERS: Record<string, number> = {
-  identity: 1,
-  review: 2,
-  consent: 3,
-  signature: 4,
-  complete: 5,
+  review: 1,
+  consent: 2,
+  signature: 3,
+  complete: 4,
 };
 
 export default function SignContractPage() {
@@ -24,7 +22,6 @@ export default function SignContractPage() {
     isSubmitting,
     signingResult,
     loadContract,
-    handleVerifyIdentity,
     handleConfirmReview,
     handleGiveConsent,
     handleSign,
@@ -38,7 +35,7 @@ export default function SignContractPage() {
   if (step === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
   }
@@ -63,15 +60,15 @@ export default function SignContractPage() {
     <div className="min-h-screen bg-gray-50" dir="rtl">
       {/* Header */}
       <div className="bg-white border-b border-gray-200">
-        <div className="max-w-3xl mx-auto px-4 py-6 text-center">
-          <h1 className="text-xl font-bold text-gray-900">AI Agency School</h1>
+        <div className="max-w-3xl mx-auto px-4 py-5 flex items-center justify-start">
+          <img src="/logo.png" alt="AI Agency School" className="h-10" />
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+      <div className="max-w-3xl mx-auto px-4 py-8 space-y-6" dir="rtl">
         {/* Contract Title */}
         {contract && step !== "complete" && (
-          <div className="text-center">
+          <div className="text-right">
             <h2 className="text-2xl font-bold text-gray-900">{contract.title}</h2>
             {contract.contact_name && (
               <p className="text-gray-500 mt-1">{contract.contact_name}</p>
@@ -82,20 +79,20 @@ export default function SignContractPage() {
         {/* Step progress indicator */}
         {step !== "complete" && (
           <div className="flex items-center justify-center gap-2">
-            {[1, 2, 3, 4].map((num) => (
+            {[1, 2, 3].map((num) => (
               <div key={num} className="flex items-center gap-2">
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
                     num < currentStepNum
                       ? "bg-green-500 text-white"
                       : num === currentStepNum
-                        ? "bg-blue-600 text-white"
+                        ? "bg-primary text-white"
                         : "bg-gray-200 text-gray-500"
                   }`}
                 >
-                  {num < currentStepNum ? "\u2713" : num}
+                  {num < currentStepNum ? "✓" : num}
                 </div>
-                {num < 4 && (
+                {num < 3 && (
                   <div
                     className={`w-8 h-0.5 transition-colors ${
                       num < currentStepNum ? "bg-green-500" : "bg-gray-200"
@@ -108,16 +105,6 @@ export default function SignContractPage() {
         )}
 
         {/* Step content */}
-        {step === "identity" && contract && (
-          <IdentityVerificationStep
-            contactName={contract.contact_name}
-            contactEmail={contract.contact_email}
-            isSubmitting={isSubmitting}
-            error={error}
-            onVerify={handleVerifyIdentity}
-          />
-        )}
-
         {step === "review" && contract && (
           <DocumentReviewStep
             bodyHtml={contract.body_html}

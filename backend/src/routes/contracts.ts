@@ -111,8 +111,15 @@ contractRouter.get("/sign/:token", async (req: Request, res: Response) => {
       await logAuditEvent(contract.id, "contract_viewed", "signer", null, ip, userAgent);
     }
 
-    // Return only safe fields
+    // The unique sign_token already identifies the signer, so we
+    // auto-grant the identity_verified step and issue a ceremony token.
     const contact = Array.isArray(contract.contact) ? contract.contact[0] : contract.contact;
+    const ceremonyToken = createCeremonyToken({
+      contract_id: contract.id,
+      sign_token: token,
+      steps: ["identity_verified"],
+    });
+
     res.json({
       id: contract.id,
       title: contract.title,
@@ -120,6 +127,7 @@ contractRouter.get("/sign/:token", async (req: Request, res: Response) => {
       status: contract.status === "sent" ? "viewed" : contract.status,
       contact_name: contact ? `${contact.first_name} ${contact.last_name}` : "",
       contact_email: contact?.email || "",
+      ceremony_token: ceremonyToken,
     });
   } catch (err) {
     console.error("[Contracts] Error fetching contract for signing:", err);

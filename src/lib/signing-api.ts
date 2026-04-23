@@ -12,6 +12,7 @@ interface ContractForSigning {
   status: string;
   contact_name: string;
   contact_email: string;
+  ceremony_token?: string;
 }
 
 interface CeremonyStepResponse {

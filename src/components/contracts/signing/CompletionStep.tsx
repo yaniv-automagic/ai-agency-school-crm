@@ -40,7 +40,7 @@ export default function CompletionStep({ contractTitle, certificateId, signedPdf
           href={signedPdfUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+          className="inline-flex items-center gap-2 px-6 py-3 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
         >
           <Download size={16} />
           הורדת חוזה חתום

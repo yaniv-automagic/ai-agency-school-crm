@@ -20,12 +20,12 @@ export default function LegalConsentStep({ isSubmitting, onConsent }: Props) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-6 sm:p-8 shadow-sm">
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-          <Scale size={20} className="text-blue-600" />
+        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+          <Scale size={20} className="text-primary" />
         </div>
         <div>
           <h3 className="text-lg font-semibold text-gray-900">הסכמה משפטית</h3>
-          <p className="text-sm text-gray-500">שלב 3 מתוך 4 - אשרו את הסכמתכם לחתימה אלקטרונית</p>
+          <p className="text-sm text-gray-500">שלב 2 מתוך 3 - אשרו את הסכמתכם לחתימה אלקטרונית</p>
         </div>
       </div>
 
@@ -35,7 +35,7 @@ export default function LegalConsentStep({ isSubmitting, onConsent }: Props) {
             type="checkbox"
             checked={consent1}
             onChange={(e) => setConsent1(e.target.checked)}
-            className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/50"
           />
           <span className="text-sm text-gray-700 leading-relaxed">{CONSENT_TEXT_1}</span>
         </label>
@@ -45,7 +45,7 @@ export default function LegalConsentStep({ isSubmitting, onConsent }: Props) {
             type="checkbox"
             checked={consent2}
             onChange={(e) => setConsent2(e.target.checked)}
-            className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary/50"
           />
           <span className="text-sm text-gray-700 leading-relaxed">{CONSENT_TEXT_2}</span>
         </label>
@@ -61,7 +61,7 @@ export default function LegalConsentStep({ isSubmitting, onConsent }: Props) {
       <button
         onClick={handleSubmit}
         disabled={!consent1 || !consent2 || isSubmitting}
-        className="w-full mt-6 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full mt-6 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isSubmitting ? (
           <>

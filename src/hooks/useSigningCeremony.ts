@@ -1,13 +1,12 @@
 import { useState, useCallback, useRef } from "react";
 import {
   getContractForSigning,
-  verifyIdentity,
   confirmReview,
   giveConsent,
   submitSignature,
 } from "@/lib/signing-api";
 
-export type SigningStep = "loading" | "error" | "identity" | "review" | "consent" | "signature" | "complete";
+export type SigningStep = "loading" | "error" | "review" | "consent" | "signature" | "complete";
 
 interface ContractData {
   id: string;
@@ -50,27 +49,15 @@ export function useSigningCeremony(token: string | undefined) {
       }
 
       setContract(data);
-      setStep("identity");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "שגיאה בטעינת החוזה");
-      setStep("error");
-    }
-  }, [token]);
-
-  const handleVerifyIdentity = useCallback(async (fullName: string, email: string) => {
-    if (!token) return;
-    setIsSubmitting(true);
-    setError(null);
-
-    try {
-      const result = await verifyIdentity(token, fullName, email);
-      ceremonyTokenRef.current = result.ceremony_token;
+      // Unique sign token identifies the signer - skip identity verification
+      if (data.ceremony_token) {
+        ceremonyTokenRef.current = data.ceremony_token;
+      }
       reviewStartRef.current = Date.now();
       setStep("review");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "שגיאה באימות זהות");
-    } finally {
-      setIsSubmitting(false);
+      setError(err instanceof Error ? err.message : "שגיאה בטעינת החוזה");
+      setStep("error");
     }
   }, [token]);
 
@@ -130,7 +117,6 @@ export function useSigningCeremony(token: string | undefined) {
     isSubmitting,
     signingResult,
     loadContract,
-    handleVerifyIdentity,
     handleConfirmReview,
     handleGiveConsent,
     handleSign,
