@@ -1,7 +1,4 @@
 import {
-  PIPELINE,
-  WEBINAR_STAGE,
-  VSL_STAGE,
   mapLeadStatus,
   mapContactStage,
   mapSource,
@@ -54,7 +51,6 @@ export interface ContactInsert {
   status: string;
   source: string;
   stage_id: string | null;
-  pipeline_id: string | null;
   tags: string[];
   notes: string | null;
   marketing_consent: boolean;
@@ -190,7 +186,6 @@ export function transformRegistrant(c: FbContact, teamMembers: TeamMemberLookup)
     status: statusInfo.status,
     source,
     stage_id: statusInfo.stageId,
-    pipeline_id: PIPELINE.WEBINAR,
     tags: ["fireberry", "webinar_registrant"],
     notes: c.description || null,
     marketing_consent: c.isvalidforemailcode === 1 || c.isvalidforemailcode === "1" || c.isvalidforemailcode === "כן",
@@ -236,7 +231,6 @@ export function transformLead(
   if (!firstName) return null;
 
   const usedPipeline = hasWebinarMatch ? "webinar" : "vsl";
-  const pipelineId = usedPipeline === "webinar" ? PIPELINE.WEBINAR : PIPELINE.VSL;
   const statusInfo = mapLeadStatus(l.statuscode, l.status, usedPipeline);
   const source = mapSource(l.pcfsystemfield105name);
   const adPlatform = mapAdPlatform(l.pcfsystemfield104name);
@@ -253,7 +247,6 @@ export function transformLead(
     status: statusInfo.status,
     source,
     stage_id: statusInfo.stageId,
-    pipeline_id: pipelineId,
     tags: ["fireberry", "lead", ...(hasWebinarMatch ? ["matched_webinar"] : ["vsl"])],
     notes: l.description || null,
     marketing_consent: l.pcfsystemfield120 === 1 || l.pcfsystemfield120 === "1" || l.pcfsystemfield120name === "כן",
@@ -310,7 +303,6 @@ export function mergeLeadIntoContact(
     // Lead wins on sales/pipeline state
     status: lead.status,
     stage_id: lead.stage_id,
-    pipeline_id: PIPELINE.WEBINAR, // stays webinar because matched
     loss_reason: lead.loss_reason ?? existing.loss_reason,
     conversion_at: lead.conversion_at ?? existing.conversion_at,
     entry_type: lead.entry_type ?? existing.entry_type,

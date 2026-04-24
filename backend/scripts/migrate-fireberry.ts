@@ -52,11 +52,20 @@ if (!existsSync(TMP_DIR)) mkdirSync(TMP_DIR, { recursive: true });
 // ===== Helpers =====
 function log(...args: any[]) { console.log(...args); }
 
+// Fireberry ownername → CRM display_name aliases (spelling differences)
+const OWNER_ALIASES: Record<string, string> = {
+  "ניצן טהר לב": "ניצן טהר-לב",
+};
+
 async function fetchTeamMembers(): Promise<TeamMemberLookup> {
   const { data, error } = await sb.from("crm_team_members").select("id, display_name");
   if (error) throw new Error(`Fetch team members failed: ${error.message}`);
   const map: TeamMemberLookup = {};
   for (const m of data || []) if (m.display_name) map[m.display_name] = m.id;
+  // Add reverse aliases so Fireberry names resolve to CRM ids
+  for (const [fbName, crmName] of Object.entries(OWNER_ALIASES)) {
+    if (map[crmName]) map[fbName] = map[crmName];
+  }
   return map;
 }
 
@@ -79,6 +88,47 @@ async function chunkedUpsert<T>(
     }
   }
   return { inserted, errors };
+}
+
+async function chunkedInsert<T>(
+  table: string,
+  rows: T[],
+  chunkSize = 100,
+): Promise<{ inserted: number; errors: Array<{ chunk: number; error: string }> }> {
+  let inserted = 0;
+  const errors: Array<{ chunk: number; error: string }> = [];
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const chunk = rows.slice(i, i + chunkSize);
+    const { error } = await sb.from(table).insert(chunk as any);
+    if (error) {
+      errors.push({ chunk: i / chunkSize, error: error.message });
+      log(`  ! chunk ${i / chunkSize} (${table}): ${error.message}`);
+    } else {
+      inserted += chunk.length;
+    }
+  }
+  return { inserted, errors };
+}
+
+async function fetchExistingContactKeys(): Promise<Set<string>> {
+  const keys = new Set<string>();
+  let from = 0;
+  const page = 1000;
+  while (true) {
+    const { data, error } = await sb
+      .from("crm_contacts")
+      .select("email, phone")
+      .range(from, from + page - 1);
+    if (error) throw new Error(`Fetch existing contacts failed: ${error.message}`);
+    if (!data || !data.length) break;
+    for (const r of data) {
+      if (r.email) keys.add(r.email.toLowerCase());
+      if (r.phone) keys.add(r.phone);
+    }
+    if (data.length < page) break;
+    from += page;
+  }
+  return keys;
 }
 
 // ===== Stages =====
@@ -155,33 +205,50 @@ async function stageContacts(
   }
   log(`  transformed: ${transformed}, skipped: ${skipped.length}, deduped: ${contactsByKey.size}`);
 
-  // Upsert contacts
-  const contactRows = [...contactsByKey.values()].map(({ __fb_contact_id, ...rest }) => rest);
+  const contactEntries = [...contactsByKey.entries()];
   let contactIdByKey: Map<string, string> = new Map();
+  let skippedExisting = 0;
 
-  if (!DRY_RUN && contactRows.length) {
-    // We can't upsert by (email, phone) easily. Insert then query.
-    // Use a bulk insert, then re-fetch by custom_fields.fireberry_contact_id.
-    const fbIds = [...contactsByKey.values()].map(c => c.__fb_contact_id);
-    // Delete any existing migrated contacts to re-run cleanly? No — we just upsert by external id via custom_fields.
-    // Strategy: for each chunk, try to look up existing by fireberry_contact_id and merge vs insert.
-    const { inserted, errors } = await chunkedUpsert("crm_contacts", contactRows, "email", 100);
-    log(`  inserted/updated: ${inserted}, errors: ${errors.length}`);
+  if (!DRY_RUN && contactEntries.length) {
+    // Filter out contacts whose email/phone already exist in DB (avoids manual duplicates)
+    const existingKeys = await fetchExistingContactKeys();
+    log(`  existing contacts in DB: ${existingKeys.size} unique email/phone keys`);
 
-    // Build contactIdByKey from DB
-    for (let i = 0; i < fbIds.length; i += 500) {
-      const batch = fbIds.slice(i, i + 500);
+    const toInsert: Array<Omit<typeof contactEntries[0][1], "__fb_contact_id">> = [];
+    const skippedKeys: string[] = [];
+    for (const [, c] of contactEntries) {
+      const existsEmail = c.email && existingKeys.has(c.email.toLowerCase());
+      const existsPhone = c.phone && existingKeys.has(c.phone);
+      if (existsEmail || existsPhone) {
+        skippedKeys.push((c.email || c.phone)!);
+        skippedExisting++;
+        continue;
+      }
+      const { __fb_contact_id, ...row } = c;
+      toInsert.push(row);
+    }
+    log(`  skipped (already in DB): ${skippedExisting}, inserting: ${toInsert.length}`);
+
+    const { inserted, errors } = await chunkedInsert("crm_contacts", toInsert, 200);
+    log(`  inserted: ${inserted}, chunks with errors: ${errors.length}`);
+
+    // Re-fetch all contacts to build id map for registration linking
+    let from = 0;
+    while (true) {
       const { data, error } = await sb
         .from("crm_contacts")
-        .select("id, email, phone, custom_fields")
-        .contains("custom_fields", {});
+        .select("id, email, phone")
+        .range(from, from + 999);
       if (error) throw error;
-      for (const r of data || []) {
-        const key = (r.email || r.phone || "").toLowerCase();
-        if (key) contactIdByKey.set(key, r.id);
+      if (!data || !data.length) break;
+      for (const r of data) {
+        if (r.email) contactIdByKey.set(r.email.toLowerCase(), r.id);
+        if (r.phone) contactIdByKey.set(r.phone, r.id);
       }
-      break; // single select fine since we select all
+      if (data.length < 1000) break;
+      from += 1000;
     }
+    log(`  contact id map built: ${contactIdByKey.size} keys`);
   } else {
     for (const [key, c] of contactsByKey) contactIdByKey.set(key, `DRYRUN-${c.__fb_contact_id}`);
   }
@@ -198,8 +265,19 @@ async function stageContacts(
   }
   log(`  built ${registrations.length} event registrations`);
 
-  if (!DRY_RUN && registrations.length) {
-    const { inserted, errors } = await chunkedUpsert("crm_event_registrations", registrations, "event_id,contact_id");
+  // Dedupe registrations by (event_id, contact_id) — multiple Fireberry rows may point to same pair
+  const regSeen = new Set<string>();
+  const regDeduped: typeof registrations = [];
+  for (const r of registrations) {
+    const k = `${r.event_id}|${r.contact_id}`;
+    if (regSeen.has(k)) continue;
+    regSeen.add(k);
+    regDeduped.push(r);
+  }
+  log(`  registrations after dedupe: ${regDeduped.length} (was ${registrations.length})`);
+
+  if (!DRY_RUN && regDeduped.length) {
+    const { inserted, errors } = await chunkedUpsert("crm_event_registrations", regDeduped, "event_id,contact_id");
     log(`  event_registrations inserted: ${inserted}, errors: ${errors.length}`);
   }
 
@@ -210,7 +288,7 @@ async function stageContacts(
       transformed,
       skipped,
       deduped_count: contactsByKey.size,
-      sample_first_5: contactRows.slice(0, 5),
+      sample_first_5: contactEntries.slice(0, 5).map(([, c]) => { const { __fb_contact_id, ...r } = c; return r; }),
       registrations_count: registrations.length,
     }, null, 2),
   );
@@ -264,18 +342,28 @@ async function stageLeads(
 
   if (!DRY_RUN) {
     if (newContacts.length) {
-      const { inserted, errors } = await chunkedUpsert("crm_contacts", newContacts, "email", 100);
-      log(`  new leads inserted: ${inserted}, errors: ${errors.length}`);
+      const existingKeys = await fetchExistingContactKeys();
+      const toInsert = newContacts.filter(c => {
+        const existsEmail = c.email && existingKeys.has(c.email.toLowerCase());
+        const existsPhone = c.phone && existingKeys.has(c.phone);
+        return !existsEmail && !existsPhone;
+      });
+      log(`  new leads: ${newContacts.length}, skipped (already in DB): ${newContacts.length - toInsert.length}, inserting: ${toInsert.length}`);
+      const { inserted, errors } = await chunkedInsert("crm_contacts", toInsert, 200);
+      log(`  new leads inserted: ${inserted}, chunks with errors: ${errors.length}`);
     }
-    // Update merged records
+    // Update merged records (matched an existing registrant by email/phone)
     let updated = 0;
-    for (const { key, merged } of mergedContacts) {
+    for (const { merged } of mergedContacts) {
+      const filter = merged.email
+        ? `email.eq.${merged.email}`
+        : merged.phone ? `phone.eq.${merged.phone}` : null;
+      if (!filter) continue;
       const { error } = await sb
         .from("crm_contacts")
         .update({
           status: merged.status,
           stage_id: merged.stage_id,
-          pipeline_id: merged.pipeline_id,
           loss_reason: merged.loss_reason,
           conversion_at: merged.conversion_at,
           entry_type: merged.entry_type,
@@ -286,7 +374,7 @@ async function stageLeads(
           tags: merged.tags,
           custom_fields: merged.custom_fields,
         })
-        .or(`email.eq.${merged.email},phone.eq.${merged.phone}`);
+        .or(filter);
       if (!error) updated++;
     }
     log(`  merged contacts updated: ${updated}/${mergedContacts.length}`);
