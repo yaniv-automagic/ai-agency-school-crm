@@ -244,7 +244,7 @@ export async function generateContractPdf(data: ContractPdfData): Promise<Buffer
 
   try {
     const html = wrapHtml(data.bodyHtml, data.title);
-    await page.setContent(html, { waitUntil: "networkidle0", timeout: 15000 });
+    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 30000 });
     const pdf = await page.pdf({
       format: "A4",
       margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" },
@@ -267,7 +267,7 @@ export async function generateSignedContractPdf(data: SignedPdfData): Promise<Bu
       embedSignatureInBody(data.bodyHtml, data),
       data.title,
     );
-    await contractPage.setContent(contractHtml, { waitUntil: "networkidle0", timeout: 15000 });
+    await contractPage.setContent(contractHtml, { waitUntil: "domcontentloaded", timeout: 30000 });
     contractPdfBuffer = Buffer.from(await contractPage.pdf({
       format: "A4",
       margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" },
@@ -282,7 +282,7 @@ export async function generateSignedContractPdf(data: SignedPdfData): Promise<Bu
   let certPdfBuffer: Buffer;
   try {
     const certHtml = buildCertificatePageHtml(data);
-    await certPage.setContent(certHtml, { waitUntil: "networkidle0", timeout: 15000 });
+    await certPage.setContent(certHtml, { waitUntil: "domcontentloaded", timeout: 30000 });
     certPdfBuffer = Buffer.from(await certPage.pdf({
       format: "A4",
       margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" },
@@ -357,7 +357,7 @@ export async function generateSignedContractPdf(data: SignedPdfData): Promise<Bu
 </body>
 </html>`;
 
-    await combinedPage.setContent(fullHtml, { waitUntil: "networkidle0", timeout: 15000 });
+    await combinedPage.setContent(fullHtml, { waitUntil: "domcontentloaded", timeout: 30000 });
     const finalPdf = await combinedPage.pdf({
       format: "A4",
       margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" },
