@@ -29,7 +29,14 @@ interface CeremonyTokenPayload {
 }
 
 function createCeremonyToken(payload: CeremonyTokenPayload): string {
-  return jwt.sign(payload, CEREMONY_SECRET, { expiresIn: "30m" });
+  // Strip any JWT reserved claims from previous token payload (iat/exp/nbf)
+  // before re-signing, otherwise expiresIn option throws.
+  const clean: CeremonyTokenPayload = {
+    contract_id: payload.contract_id,
+    sign_token: payload.sign_token,
+    steps: payload.steps,
+  };
+  return jwt.sign(clean, CEREMONY_SECRET, { expiresIn: "30m" });
 }
 
 function verifyCeremonyToken(token: string): CeremonyTokenPayload | null {
