@@ -138,6 +138,29 @@ function buildSignatureSectionHtml(data: SignedPdfData): string {
   `;
 }
 
+/**
+ * Replace the signature placeholder block in the contract HTML with the
+ * actual signature. Matches the pattern the template builder outputs.
+ */
+function embedSignatureInBody(bodyHtml: string, data: SignedPdfData): string {
+  const signatureBlock = data.signatureType === "drawn"
+    ? `<div style="margin:24px 0;padding:16px;border:1px solid #e5e7eb;border-radius:8px;text-align:center;background:#fff;">
+         <img src="${data.signatureData}" alt="חתימה" style="max-height:120px;max-width:300px;display:inline-block;" />
+         <div style="margin-top:8px;font-size:13px;color:#6b7280;">${data.signerName}</div>
+       </div>`
+    : `<div style="margin:24px 0;padding:16px;border:1px solid #e5e7eb;border-radius:8px;text-align:center;background:#fff;">
+         <div style="font-family:cursive;font-size:28px;color:#000;">${data.signatureData}</div>
+         <div style="margin-top:8px;font-size:13px;color:#6b7280;">${data.signerName}</div>
+       </div>`;
+
+  const placeholderRegex = /<div[^>]*border:2px dashed[^>]*>[^<]*חתימת[^<]*<\/div>/g;
+  if (placeholderRegex.test(bodyHtml)) {
+    return bodyHtml.replace(placeholderRegex, signatureBlock);
+  }
+  // Fallback: append at the end if no placeholder in template
+  return bodyHtml + buildSignatureSectionHtml(data);
+}
+
 function buildCertificatePageHtml(data: SignedPdfData): string {
   const signedDate = new Date(data.signedAt);
   const formattedDateTime = signedDate.toLocaleString("he-IL", {
@@ -268,12 +291,12 @@ export async function generateContractPdf(data: ContractPdfData): Promise<Buffer
 export async function generateSignedContractPdf(data: SignedPdfData): Promise<Buffer> {
   const browser = await getBrowser();
 
-  // Page 1: Contract with embedded signature
+  // Page 1: Contract with embedded signature (replaces placeholder in body)
   const contractPage = await browser.newPage();
   let contractPdfBuffer: Buffer;
   try {
     const contractHtml = wrapHtml(
-      data.bodyHtml + buildSignatureSectionHtml(data),
+      embedSignatureInBody(data.bodyHtml, data),
       data.title,
     );
     await contractPage.setContent(contractHtml, { waitUntil: "networkidle0", timeout: 15000 });
@@ -341,8 +364,7 @@ export async function generateSignedContractPdf(data: SignedPdfData): Promise<Bu
 <body>
   <div class="page">
     <div class="contract-title"><h1>${data.title}</h1></div>
-    ${data.bodyHtml}
-    ${buildSignatureSectionHtml(data)}
+    ${embedSignatureInBody(data.bodyHtml, data)}
   </div>
   <div class="page-break"></div>
   <div class="page">

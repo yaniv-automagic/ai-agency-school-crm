@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Plus, FileText } from "lucide-react";
 import { useContracts } from "@/hooks/useContracts";
 import { CONTRACT_STATUSES } from "@/lib/constants";
-import { cn, timeAgo } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import type { ContractStatus } from "@/types/crm";
 
 const FILTER_TABS = [
@@ -110,13 +110,13 @@ export default function ContractsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
-                        {contract.sent_at ? timeAgo(contract.sent_at) : "—"}
+                        {contract.sent_at ? formatDateTime(contract.sent_at) : "—"}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
-                        {contract.signed_at ? timeAgo(contract.signed_at) : "—"}
+                        {contract.signed_at ? formatDateTime(contract.signed_at) : "—"}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
-                        {timeAgo(contract.created_at)}
+                        {formatDateTime(contract.created_at)}
                       </td>
                     </tr>
                   );

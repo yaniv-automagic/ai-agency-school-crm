@@ -4,7 +4,7 @@ import { ArrowRight, Send, Copy, CheckCircle2, Lock, Download, FileText, Shield,
 import { useContract, useUpdateContract } from "@/hooks/useContracts";
 import { useContractAuditLog, useSendContract } from "@/hooks/useContracts";
 import { CONTRACT_STATUSES } from "@/lib/constants";
-import { cn, timeAgo } from "@/lib/utils";
+import { cn, formatDateTime } from "@/lib/utils";
 import { toast } from "sonner";
 import SendContractDialog from "@/components/contracts/SendContractDialog";
 
@@ -26,6 +26,31 @@ const AUDIT_EVENT_LABELS: Record<string, string> = {
   contract_expired: "חוזה פג תוקף",
   contract_cancelled: "חוזה בוטל",
 };
+
+/**
+ * Replace the signature placeholder block in the contract HTML with the
+ * actual signature image (or typed name). Matches the pattern the template
+ * builder outputs: a dashed-border div containing "חתימת הלקוח: _______________"
+ */
+function embedSignatureInBody(bodyHtml: string, signatureData: string, signatureType: string, signerName?: string | null): string {
+  const signatureHtml = signatureType === "drawn"
+    ? `<div style="margin:24px 0;padding:16px;border:1px solid #e5e7eb;border-radius:8px;text-align:center;background:#fff;">
+         <img src="${signatureData}" alt="חתימה" style="max-height:120px;max-width:300px;display:inline-block;" />
+         ${signerName ? `<div style="margin-top:8px;font-size:13px;color:#6b7280;">${signerName}</div>` : ""}
+       </div>`
+    : `<div style="margin:24px 0;padding:16px;border:1px solid #e5e7eb;border-radius:8px;text-align:center;background:#fff;">
+         <div style="font-family:cursive;font-size:28px;color:#000;">${signatureData}</div>
+         ${signerName ? `<div style="margin-top:8px;font-size:13px;color:#6b7280;">${signerName}</div>` : ""}
+       </div>`;
+
+  // Pattern used by the template builder's signature block
+  const placeholderRegex = /<div[^>]*border:2px dashed[^>]*>[^<]*חתימת[^<]*<\/div>/g;
+  if (placeholderRegex.test(bodyHtml)) {
+    return bodyHtml.replace(placeholderRegex, signatureHtml);
+  }
+  // Fallback: append at the end if no placeholder found
+  return bodyHtml + signatureHtml;
+}
 
 const AUDIT_EVENT_COLORS: Record<string, string> = {
   contract_created: "bg-gray-400",
@@ -172,47 +197,40 @@ export default function ContractDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Contract HTML Body */}
+          {/* Contract HTML Body (with signature embedded when signed) */}
           <div className="bg-card border border-border rounded-xl p-6">
             <div
               className="prose prose-sm max-w-none dark:prose-invert"
               dir="rtl"
-              dangerouslySetInnerHTML={{ __html: contract.body_html }}
+              dangerouslySetInnerHTML={{
+                __html: contract.status === "signed" && contract.signature_data
+                  ? embedSignatureInBody(
+                      contract.body_html,
+                      contract.signature_data,
+                      contract.signature_type || "drawn",
+                      contract.signer_name_confirmed,
+                    )
+                  : contract.body_html,
+              }}
             />
           </div>
 
-          {/* Signature (if signed) */}
-          {contract.status === "signed" && contract.signature_data && (
+          {/* Signing Info (if signed) */}
+          {contract.status === "signed" && contract.signed_at && (
             <div className="bg-card border border-border rounded-xl p-6">
-              <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
                 <CheckCircle2 size={18} className="text-green-600" />
-                חתימה
+                פרטי חתימה
               </h3>
-              <div className="border border-border rounded-lg p-4 bg-white">
-                {contract.signature_type === "drawn" ? (
-                  <img
-                    src={contract.signature_data}
-                    alt="חתימה"
-                    className="max-h-32 mx-auto"
-                  />
-                ) : (
-                  <p className="text-2xl text-center" style={{ fontFamily: "cursive" }}>
-                    {contract.signature_data}
-                  </p>
-                )}
-              </div>
-              <div className="mt-3 space-y-1">
+              <div className="space-y-1">
                 {contract.signer_name_confirmed && (
                   <p className="text-sm text-muted-foreground">
                     חותם: {contract.signer_name_confirmed}
                   </p>
                 )}
-                {contract.signed_at && (
-                  <p className="text-sm text-muted-foreground">
-                    נחתם ב-{new Date(contract.signed_at).toLocaleDateString("he-IL")}{" "}
-                    בשעה {new Date(contract.signed_at).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}
-                  </p>
-                )}
+                <p className="text-sm text-muted-foreground">
+                  נחתם ב-{formatDateTime(contract.signed_at)}
+                </p>
                 {contract.signer_ip && (
                   <p className="text-xs text-muted-foreground" dir="ltr">
                     IP: {contract.signer_ip}
@@ -315,7 +333,7 @@ export default function ContractDetailPage() {
                     <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${AUDIT_EVENT_COLORS[event.event_type] || "bg-gray-400"}`} />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm">{AUDIT_EVENT_LABELS[event.event_type] || event.event_type}</p>
-                      <p className="text-xs text-muted-foreground">{timeAgo(event.created_at)}</p>
+                      <p className="text-xs text-muted-foreground">{formatDateTime(event.created_at)}</p>
                       {event.ip_address && (
                         <p className="text-xs text-muted-foreground" dir="ltr">IP: {event.ip_address}</p>
                       )}
@@ -329,7 +347,7 @@ export default function ContractDetailPage() {
                     <div className="w-2 h-2 rounded-full bg-gray-400 mt-1.5 shrink-0" />
                     <div>
                       <p className="text-sm">נוצר</p>
-                      <p className="text-xs text-muted-foreground">{timeAgo(contract.created_at)}</p>
+                      <p className="text-xs text-muted-foreground">{formatDateTime(contract.created_at)}</p>
                     </div>
                   </div>
                   {contract.sent_at && (
@@ -337,7 +355,7 @@ export default function ContractDetailPage() {
                       <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0" />
                       <div>
                         <p className="text-sm">נשלח</p>
-                        <p className="text-xs text-muted-foreground">{timeAgo(contract.sent_at)}</p>
+                        <p className="text-xs text-muted-foreground">{formatDateTime(contract.sent_at)}</p>
                       </div>
                     </div>
                   )}
@@ -346,7 +364,7 @@ export default function ContractDetailPage() {
                       <div className="w-2 h-2 rounded-full bg-amber-500 mt-1.5 shrink-0" />
                       <div>
                         <p className="text-sm">נצפה</p>
-                        <p className="text-xs text-muted-foreground">{timeAgo(contract.viewed_at)}</p>
+                        <p className="text-xs text-muted-foreground">{formatDateTime(contract.viewed_at)}</p>
                       </div>
                     </div>
                   )}
@@ -355,7 +373,7 @@ export default function ContractDetailPage() {
                       <div className="w-2 h-2 rounded-full bg-green-500 mt-1.5 shrink-0" />
                       <div>
                         <p className="text-sm">נחתם</p>
-                        <p className="text-xs text-muted-foreground">{timeAgo(contract.signed_at)}</p>
+                        <p className="text-xs text-muted-foreground">{formatDateTime(contract.signed_at)}</p>
                       </div>
                     </div>
                   )}
