@@ -60,7 +60,7 @@ export default function SignContractPage() {
     <div className="min-h-screen bg-gray-50" dir="rtl">
       {/* Header */}
       <div className="bg-white border-b border-gray-200">
-        <div className="max-w-3xl mx-auto px-4 py-5 flex items-center justify-start">
+        <div className="max-w-3xl mx-auto px-4 py-5 flex items-center justify-center">
           <img src="/logo.png" alt="AI Agency School" className="h-10" />
         </div>
       </div>

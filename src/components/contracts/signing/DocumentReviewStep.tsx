@@ -16,10 +16,12 @@ export default function DocumentReviewStep({ bodyHtml, isSubmitting, onConfirmRe
     const el = scrollRef.current;
     if (!el) return;
     const { scrollTop, scrollHeight, clientHeight } = el;
-    const percent = Math.round((scrollTop / (scrollHeight - clientHeight)) * 100);
+    const maxScroll = Math.max(scrollHeight - clientHeight, 1);
+    const percent = Math.round((scrollTop / maxScroll) * 100);
     setScrollPercent(Math.min(percent, 100));
 
-    if (scrollTop + clientHeight >= scrollHeight - 20) {
+    // Consider "read" once the user is within 80px of the bottom (~95%)
+    if (scrollTop + clientHeight >= scrollHeight - 80 || percent >= 95) {
       setHasScrolledToBottom(true);
     }
   }, []);
