@@ -349,43 +349,7 @@ contractRouter.post("/sign/:token/sign", async (req: Request, res: Response) => 
       .eq("contract_id", contract.id)
       .order("created_at", { ascending: true });
 
-    // Generate signed PDF
-    const signedPdfBuffer = await generateSignedContractPdf({
-      title: contract.title,
-      bodyHtml: contract.body_html,
-      contactName: signerName,
-      signatureData: signature_data,
-      signatureType: signature_type,
-      signerName,
-      signerEmail,
-      signerIp: ip,
-      signedAt,
-      certificateId,
-      documentHash: contract.document_hash || computeHash(contract.body_html),
-      auditTrail: [
-        ...(auditTrail || []),
-        { event_type: "signature_completed", created_at: signedAt, ip_address: ip, actor_type: "signer" },
-      ],
-    });
-
-    const signedDocumentHash = computeHash(signedPdfBuffer);
-
-    // Upload signed PDF to Supabase Storage
-    const storagePath = `contracts/${contract.id}/signed.pdf`;
-    const { error: uploadError } = await supabase.storage
-      .from("crm-files")
-      .upload(storagePath, signedPdfBuffer, {
-        contentType: "application/pdf",
-        upsert: true,
-      });
-
-    if (uploadError) {
-      console.error("[Contracts] Upload error:", uploadError);
-    }
-
-    const { data: publicUrl } = supabase.storage.from("crm-files").getPublicUrl(storagePath);
-
-    // Update contract
+    // Mark contract as signed immediately (don't block on PDF generation)
     await supabase
       .from("crm_contracts")
       .update({
@@ -395,8 +359,6 @@ contractRouter.post("/sign/:token/sign", async (req: Request, res: Response) => 
         signed_at: signedAt,
         signer_ip: ip,
         signer_user_agent: userAgent,
-        signed_pdf_url: publicUrl?.publicUrl || null,
-        signed_document_hash: signedDocumentHash,
         certificate_id: certificateId,
         locked: true,
         signing_ceremony_data: {
@@ -409,14 +371,50 @@ contractRouter.post("/sign/:token/sign", async (req: Request, res: Response) => 
       })
       .eq("id", contract.id);
 
+    // Generate & upload signed PDF in background (PDF is best-effort; contract
+    // is already legally signed at this point via the signing ceremony data)
+    let signedPdfUrl: string | null = null;
+    try {
+      const signedPdfBuffer = await generateSignedContractPdf({
+        title: contract.title,
+        bodyHtml: contract.body_html,
+        contactName: signerName,
+        signatureData: signature_data,
+        signatureType: signature_type,
+        signerName,
+        signerEmail,
+        signerIp: ip,
+        signedAt,
+        certificateId,
+        documentHash: contract.document_hash || computeHash(contract.body_html),
+        auditTrail: [
+          ...(auditTrail || []),
+          { event_type: "signature_completed", created_at: signedAt, ip_address: ip, actor_type: "signer" },
+        ],
+      });
+
+      const signedDocumentHash = computeHash(signedPdfBuffer);
+      const storagePath = `contracts/${contract.id}/signed.pdf`;
+      const { error: uploadError } = await supabase.storage
+        .from("crm-files")
+        .upload(storagePath, signedPdfBuffer, { contentType: "application/pdf", upsert: true });
+      if (uploadError) console.error("[Contracts] Upload error:", uploadError);
+
+      const { data: pub } = supabase.storage.from("crm-files").getPublicUrl(storagePath);
+      signedPdfUrl = pub?.publicUrl || null;
+
+      await supabase.from("crm_contracts").update({
+        signed_pdf_url: signedPdfUrl,
+        signed_document_hash: signedDocumentHash,
+      }).eq("id", contract.id);
+    } catch (pdfErr: any) {
+      console.error("[Contracts] PDF generation failed:", pdfErr?.message || pdfErr);
+    }
+
     // Log completion
     await logAuditEvent(contract.id, "signature_completed", "signer", signerEmail, ip, userAgent, {
       signature_type,
       certificate_id: certificateId,
-    });
-    await logAuditEvent(contract.id, "signed_pdf_generated", "system", null, null, null, {
-      signed_document_hash: signedDocumentHash,
-      storage_path: storagePath,
     });
 
     // Log activity in timeline
@@ -430,19 +428,19 @@ contractRouter.post("/sign/:token/sign", async (req: Request, res: Response) => 
       metadata: {
         contract_id: contract.id,
         certificate_id: certificateId,
-        signed_pdf_url: publicUrl?.publicUrl || null,
+        signed_pdf_url: signedPdfUrl,
         event: "contract_signed",
       },
     });
 
     // Send emails (fire-and-forget)
-    sendSignedCopyToSigner(contract.title, signerName, signerEmail, publicUrl?.publicUrl || "", contract.tenant_id).catch(console.error);
+    sendSignedCopyToSigner(contract.title, signerName, signerEmail, signedPdfUrl || "", contract.tenant_id).catch(console.error);
     sendSigningNotificationToOwner(contract, signerName, contact).catch(console.error);
 
     res.json({
       success: true,
       certificate_id: certificateId,
-      signed_pdf_url: publicUrl?.publicUrl || null,
+      signed_pdf_url: signedPdfUrl,
       signed_at: signedAt,
     });
   } catch (err) {
