@@ -15,31 +15,35 @@ export function useContacts(filters?: {
   return useQuery({
     queryKey: [...CONTACTS_KEY, filters],
     queryFn: async () => {
-      let query = supabase
-        .from("crm_contacts")
-        .select("*, stage:crm_pipeline_stages(*), assigned_member:crm_team_members!assigned_to(*)")
-        .order("created_at", { ascending: false });
+      const buildQuery = () => {
+        let query = supabase
+          .from("crm_contacts")
+          .select("*, stage:crm_pipeline_stages(*), assigned_member:crm_team_members!assigned_to(*)")
+          .order("created_at", { ascending: false });
+        if (filters?.stage_id) query = query.eq("stage_id", filters.stage_id);
+        else if (filters?.status) query = query.eq("status", filters.status);
+        if (filters?.source) query = query.eq("source", filters.source);
+        if (filters?.assigned_to) query = query.eq("assigned_to", filters.assigned_to);
+        if (filters?.search) {
+          query = query.or(
+            `first_name.ilike.%${filters.search}%,last_name.ilike.%${filters.search}%,email.ilike.%${filters.search}%,phone.ilike.%${filters.search}%`
+          );
+        }
+        return query;
+      };
 
-      if (filters?.stage_id) {
-        query = query.eq("stage_id", filters.stage_id);
-      } else if (filters?.status) {
-        query = query.eq("status", filters.status);
+      // Supabase PostgREST caps responses at 1000 rows — paginate manually.
+      const PAGE_SIZE = 1000;
+      const all: Contact[] = [];
+      for (let page = 0; page < 20; page++) {
+        const from = page * PAGE_SIZE;
+        const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        all.push(...(data as Contact[]));
+        if (data.length < PAGE_SIZE) break;
       }
-      if (filters?.source) {
-        query = query.eq("source", filters.source);
-      }
-      if (filters?.assigned_to) {
-        query = query.eq("assigned_to", filters.assigned_to);
-      }
-      if (filters?.search) {
-        query = query.or(
-          `first_name.ilike.%${filters.search}%,last_name.ilike.%${filters.search}%,email.ilike.%${filters.search}%,phone.ilike.%${filters.search}%`
-        );
-      }
-
-      const { data, error } = await query.range(0, 9999);
-      if (error) throw error;
-      return data as Contact[];
+      return all;
     },
   });
 }
