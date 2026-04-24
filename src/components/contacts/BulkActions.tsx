@@ -172,20 +172,21 @@ export default function BulkActions({ selectedIds, onClear }: BulkActionsProps) 
               הוסף תגית
             </button>
             {openMenu === "tag" && (
-              <div className="absolute bottom-full mb-2 right-0 bg-card border border-border rounded-xl shadow-xl p-3 w-60 z-50">
-                <div className="flex gap-2">
+              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-card border border-border rounded-xl shadow-xl p-2 w-80 z-50" dir="rtl">
+                <div className="flex items-center gap-1.5 bg-background border border-input rounded-lg focus-within:ring-2 focus-within:ring-ring transition-shadow overflow-hidden">
+                  <Tag size={14} className="text-muted-foreground mr-3 shrink-0" />
                   <input
                     value={tagValue}
                     onChange={(e) => setTagValue(e.target.value)}
                     placeholder="שם התגית..."
-                    className="flex-1 px-3 py-2 text-sm border border-input rounded-lg bg-background outline-none focus:ring-2 focus:ring-ring"
+                    className="flex-1 py-2 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
                     autoFocus
                     onKeyDown={(e) => e.key === "Enter" && addTag()}
                   />
                   <button
                     onClick={addTag}
                     disabled={!tagValue.trim() || loading}
-                    className="px-3 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                    className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
                   >
                     הוסף
                   </button>
