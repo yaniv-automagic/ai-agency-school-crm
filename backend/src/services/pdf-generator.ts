@@ -168,23 +168,6 @@ function buildCertificatePageHtml(data: SignedPdfData): string {
     hour: "2-digit", minute: "2-digit", second: "2-digit",
   });
 
-  const auditRows = data.auditTrail
-    .map((entry) => {
-      const eventDate = new Date(entry.created_at);
-      const time = eventDate.toLocaleString("he-IL", {
-        year: "numeric", month: "2-digit", day: "2-digit",
-        hour: "2-digit", minute: "2-digit", second: "2-digit",
-      });
-      const label = EVENT_TYPE_LABELS[entry.event_type] || entry.event_type;
-      return `<tr>
-        <td>${time}</td>
-        <td>${label}</td>
-        <td>${entry.ip_address || "-"}</td>
-        <td>${entry.actor_type === "signer" ? "חותם" : entry.actor_type === "team_member" ? "צוות" : "מערכת"}</td>
-      </tr>`;
-    })
-    .join("");
-
   return `<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
@@ -245,21 +228,6 @@ function buildCertificatePageHtml(data: SignedPdfData): string {
 
   <h2 style="font-size: 16px; margin: 24px 0 12px;">שלמות המסמך</h2>
   <div class="field"><span class="field-label">SHA-256 Hash: </span><span class="field-value" style="font-family: monospace; font-size: 11px; word-break: break-all;">${data.documentHash}</span></div>
-
-  <h2 style="font-size: 16px; margin: 24px 0 12px;">מעקב אירועים (Audit Trail)</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>תאריך ושעה</th>
-        <th>אירוע</th>
-        <th>IP</th>
-        <th>גורם</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${auditRows}
-    </tbody>
-  </table>
 
   <div class="legal-note">
     <strong>הצהרה משפטית:</strong> מסמך זה נחתם באופן אלקטרוני בהתאם לחוק חתימה אלקטרונית, תשס"א-2001.
@@ -380,18 +348,6 @@ export async function generateSignedContractPdf(data: SignedPdfData): Promise<Bu
     <div class="field"><span class="field-label">סוג חתימה: </span>${data.signatureType === "drawn" ? "חתימה ידנית (ציור)" : "חתימה מוקלדת"}</div>
     <h2 style="font-size: 16px; margin: 24px 0 12px;">שלמות המסמך</h2>
     <div class="field"><span class="field-label">SHA-256 Hash: </span><span style="font-family: monospace; font-size: 11px; word-break: break-all;">${data.documentHash}</span></div>
-    <h2 style="font-size: 16px; margin: 24px 0 12px;">מעקב אירועים (Audit Trail)</h2>
-    <table>
-      <thead><tr><th>תאריך ושעה</th><th>אירוע</th><th>IP</th><th>גורם</th></tr></thead>
-      <tbody>
-        ${data.auditTrail.map((e) => {
-          const t = new Date(e.created_at).toLocaleString("he-IL");
-          const label = EVENT_TYPE_LABELS[e.event_type] || e.event_type;
-          const actor = e.actor_type === "signer" ? "חותם" : e.actor_type === "team_member" ? "צוות" : "מערכת";
-          return `<tr><td>${t}</td><td>${label}</td><td>${e.ip_address || "-"}</td><td>${actor}</td></tr>`;
-        }).join("")}
-      </tbody>
-    </table>
     <div class="legal-note">
       <strong>הצהרה משפטית:</strong> מסמך זה נחתם באופן אלקטרוני בהתאם לחוק חתימה אלקטרונית, תשס"א-2001.
       החותם אימת את זהותו, סקר את המסמך, ונתן הסכמה מפורשת לחתימה אלקטרונית.
