@@ -18,11 +18,14 @@ export default function DocumentReviewStep({ bodyHtml, isSubmitting, onConfirmRe
     const { scrollTop, scrollHeight, clientHeight } = el;
     const maxScroll = Math.max(scrollHeight - clientHeight, 1);
     const percent = Math.round((scrollTop / maxScroll) * 100);
-    setScrollPercent(Math.min(percent, 100));
+
+    // Progress bar only moves forward — it locks once reached
+    setScrollPercent(prev => Math.max(prev, Math.min(percent, 100)));
 
     // Consider "read" once the user is within 80px of the bottom (~95%)
     if (scrollTop + clientHeight >= scrollHeight - 80 || percent >= 95) {
       setHasScrolledToBottom(true);
+      setScrollPercent(100);
     }
   }, []);
 
