@@ -162,13 +162,19 @@ export function transformWebinar(w: FbWebinar): EventInsert | null {
 }
 
 // ===== Transform: Fireberry contact (webinar registrant) → crm_contacts =====
-export function transformRegistrant(c: FbContact, teamMembers: TeamMemberLookup): ContactInsert | null {
+// allowMissingContact=true: include rows without email AND phone (tagged as needs_contact_info)
+export function transformRegistrant(
+  c: FbContact,
+  teamMembers: TeamMemberLookup,
+  allowMissingContact = false,
+): ContactInsert | null {
   const email = normalizeEmail(c.emailaddress1);
   const phone = normalizePhone(c.telephone1) || normalizePhone(c.mobilephone1);
-  if (!email && !phone) return null;
+  if (!email && !phone && !allowMissingContact) return null;
 
   const [firstName, lastName] = splitName(c.fullname, c.firstname, c.lastname);
   if (!firstName && !lastName) return null;
+  const extraTag = !email && !phone ? ["needs_contact_info"] : [];
 
   const statusInfo = mapContactStage(c.pcfsystemfield51name);
   const source = mapSource(c.pcfsystemfield101name);
@@ -186,7 +192,7 @@ export function transformRegistrant(c: FbContact, teamMembers: TeamMemberLookup)
     status: statusInfo.status,
     source,
     stage_id: statusInfo.stageId,
-    tags: ["fireberry", "webinar_registrant"],
+    tags: ["fireberry", "webinar_registrant", ...extraTag],
     notes: c.description || null,
     marketing_consent: c.isvalidforemailcode === 1 || c.isvalidforemailcode === "1" || c.isvalidforemailcode === "כן",
     marketing_consent_at: normalizeDate(c.createdon),
@@ -222,13 +228,15 @@ export function transformLead(
   l: FbLead,
   teamMembers: TeamMemberLookup,
   hasWebinarMatch: boolean,
+  allowMissingContact = false,
 ): ContactInsert | null {
   const email = normalizeEmail(l.pcfsystemfield102);
   const phone = normalizePhone(l.pcfsystemfield101);
-  if (!email && !phone) return null;
+  if (!email && !phone && !allowMissingContact) return null;
 
   const [firstName, lastName] = splitName(l.name);
   if (!firstName) return null;
+  const extraTag = !email && !phone ? ["needs_contact_info"] : [];
 
   const usedPipeline = hasWebinarMatch ? "webinar" : "vsl";
   const statusInfo = mapLeadStatus(l.statuscode, l.status, usedPipeline);
@@ -247,7 +255,7 @@ export function transformLead(
     status: statusInfo.status,
     source,
     stage_id: statusInfo.stageId,
-    tags: ["fireberry", "lead", ...(hasWebinarMatch ? ["matched_webinar"] : ["vsl"])],
+    tags: ["fireberry", "lead", ...(hasWebinarMatch ? ["matched_webinar"] : ["vsl"]), ...extraTag],
     notes: l.description || null,
     marketing_consent: l.pcfsystemfield120 === 1 || l.pcfsystemfield120 === "1" || l.pcfsystemfield120name === "כן",
     marketing_consent_at: normalizeDate(l.createdon),
@@ -312,6 +320,40 @@ export function mergeLeadIntoContact(
     notes: [existing.notes, lead.notes].filter(Boolean).join("\n---\n") || null,
     tags: Array.from(new Set([...existing.tags, ...lead.tags])),
     custom_fields: { ...existing.custom_fields, ...lead.custom_fields, merged: true },
+  };
+}
+
+// ===== Build registration row from a lead (uses pcfsystemfield100 = linked webinar) =====
+export function buildLeadRegistration(
+  l: FbLead,
+  contactId: string,
+  webinarIdByExternal: Record<string, string>,
+): EventRegistrationInsert | null {
+  const webId = l.pcfsystemfield100;
+  if (!webId) return null;
+  const eventId = webinarIdByExternal[webId];
+  if (!eventId) return null;
+
+  // Infer attended: if lead progressed past "ליד חדש", they likely attended
+  const advancedStatuses = new Set(["פולואפ", "נסגר", "לא נסגר", "לא רלוונטי"]);
+  const attended = advancedStatuses.has(l.status || "");
+
+  return {
+    event_id: eventId,
+    contact_id: contactId,
+    registered: true,
+    attended,
+    registered_at: normalizeDate(l.createdon),
+    attended_at: attended ? normalizeDate(l.modifiedon) : null,
+    utm_source: l.pcfsystemfield108 || null,
+    utm_medium: l.pcfsystemfield109 || null,
+    utm_campaign: l.pcfsystemfield110 || null,
+    utm_content: l.pcfsystemfield112 || null,
+    utm_term: l.pcfsystemfield111 || null,
+    click_id: l.pcfsystemfield121 || null,
+    ad_name: l.pcfsystemfield107name || null,
+    external_source: "fireberry",
+    external_id: l.opportunityid,
   };
 }
 

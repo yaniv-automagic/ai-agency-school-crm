@@ -13,6 +13,7 @@ import {
   transformLead,
   mergeLeadIntoContact,
   buildRegistrations,
+  buildLeadRegistration,
   ContactInsert,
   EventInsert,
   EventRegistrationInsert,
@@ -187,11 +188,11 @@ async function stageContacts(
   let transformed = 0;
 
   for (const c of raw) {
-    const t = transformRegistrant(c, teamMembers);
-    if (!t) { skipped.push({ reason: "no contact info or name", contactid: c.contactid }); continue; }
+    const t = transformRegistrant(c, teamMembers, true /* allowMissingContact */);
+    if (!t) { skipped.push({ reason: "no name", contactid: c.contactid }); continue; }
     transformed++;
-    const key = (t.email || t.phone)!.toLowerCase();
-    // internal dedupe: keep latest (by modifiedon)
+    // Use stable key: email > phone > fireberry_contact_id
+    const key = (t.email || t.phone || `fb:${c.contactid}`).toLowerCase();
     const prev = contactsByKey.get(key);
     if (prev) {
       const prevTs = prev.custom_fields.fireberry_modified_on || prev.custom_fields.fireberry_created_on;
@@ -256,10 +257,13 @@ async function stageContacts(
   // Build registrations
   const registrations: EventRegistrationInsert[] = [];
   for (const c of raw) {
-    const t = transformRegistrant(c, teamMembers);
+    const t = transformRegistrant(c, teamMembers, true);
     if (!t) continue;
-    const key = (t.email || t.phone)!.toLowerCase();
-    const contactId = contactIdByKey.get(key);
+    // Look up by email OR phone
+    const contactId =
+      (t.email && contactIdByKey.get(t.email.toLowerCase())) ||
+      (t.phone && contactIdByKey.get(t.phone)) ||
+      null;
     if (!contactId) continue;
     registrations.push(...buildRegistrations(c, contactId, webinarIdByExternal));
   }
@@ -302,82 +306,138 @@ async function stageContacts(
 
 async function stageLeads(
   teamMembers: TeamMemberLookup,
-  contactsByKey: Map<string, ContactInsert & { __fb_contact_id: string }>,
+  webinarIdByExternal: Record<string, string>,
 ): Promise<void> {
   log("\n== STAGE 3: Leads (Opportunity) ==");
   const raw = await fb.queryAll<any>(FB_OBJECT.OPPORTUNITY, "*");
   log(`  fetched ${raw.length} leads from Fireberry`);
 
+  // Build lookup of existing contacts by email, phone, and fireberry_opportunity_id
+  const byEmail = new Map<string, { id: string; custom: any }>();
+  const byPhone = new Map<string, { id: string; custom: any }>();
+  const byOppId = new Map<string, { id: string; custom: any }>();
+  if (!DRY_RUN) {
+    let from = 0;
+    while (true) {
+      const { data, error } = await sb
+        .from("crm_contacts")
+        .select("id, email, phone, custom_fields")
+        .range(from, from + 999);
+      if (error) throw error;
+      if (!data || !data.length) break;
+      for (const r of data) {
+        const rec = { id: r.id, custom: r.custom_fields || {} };
+        if (r.email) byEmail.set(r.email.toLowerCase(), rec);
+        if (r.phone) byPhone.set(r.phone, rec);
+        const cf = r.custom_fields as any;
+        if (cf?.fireberry_opportunity_id) byOppId.set(cf.fireberry_opportunity_id, rec);
+        if (cf?.fireberry_contact_id) byOppId.set(cf.fireberry_contact_id, rec); // for stage=leads standalone
+      }
+      if (data.length < 1000) break;
+      from += 1000;
+    }
+    log(`  existing contacts: ${byEmail.size} email keys, ${byPhone.size} phone keys, ${byOppId.size} fb id keys`);
+  }
+
   const newContacts: ContactInsert[] = [];
-  const mergedContacts: Array<{ key: string; merged: ContactInsert }> = [];
+  const updates: Array<{ id: string; patch: Partial<ContactInsert>; leadOppId: string }> = [];
   const skipped: Array<{ reason: string; opportunityid?: string }> = [];
+  // Maps opportunity_id → contact_id (needed after inserts to build event_registrations)
+  const contactIdByOpp = new Map<string, string>();
   let transformed = 0;
 
   for (const l of raw) {
-    const email = (typeof l.pcfsystemfield102 === "string" ? l.pcfsystemfield102.trim().toLowerCase() : "");
-    const phone = typeof l.pcfsystemfield101 === "string" ? l.pcfsystemfield101.replace(/\D/g, "") : "";
-    const normalizedPhone = phone.startsWith("972") ? "0" + phone.slice(3) : phone;
-    const emailKey = email || null;
-    const phoneKey = normalizedPhone || null;
+    const emailNorm = typeof l.pcfsystemfield102 === "string" ? l.pcfsystemfield102.trim().toLowerCase() : "";
+    const phoneRaw = typeof l.pcfsystemfield101 === "string" ? l.pcfsystemfield101.replace(/\D/g, "") : "";
+    const phoneNorm = phoneRaw.startsWith("972") ? "0" + phoneRaw.slice(3) : phoneRaw;
 
-    const matchedKey =
-      (emailKey && contactsByKey.has(emailKey)) ? emailKey :
-      (phoneKey && contactsByKey.has(phoneKey)) ? phoneKey :
+    const existing =
+      (emailNorm && byEmail.get(emailNorm)) ||
+      (phoneNorm && byPhone.get(phoneNorm)) ||
       null;
+    const hasWebinarMatch = !!existing;
 
-    const hasWebinarMatch = !!matchedKey;
-    const t = transformLead(l, teamMembers, hasWebinarMatch);
-    if (!t) { skipped.push({ reason: "no contact info or name", opportunityid: l.opportunityid }); continue; }
+    const t = transformLead(l, teamMembers, hasWebinarMatch, true /* allowMissingContact */);
+    if (!t) { skipped.push({ reason: "no name", opportunityid: l.opportunityid }); continue; }
     transformed++;
 
-    if (matchedKey) {
-      const existing = contactsByKey.get(matchedKey)!;
-      const merged = mergeLeadIntoContact(existing, t);
-      mergedContacts.push({ key: matchedKey, merged });
+    if (existing) {
+      // Merge into existing contact
+      const mergedCustom = { ...existing.custom, ...t.custom_fields, merged: true };
+      updates.push({
+        id: existing.id,
+        leadOppId: l.opportunityid,
+        patch: {
+          status: t.status,
+          stage_id: t.stage_id,
+          loss_reason: t.loss_reason,
+          conversion_at: t.conversion_at,
+          entry_type: t.entry_type,
+          assigned_to: existing.custom.assigned_to || t.assigned_to,
+          id_number: t.id_number,
+          address: t.address,
+          notes: t.notes,
+          tags: Array.from(new Set([...(existing.custom.tags || []), ...t.tags])),
+          custom_fields: mergedCustom,
+        },
+      });
+      contactIdByOpp.set(l.opportunityid, existing.id);
     } else {
       newContacts.push(t);
     }
   }
-  log(`  transformed: ${transformed}, new: ${newContacts.length}, merged_with_registrant: ${mergedContacts.length}, skipped: ${skipped.length}`);
+  log(`  transformed: ${transformed}, new: ${newContacts.length}, merge_into_existing: ${updates.length}, skipped: ${skipped.length}`);
 
   if (!DRY_RUN) {
     if (newContacts.length) {
-      const existingKeys = await fetchExistingContactKeys();
-      const toInsert = newContacts.filter(c => {
-        const existsEmail = c.email && existingKeys.has(c.email.toLowerCase());
-        const existsPhone = c.phone && existingKeys.has(c.phone);
-        return !existsEmail && !existsPhone;
-      });
-      log(`  new leads: ${newContacts.length}, skipped (already in DB): ${newContacts.length - toInsert.length}, inserting: ${toInsert.length}`);
-      const { inserted, errors } = await chunkedInsert("crm_contacts", toInsert, 200);
+      const { inserted, errors } = await chunkedInsert("crm_contacts", newContacts, 200);
       log(`  new leads inserted: ${inserted}, chunks with errors: ${errors.length}`);
     }
-    // Update merged records (matched an existing registrant by email/phone)
     let updated = 0;
-    for (const { merged } of mergedContacts) {
-      const filter = merged.email
-        ? `email.eq.${merged.email}`
-        : merged.phone ? `phone.eq.${merged.phone}` : null;
-      if (!filter) continue;
-      const { error } = await sb
-        .from("crm_contacts")
-        .update({
-          status: merged.status,
-          stage_id: merged.stage_id,
-          loss_reason: merged.loss_reason,
-          conversion_at: merged.conversion_at,
-          entry_type: merged.entry_type,
-          assigned_to: merged.assigned_to,
-          id_number: merged.id_number,
-          address: merged.address,
-          notes: merged.notes,
-          tags: merged.tags,
-          custom_fields: merged.custom_fields,
-        })
-        .or(filter);
+    for (const u of updates) {
+      const { error } = await sb.from("crm_contacts").update(u.patch).eq("id", u.id);
       if (!error) updated++;
     }
-    log(`  merged contacts updated: ${updated}/${mergedContacts.length}`);
+    log(`  merged contacts updated: ${updated}/${updates.length}`);
+
+    // Re-fetch to get IDs of newly inserted leads
+    let from = 0;
+    while (true) {
+      const { data, error } = await sb
+        .from("crm_contacts")
+        .select("id, custom_fields")
+        .range(from, from + 999);
+      if (error) throw error;
+      if (!data || !data.length) break;
+      for (const r of data) {
+        const oid = (r.custom_fields as any)?.fireberry_opportunity_id;
+        if (oid) contactIdByOpp.set(oid, r.id);
+      }
+      if (data.length < 1000) break;
+      from += 1000;
+    }
+    log(`  opp→contact id map: ${contactIdByOpp.size} entries`);
+
+    // Build event_registrations for leads with linked webinar (pcfsystemfield100)
+    const leadRegs = [] as EventRegistrationInsert[];
+    for (const l of raw) {
+      const cid = contactIdByOpp.get(l.opportunityid);
+      if (!cid) continue;
+      const reg = buildLeadRegistration(l, cid, webinarIdByExternal);
+      if (reg) leadRegs.push(reg);
+    }
+    // Dedupe (event_id, contact_id)
+    const seen = new Set<string>();
+    const dedup = leadRegs.filter(r => {
+      const k = `${r.event_id}|${r.contact_id}`;
+      if (seen.has(k)) return false;
+      seen.add(k); return true;
+    });
+    log(`  lead event_registrations: ${leadRegs.length} → after dedupe: ${dedup.length}`);
+    if (dedup.length) {
+      const { inserted, errors } = await chunkedUpsert("crm_event_registrations", dedup, "event_id,contact_id");
+      log(`  lead event_registrations upserted: ${inserted}, errors: ${errors.length}`);
+    }
   }
 
   writeFileSync(
@@ -386,10 +446,9 @@ async function stageLeads(
       total: raw.length,
       transformed,
       new: newContacts.length,
-      merged: mergedContacts.length,
+      merged: updates.length,
       skipped,
       sample_new_first_5: newContacts.slice(0, 5),
-      sample_merged_first_3: mergedContacts.slice(0, 3),
     }, null, 2),
   );
 }
@@ -419,8 +478,14 @@ async function stageLeads(
     ({ contactsByKey } = await stageContacts(teamMembers, webinarIdByExternal));
   }
   if (STAGE === "all" || STAGE === "leads") {
-    await stageLeads(teamMembers, contactsByKey);
+    // Leads stage needs webinar id map (for lead event_registrations)
+    if (!Object.keys(webinarIdByExternal).length) {
+      const { data } = await sb.from("crm_events").select("id, external_id").eq("external_source", "fireberry");
+      for (const r of data || []) if (r.external_id) webinarIdByExternal[r.external_id] = r.id;
+    }
+    await stageLeads(teamMembers, webinarIdByExternal);
   }
+  void contactsByKey; // no longer needed — stageLeads queries DB directly
 
   log("\n  Done.");
   log(`  Preview files written to: ${TMP_DIR}`);

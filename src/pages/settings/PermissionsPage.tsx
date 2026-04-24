@@ -6,13 +6,14 @@ import type { TeamRole, CrmEntity, RolePermission } from "@/types/crm";
 import { Switch } from "@/components/ui/switch";
 import { Save, Shield } from "lucide-react";
 
-const roles: TeamRole[] = ["owner", "admin", "sales", "marketing", "viewer"];
+const roles: TeamRole[] = ["owner", "admin", "sales", "marketing", "mentor", "viewer"];
 
 const roleLabels: Record<TeamRole, string> = {
   owner: "בעלים",
   admin: "מנהל",
   sales: "מכירות",
   marketing: "שיווק",
+  mentor: "מדריך",
   viewer: "צופה",
 };
 

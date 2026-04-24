@@ -214,7 +214,7 @@ export interface TeamMember {
   created_at: string;
 }
 
-export type TeamRole = "owner" | "admin" | "sales" | "marketing" | "viewer";
+export type TeamRole = "owner" | "admin" | "sales" | "marketing" | "viewer" | "mentor";
 
 export interface Campaign {
   id: string;

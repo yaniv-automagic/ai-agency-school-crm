@@ -38,6 +38,7 @@ interface ColumnDef {
 }
 interface RenderHelpers {
   getStage: (c: Contact) => PipelineStage | undefined;
+  getAssignee: (c: Contact) => { id: string; display_name: string | null; avatar_url: string | null } | undefined;
   openStagePicker: (contactId: string, e: React.MouseEvent) => void;
   openAssigneePicker: (contactId: string, e: React.MouseEvent) => void;
 }
@@ -62,21 +63,24 @@ const ALL_COLUMNS: ColumnDef[] = [
     },
   },
   { key: "assigned", label: "אחראי", defaultVisible: true,
-    render: (c, { openAssigneePicker }) => (
-      <button onClick={(e) => { e.stopPropagation(); openAssigneePicker(c.id, e); }}
-        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors">
-        {c.assigned_member ? (
-          <>
-            {c.assigned_member.avatar_url ? (
-              <img src={c.assigned_member.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
-            ) : (
-              <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center text-[8px] font-bold text-primary">{c.assigned_member.display_name?.charAt(0)}</div>
-            )}
-            {c.assigned_member.display_name}
-          </>
-        ) : "לא משויך"}
-      </button>
-    ),
+    render: (c, { getAssignee, openAssigneePicker }) => {
+      const a = getAssignee(c);
+      return (
+        <button onClick={(e) => { e.stopPropagation(); openAssigneePicker(c.id, e); }}
+          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors">
+          {a ? (
+            <>
+              {a.avatar_url ? (
+                <img src={a.avatar_url} alt="" className="w-4 h-4 rounded-full object-cover" />
+              ) : (
+                <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center text-[8px] font-bold text-primary">{a.display_name?.charAt(0)}</div>
+              )}
+              {a.display_name}
+            </>
+          ) : "לא משויך"}
+        </button>
+      );
+    },
   },
   { key: "source", label: "מקור", defaultVisible: true, render: (c) => <span className="text-muted-foreground text-xs">{CONTACT_SOURCES.find(s => s.value === c.source)?.label || "—"}</span> },
   { key: "created", label: "נוצר", defaultVisible: true, render: (c) => <span className="text-muted-foreground text-xs">{formatDateTime(c.created_at)}</span> },
@@ -229,6 +233,15 @@ export default function ContactsPage() {
 
   const { data: contacts, isLoading } = useContacts({ search: search || undefined, stage_id: stageFilter === "__all__" ? undefined : stageFilter });
   const getStage = useCallback((c: Contact) => c.stage || allStages.find(s => s.id === c.stage_id), [allStages]);
+  const membersById = useMemo(() => {
+    const m = new Map<string, { id: string; display_name: string | null; avatar_url: string | null }>();
+    for (const t of members || []) m.set(t.id, { id: t.id, display_name: t.display_name, avatar_url: t.avatar_url });
+    return m;
+  }, [members]);
+  const getAssignee = useCallback(
+    (c: Contact) => c.assigned_member || (c.assigned_to ? membersById.get(c.assigned_to) : undefined),
+    [membersById]
+  );
 
   // ── Stage change with popups (same logic as ContactDetailPage) ──
   const handleStageChange = (contactId: string, stageId: string) => {
@@ -387,7 +400,7 @@ export default function ContactsPage() {
     setStatusPickerId(null); setPickerPos(null);
   };
 
-  const helpers: RenderHelpers = { getStage, openStagePicker, openAssigneePicker };
+  const helpers: RenderHelpers = { getStage, getAssignee, openStagePicker, openAssigneePicker };
 
   return (
     <div className="space-y-4">

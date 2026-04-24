@@ -163,13 +163,44 @@ function mapStatus(status: string | undefined): string {
   console.log(`  notes to create: ${summaryRows.length}`);
 
   const allRows = [...timelineRows, ...summaryRows];
-  console.log(`\nTotal timeline entries to insert: ${allRows.length}`);
+  console.log(`\nTotal timeline entries candidates: ${allRows.length}`);
 
   if (!DRY_RUN && allRows.length) {
+    // Idempotency: skip rows whose fireberry_activity_id / note key already exists.
+    const existingIds = new Set<string>();
+    const existingNoteKeys = new Set<string>();
+    let from = 0;
+    while (true) {
+      const { data, error } = await sb
+        .from("crm_activities")
+        .select("metadata")
+        .eq("metadata->>source", "fireberry")
+        .range(from, from + 999);
+      if (error) throw error;
+      if (!data || !data.length) break;
+      for (const r of data) {
+        const md = (r.metadata as any) || {};
+        if (md.fireberry_activity_id) existingIds.add(md.fireberry_activity_id);
+        if (md.kind === "meeting_summary" && md.fireberry_opportunity_id)
+          existingNoteKeys.add(md.fireberry_opportunity_id);
+      }
+      if (data.length < 1000) break;
+      from += 1000;
+    }
+    console.log(`  existing fireberry activities in DB: ${existingIds.size} meetings + ${existingNoteKeys.size} notes`);
+
+    const toInsert = allRows.filter(r => {
+      const md = r.metadata as any;
+      if (md.fireberry_activity_id) return !existingIds.has(md.fireberry_activity_id);
+      if (md.kind === "meeting_summary") return !existingNoteKeys.has(md.fireberry_opportunity_id);
+      return true;
+    });
+    console.log(`  to insert after dedupe: ${toInsert.length}`);
+
     let inserted = 0, failed = 0;
     const CHUNK = 200;
-    for (let i = 0; i < allRows.length; i += CHUNK) {
-      const chunk = allRows.slice(i, i + CHUNK);
+    for (let i = 0; i < toInsert.length; i += CHUNK) {
+      const chunk = toInsert.slice(i, i + CHUNK);
       const { error } = await sb.from("crm_activities").insert(chunk);
       if (error) {
         failed += chunk.length;

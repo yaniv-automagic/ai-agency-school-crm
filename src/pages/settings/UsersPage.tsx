@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
+import { createTeamMember } from "@/lib/users-api";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import type { TeamMember, TeamRole } from "@/types/crm";
@@ -18,6 +19,7 @@ const roleLabels: Record<TeamRole, string> = {
   admin: "מנהל",
   sales: "מכירות",
   marketing: "שיווק",
+  mentor: "מדריך",
   viewer: "צופה",
 };
 
@@ -26,6 +28,7 @@ const roleColors: Record<TeamRole, string> = {
   admin: "bg-purple-100 text-purple-800",
   sales: "bg-blue-100 text-blue-800",
   marketing: "bg-green-100 text-green-800",
+  mentor: "bg-teal-100 text-teal-800",
   viewer: "bg-gray-100 text-gray-800",
 };
 
@@ -157,32 +160,14 @@ export default function UsersPage() {
           return;
         }
 
-        const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+        await createTeamMember({
           email: formEmail,
           password: formPassword,
-          options: {
-            data: { display_name: formName },
-          },
+          display_name: formName,
+          phone: formPhone || undefined,
+          role: formRole,
+          avatar_url: formAvatarUrl || undefined,
         });
-
-        if (signUpErr) throw signUpErr;
-
-        if (signUpData.user) {
-          const { error: memberErr } = await supabase
-            .from("crm_team_members")
-            .insert({
-              user_id: signUpData.user.id,
-              tenant_id: teamMember?.tenant_id,
-              display_name: formName,
-              email: formEmail,
-              phone: formPhone || null,
-              role: formRole,
-              avatar_url: formAvatarUrl || null,
-              is_active: true,
-            });
-
-          if (memberErr) throw memberErr;
-        }
       }
 
       setDialogOpen(false);
@@ -436,6 +421,7 @@ export default function UsersPage() {
                   <SelectItem value="admin">מנהל</SelectItem>
                   <SelectItem value="sales">מכירות</SelectItem>
                   <SelectItem value="marketing">שיווק</SelectItem>
+                  <SelectItem value="mentor">מדריך</SelectItem>
                   <SelectItem value="viewer">צופה</SelectItem>
                 </SelectContent>
               </Select>

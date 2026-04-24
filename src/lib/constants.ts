@@ -63,6 +63,7 @@ export const TEAM_ROLES = [
   { value: "admin", label: "מנהל" },
   { value: "sales", label: "מכירות" },
   { value: "marketing", label: "שיווק" },
+  { value: "mentor", label: "מדריך" },
   { value: "viewer", label: "צפייה בלבד" },
 ] as const;
 

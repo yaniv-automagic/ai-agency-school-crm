@@ -18,8 +18,8 @@ export function useContacts(filters?: {
       const buildQuery = () => {
         let query = supabase
           .from("crm_contacts")
-          // Slim select for list view — heavy columns (custom_fields, notes body)
-          // load per-contact via useContact(id). Joined rows stay lean too.
+          // List view: no joins — UI does client-side lookup from usePipelines/useTeamMembers caches.
+          // Per-contact detail (notes, custom_fields, heavy columns) loads via useContact(id).
           .select(
             "id,first_name,last_name,email,phone,whatsapp_phone,avatar_url," +
               "company,job_title,address,city,id_number," +
@@ -28,9 +28,7 @@ export function useContacts(filters?: {
               "marketing_consent,marketing_consent_at," +
               "webinar_registered,webinar_attended,sales_call_completed,community_groups," +
               "utm_source,utm_medium,utm_campaign,utm_content,utm_term," +
-              "first_touch_at,conversion_at,created_at,updated_at," +
-              "stage:crm_pipeline_stages(id,name,color,pipeline_id,is_won,is_lost)," +
-              "assigned_member:crm_team_members!assigned_to(id,display_name,avatar_url)"
+              "landing_page_url,first_touch_at,conversion_at,created_at,updated_at"
           )
           .order("created_at", { ascending: false });
         if (filters?.stage_id) query = query.eq("stage_id", filters.stage_id);
