@@ -45,12 +45,39 @@ async function getResendConfig(tenantId?: string): Promise<{ apiKey: string; fro
   return { apiKey: ENV_API_KEY || "", fromEmail: ENV_FROM_EMAIL, fromName: ENV_FROM_NAME };
 }
 
-export async function sendEmail(to: string, subject: string, htmlBody: string, tenantId?: string): Promise<void> {
+export interface EmailAttachment {
+  filename: string;
+  content: string; // base64-encoded
+  contentType?: string;
+}
+
+export async function sendEmail(
+  to: string,
+  subject: string,
+  htmlBody: string,
+  tenantId?: string,
+  attachments?: EmailAttachment[],
+): Promise<void> {
   const { apiKey, fromEmail, fromName } = await getResendConfig(tenantId);
 
   if (!apiKey) {
     console.log(`[Email] (No API key) Would send to: ${to}, subject: ${subject}`);
     return;
+  }
+
+  const payload: any = {
+    from: `${fromName} <${fromEmail}>`,
+    to: [to],
+    subject,
+    html: htmlBody,
+  };
+
+  if (attachments && attachments.length > 0) {
+    payload.attachments = attachments.map(a => ({
+      filename: a.filename,
+      content: a.content,
+      content_type: a.contentType,
+    }));
   }
 
   const res = await fetch("https://api.resend.com/emails", {
@@ -59,12 +86,7 @@ export async function sendEmail(to: string, subject: string, htmlBody: string, t
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      from: `${fromName} <${fromEmail}>`,
-      to: [to],
-      subject,
-      html: htmlBody,
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {

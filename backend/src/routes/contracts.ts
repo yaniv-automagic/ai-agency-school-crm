@@ -374,8 +374,9 @@ contractRouter.post("/sign/:token/sign", async (req: Request, res: Response) => 
     // Generate & upload signed PDF in background (PDF is best-effort; contract
     // is already legally signed at this point via the signing ceremony data)
     let signedPdfUrl: string | null = null;
+    let signedPdfBuffer: Buffer | null = null;
     try {
-      const signedPdfBuffer = await generateSignedContractPdf({
+      signedPdfBuffer = await generateSignedContractPdf({
         title: contract.title,
         bodyHtml: contract.body_html,
         contactName: signerName,
@@ -433,8 +434,15 @@ contractRouter.post("/sign/:token/sign", async (req: Request, res: Response) => 
       },
     });
 
-    // Send emails (fire-and-forget)
-    sendSignedCopyToSigner(contract.title, signerName, signerEmail, signedPdfUrl || "", contract.tenant_id).catch(console.error);
+    // Send emails (fire-and-forget) - attach the signed PDF if available
+    sendSignedCopyToSigner(
+      contract.title,
+      signerName,
+      signerEmail,
+      signedPdfUrl || "",
+      contract.tenant_id,
+      signedPdfBuffer || undefined,
+    ).catch(console.error);
     sendSigningNotificationToOwner(contract, signerName, contact).catch(console.error);
 
     res.json({
@@ -778,7 +786,7 @@ function buildSigningInvitationEmail(firstName: string, contractTitle: string, s
   return brandedWrapper("light", `${firstName}, חוזה "${contractTitle}" מחכה לחתימתך`, content);
 }
 
-async function sendSignedCopyToSigner(contractTitle: string, signerName: string, signerEmail: string, pdfUrl: string, tenantId?: string) {
+async function sendSignedCopyToSigner(contractTitle: string, signerName: string, signerEmail: string, pdfUrl: string, tenantId?: string, pdfBuffer?: Buffer) {
   const content = `
     <tr>
       <td class="px-40" style="padding:44px 40px 16px;text-align:center;direction:rtl;">
@@ -815,7 +823,14 @@ async function sendSignedCopyToSigner(contractTitle: string, signerName: string,
     </tr>` : ""}`;
 
   const html = brandedWrapper("light", `ההסכם "${contractTitle}" נחתם בהצלחה`, content);
-  await sendEmail(signerEmail, `העתק חוזה חתום — ${contractTitle}`, html, tenantId);
+  const attachments = pdfBuffer
+    ? [{
+        filename: `${contractTitle.replace(/[^\p{L}\p{N}\s-]/gu, "").trim() || "contract"}.pdf`,
+        content: pdfBuffer.toString("base64"),
+        contentType: "application/pdf",
+      }]
+    : undefined;
+  await sendEmail(signerEmail, `העתק חוזה חתום — ${contractTitle}`, html, tenantId, attachments);
 }
 
 async function sendSigningNotificationToOwner(contract: any, signerName: string, contact: any) {
