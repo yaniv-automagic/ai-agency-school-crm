@@ -470,12 +470,6 @@ export default function ContactDetailPage() {
           <h1 className="text-2xl font-bold">
             {contact.first_name} {contact.last_name}
           </h1>
-          {(contact.address || contact.city) && (
-            <div className="flex items-center gap-1 mt-1 text-sm text-muted-foreground">
-              <MapPin size={14} />
-              {contact.address || contact.city}
-            </div>
-          )}
           <div className="flex items-center gap-1.5 mt-2 flex-wrap">
               {/* Source badge */}
               {source && (
@@ -493,6 +487,8 @@ export default function ContactDetailPage() {
                   {contactPipeline?.name || "ללא צנרת"}
                 </button>
                 {showPipelinePicker && (
+                  <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowPipelinePicker(false)} />
                   <div className="absolute top-full mt-1 right-0 bg-card border border-border rounded-xl shadow-xl py-1 w-44 z-50" dir="rtl">
                     {pipelines?.map(p => (
                       <button key={p.id}
@@ -507,6 +503,7 @@ export default function ContactDetailPage() {
                       </button>
                     ))}
                   </div>
+                  </>
                 )}
               </div>
 
@@ -520,6 +517,8 @@ export default function ContactDetailPage() {
                   {stage?.name || "ללא שלב"}
                 </button>
                 {showStatusPicker && (
+                  <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowStatusPicker(false)} />
                   <div className="absolute top-full mt-1 right-0 bg-card border border-border rounded-xl shadow-xl py-1 w-44 z-50 max-h-72 overflow-y-auto" dir="rtl">
                     {(contactPipeline?.stages || []).map(s => (
                       <button
@@ -550,6 +549,7 @@ export default function ContactDetailPage() {
                       </button>
                     ))}
                   </div>
+                  </>
                 )}
               </div>
 
@@ -571,6 +571,8 @@ export default function ContactDetailPage() {
                   ) : "לא משויך"}
                 </button>
                 {showAssigneePicker && (
+                  <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowAssigneePicker(false)} />
                   <div className="absolute top-full mt-1 right-0 bg-card border border-border rounded-xl shadow-xl py-1 w-48 z-50" dir="rtl">
                     <button
                       onClick={() => { updateContact.mutate({ id: contact.id, assigned_to: null } as any); setShowAssigneePicker(false); }}
@@ -593,6 +595,7 @@ export default function ContactDetailPage() {
                       </button>
                     ))}
                   </div>
+                  </>
                 )}
               </div>
 
