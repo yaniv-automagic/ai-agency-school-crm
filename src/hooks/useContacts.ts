@@ -18,7 +18,20 @@ export function useContacts(filters?: {
       const buildQuery = () => {
         let query = supabase
           .from("crm_contacts")
-          .select("*, stage:crm_pipeline_stages(*), assigned_member:crm_team_members!assigned_to(*)")
+          // Slim select for list view — heavy columns (custom_fields, notes body)
+          // load per-contact via useContact(id). Joined rows stay lean too.
+          .select(
+            "id,first_name,last_name,email,phone,whatsapp_phone,avatar_url," +
+              "company,job_title,address,city,id_number," +
+              "status,source,tags,stage_id,assigned_to,account_id,entry_type,ad_platform," +
+              "loss_reason,disqualification_reason,next_followup_at," +
+              "marketing_consent,marketing_consent_at," +
+              "webinar_registered,webinar_attended,sales_call_completed,community_groups," +
+              "utm_source,utm_medium,utm_campaign,utm_content,utm_term," +
+              "first_touch_at,conversion_at,created_at,updated_at," +
+              "stage:crm_pipeline_stages(id,name,color,pipeline_id,is_won,is_lost)," +
+              "assigned_member:crm_team_members!assigned_to(id,display_name,avatar_url)"
+          )
           .order("created_at", { ascending: false });
         if (filters?.stage_id) query = query.eq("stage_id", filters.stage_id);
         else if (filters?.status) query = query.eq("status", filters.status);
@@ -32,16 +45,18 @@ export function useContacts(filters?: {
         return query;
       };
 
-      // Supabase PostgREST caps responses at 1000 rows — paginate manually.
+      // Supabase PostgREST caps each response at 1000 rows.
+      // Fetch pages in parallel (up to 10k rows) instead of sequentially.
       const PAGE_SIZE = 1000;
+      const MAX_PAGES = 10;
+      const pagePromises = Array.from({ length: MAX_PAGES }, (_, i) =>
+        buildQuery().range(i * PAGE_SIZE, (i + 1) * PAGE_SIZE - 1)
+      );
+      const pageResults = await Promise.all(pagePromises);
       const all: Contact[] = [];
-      for (let page = 0; page < 20; page++) {
-        const from = page * PAGE_SIZE;
-        const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
+      for (const { data, error } of pageResults) {
         if (error) throw error;
-        if (!data || data.length === 0) break;
-        all.push(...(data as Contact[]));
-        if (data.length < PAGE_SIZE) break;
+        if (data && data.length) all.push(...(data as Contact[]));
       }
       return all;
     },
