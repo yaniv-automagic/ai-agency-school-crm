@@ -28,6 +28,7 @@ const sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_
 });
 const args = new Set(process.argv.slice(2));
 const DRY_RUN = !args.has("--execute");
+const REBUILD = args.has("--rebuild");
 const OWNER_ALIASES: Record<string, string> = { "ניצן טהר לב": "ניצן טהר-לב" };
 
 function normalizeEmail(v: any): string | null {
@@ -56,6 +57,17 @@ function mapStatus(s: string | undefined): { status: string; outcome: string | n
     case "נדחתה לבקשת לקוח":   return { status: "rescheduled", outcome: null };
     case "לקוח לא עלה":        return { status: "no_show", outcome: "no_show" };
     default:                   return { status: "scheduled", outcome: null };
+  }
+}
+
+// Fireberry activitytypecode → CRM meeting_type. Fallback is by linked object type.
+function mapMeetingType(typeCode: string | undefined, isAccountLinked: boolean): string {
+  switch (typeCode) {
+    case "שיעור פרטני":   return "mentoring_1on1";
+    case "פגישה מכירה":   return "sales_consultation";
+    case "פגישת היכרות":  return "sales_consultation";
+    case "אחר":           return "other";
+    default:              return isAccountLinked ? "mentoring_1on1" : "sales_consultation";
   }
 }
 
@@ -93,7 +105,7 @@ function durationMinutes(start: string | null, end: string | null): number {
   }
 
   // Account → contact: via email/phone of Fireberry account
-  const accounts = await fb.queryAll<any>(1, "accountid,emailaddress1,emailaddress2,telephone1,telephone2");
+  const accounts = await fb.queryAll<any>(1, "accountid,accountname,firstname,lastname,emailaddress1,emailaddress2,telephone1,telephone2,ownername,createdon");
   const byEmail = new Map<string, string>();
   const byPhone = new Map<string, string>();
   let f = 0;
@@ -109,30 +121,94 @@ function durationMinutes(start: string | null, end: string | null): number {
     f += 1000;
   }
   const acctToContact: Record<string, string> = {};
+  const accountsToCreate: any[] = [];
   for (const a of accounts) {
     const email = normalizeEmail(a.emailaddress1) || normalizeEmail(a.emailaddress2);
     const phone = normalizePhone(a.telephone1) || normalizePhone(a.telephone2);
     const cid = (email && byEmail.get(email)) || (phone && byPhone.get(phone)) || null;
-    if (cid) acctToContact[a.accountid] = cid;
+    if (cid) {
+      acctToContact[a.accountid] = cid;
+    } else {
+      accountsToCreate.push(a);
+    }
   }
-  console.log(`  opp→contact: ${Object.keys(oppToContact).length}, account→contact: ${Object.keys(acctToContact).length}`);
+  console.log(`  opp→contact: ${Object.keys(oppToContact).length}, account→contact (matched): ${Object.keys(acctToContact).length}, accounts to create: ${accountsToCreate.length}`);
 
-  // 3. Existing meetings — skip if fillout_submission_id matches activityid
-  const existingMeetingIds = new Set<string>();
-  let fm = 0;
-  while (true) {
-    const { data, error } = await sb.from("crm_meetings").select("fillout_submission_id").range(fm, fm + 999);
-    if (error) throw error;
-    if (!data?.length) break;
-    for (const r of data) if (r.fillout_submission_id) existingMeetingIds.add(r.fillout_submission_id);
-    if (data.length < 1000) break;
-    fm += 1000;
+  // Create CRM contacts for unmatched accounts (post-sale students with no lead trail)
+  if (!DRY_RUN && accountsToCreate.length) {
+    const newRows = accountsToCreate.map(a => {
+      const fullName = (a.accountname || "").trim();
+      const parts = fullName.split(/\s+/);
+      const firstName = (a.firstname || parts[0] || "תלמיד").trim();
+      const lastName = (a.lastname || parts.slice(1).join(" ") || "").trim();
+      const email = normalizeEmail(a.emailaddress1) || normalizeEmail(a.emailaddress2);
+      const phone = normalizePhone(a.telephone1) || normalizePhone(a.telephone2);
+      return {
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        phone,
+        whatsapp_phone: phone,
+        status: "student",
+        source: "import",
+        tags: ["fireberry", "student", "from_account"],
+        marketing_consent: true,
+        marketing_consent_at: normalizeDate(a.createdon),
+        created_at: normalizeDate(a.createdon),
+        assigned_to: teamByName[a.ownername] || null,
+        custom_fields: {
+          fireberry_account_id: a.accountid,
+          fireberry_account_name: a.accountname,
+          source_object: "account",
+        },
+      };
+    });
+    const { data: inserted, error } = await sb.from("crm_contacts").insert(newRows).select("id, email, phone, custom_fields");
+    if (error) {
+      console.log(`  ! account-contact insert error: ${error.message}`);
+    } else {
+      console.log(`  created ${inserted?.length || 0} contacts from accounts`);
+      for (const c of inserted || []) {
+        const acctId = (c.custom_fields as any)?.fireberry_account_id;
+        if (acctId) acctToContact[acctId] = c.id;
+        if (c.email) byEmail.set(c.email.toLowerCase(), c.id);
+        if (c.phone) byPhone.set(c.phone, c.id);
+      }
+    }
   }
-  console.log(`  existing meetings (by fillout_submission_id): ${existingMeetingIds.size}`);
 
-  // 4. Fetch all activities and build meeting rows
+  // 4. Fetch all activities first (needed before optional rebuild delete)
   const activities = await fb.queryAll<any>(6, "*");
   console.log(`  fetched ${activities.length} activities`);
+
+  // 3. Existing meetings — skip if fillout_submission_id matches activityid.
+  //    With --rebuild: delete the previously imported ones first.
+  const existingMeetingIds = new Set<string>();
+  if (!REBUILD) {
+    let fm = 0;
+    while (true) {
+      const { data, error } = await sb.from("crm_meetings").select("fillout_submission_id").range(fm, fm + 999);
+      if (error) throw error;
+      if (!data?.length) break;
+      for (const r of data) if (r.fillout_submission_id) existingMeetingIds.add(r.fillout_submission_id);
+      if (data.length < 1000) break;
+      fm += 1000;
+    }
+    console.log(`  existing meetings (skipped): ${existingMeetingIds.size}`);
+  } else if (!DRY_RUN) {
+    const fbActivityIds = activities.map(a => a.activityid).filter(Boolean);
+    let totalDeleted = 0;
+    for (let i = 0; i < fbActivityIds.length; i += 200) {
+      const chunk = fbActivityIds.slice(i, i + 200);
+      const { error, count } = await sb
+        .from("crm_meetings")
+        .delete({ count: "exact" })
+        .in("fillout_submission_id", chunk);
+      if (error) console.log(`  ! delete chunk ${i / 200}: ${error.message}`);
+      else totalDeleted += count || 0;
+    }
+    console.log(`  --rebuild: deleted ${totalDeleted} existing Fireberry-sourced meetings`);
+  }
 
   const rows: any[] = [];
   let skippedExisting = 0, skippedNoContact = 0;
@@ -151,7 +227,7 @@ function durationMinutes(start: string | null, end: string | null): number {
       contact_id: contactId,
       title: a.subject || "פגישה",
       description: null,
-      meeting_type: isAccountMeeting ? "mentoring_1on1" : "sales_consultation",
+      meeting_type: mapMeetingType(a.activitytypecode, isAccountMeeting),
       status,
       scheduled_at: startAt,
       duration_minutes: durationMinutes(startAt, endAt),
