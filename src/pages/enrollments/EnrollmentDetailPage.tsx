@@ -225,10 +225,10 @@ export default function EnrollmentDetailPage() {
             </div>
 
             {/* Mentor badge */}
-            {enrollment.mentor_name && (
+            {enrollment.assigned_member?.display_name && (
               <span className="inline-flex items-center py-0.5 px-2.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
                 <Users size={11} className="ml-1" />
-                {enrollment.mentor_name}
+                {enrollment.assigned_member.display_name}
               </span>
             )}
 
@@ -452,10 +452,10 @@ export default function EnrollmentDetailPage() {
                   <span>{new Date(enrollment.end_date).toLocaleDateString("he-IL")}</span>
                 </div>
               )}
-              {enrollment.mentor_name && (
+              {enrollment.assigned_member?.display_name && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">מנטור</span>
-                  <span className="font-medium">{enrollment.mentor_name}</span>
+                  <span className="font-medium">{enrollment.assigned_member.display_name}</span>
                 </div>
               )}
               <div className="flex justify-between">

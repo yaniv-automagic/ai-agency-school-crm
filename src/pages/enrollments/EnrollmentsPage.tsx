@@ -66,10 +66,6 @@ const ALL_COLUMNS: ColumnDef[] = [
   },
   {
     key: "mentor", label: "מנטור", defaultVisible: true,
-    render: (e) => <span className="text-muted-foreground text-xs">{e.mentor_name || "—"}</span>,
-  },
-  {
-    key: "assigned", label: "אחראי", defaultVisible: true,
     render: (e) => (
       <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary text-secondary-foreground">
         {e.assigned_member ? (
@@ -128,8 +124,7 @@ interface SavedView { id: string; name: string; columns: string[]; filterGroups:
 const FILTER_FIELDS = [
   { key: "contact_name", label: "שם תלמיד" },
   { key: "product_name", label: "מוצר" },
-  { key: "mentor_name", label: "מנטור" },
-  { key: "assigned_to", label: "אחראי" },
+  { key: "assigned_to", label: "מנטור" },
   { key: "status", label: "סטטוס" },
   { key: "notes", label: "הערות" },
 ];
@@ -145,8 +140,7 @@ function getEnrollmentFieldValue(e: ProgramEnrollment, field: string): string {
   switch (field) {
     case "contact_name": return `${e.contact?.first_name || ""} ${e.contact?.last_name || ""}`.toLowerCase();
     case "product_name": return (e.product?.name || "").toLowerCase();
-    case "mentor_name": return (e.mentor_name || "").toLowerCase();
-    case "assigned_to": return (e.assigned_to || "").toLowerCase();
+    case "assigned_to": return ((e as any).assigned_member?.display_name || "").toLowerCase();
     case "status": return (e.status || "").toLowerCase();
     case "notes": return (e.notes || "").toLowerCase();
     default: return "";
@@ -207,7 +201,7 @@ export default function EnrollmentsPage() {
       result = result.filter(e =>
         `${e.contact?.first_name} ${e.contact?.last_name}`.toLowerCase().includes(s) ||
         (e.product?.name || "").toLowerCase().includes(s) ||
-        (e.mentor_name || "").toLowerCase().includes(s) ||
+        ((e as any).assigned_member?.display_name || "").toLowerCase().includes(s) ||
         (e.contact?.email || "").toLowerCase().includes(s) ||
         (e.contact?.phone || "").includes(s)
       );
@@ -259,8 +253,7 @@ export default function EnrollmentsPage() {
     switch (key) {
       case "contact": return (e: any) => `${e.contact?.first_name || ""} ${e.contact?.last_name || ""}`.trim();
       case "program": return (e: any) => e.program_name || e.product?.name || "";
-      case "mentor":  return (e: any) => e.mentor_name || "";
-      case "assigned": return (e: any) => e.assigned_member?.display_name || "";
+      case "mentor":  return (e: any) => e.assigned_member?.display_name || "";
       case "status":   return (e: any) => e.status;
       default:         return (e: any) => e[key];
     }
@@ -556,7 +549,6 @@ function EnrollmentForm({ onClose }: { onClose: () => void }) {
     contact_id: "",
     product_id: "",
     total_sessions: 12,
-    mentor_name: "",
     assigned_to: "",
     start_date: "",
     notes: "",
@@ -571,7 +563,6 @@ function EnrollmentForm({ onClose }: { onClose: () => void }) {
       status: "pending",
       total_sessions: formData.total_sessions,
       completed_sessions: 0,
-      mentor_name: formData.mentor_name || null,
       assigned_to: formData.assigned_to || null,
       start_date: formData.start_date || null,
       notes: formData.notes || null,
@@ -651,33 +642,22 @@ function EnrollmentForm({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium mb-1 block">מנטור</label>
-              <input
-                value={formData.mentor_name}
-                onChange={(e) => setFormData((p) => ({ ...p, mentor_name: e.target.value }))}
-                className={inputClass}
-                placeholder="שם המנטור"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">אחראי</label>
-              <Select
-                value={formData.assigned_to || "__all__"}
-                onValueChange={(val) => setFormData((p) => ({ ...p, assigned_to: val === "__all__" ? "" : val }))}
-              >
-                <SelectTrigger className={inputClass}>
-                  <SelectValue placeholder="ללא שיוך" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">ללא שיוך</SelectItem>
-                  {members.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>{m.display_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div>
+            <label className="text-sm font-medium mb-1 block">מנטור</label>
+            <Select
+              value={formData.assigned_to || "__all__"}
+              onValueChange={(val) => setFormData((p) => ({ ...p, assigned_to: val === "__all__" ? "" : val }))}
+            >
+              <SelectTrigger className={inputClass}>
+                <SelectValue placeholder="ללא מנטור" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">ללא מנטור</SelectItem>
+                {members.map((m) => (
+                  <SelectItem key={m.id} value={m.id}>{m.display_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
