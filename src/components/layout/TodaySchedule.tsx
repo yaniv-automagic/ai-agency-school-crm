@@ -129,10 +129,10 @@ export default function TodaySchedule() {
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <h3 className="text-sm font-bold">הלוז שלי להיום</h3>
               <button
-                onClick={() => { navigate("/calendar"); setOpen(false); }}
+                onClick={() => { navigate("/meetings"); setOpen(false); }}
                 className="text-[11px] text-primary font-medium hover:underline"
               >
-                לוח שנה מלא
+                כל הפגישות
               </button>
             </div>
 

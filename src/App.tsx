@@ -18,9 +18,8 @@ const DealDetailPage = lazy(() => import("./pages/deals/DealDetailPage"));
 const MeetingsPage = lazy(() => import("./pages/meetings/MeetingsPage"));
 const MeetingDetailPage = lazy(() => import("./pages/meetings/MeetingDetailPage"));
 
-// Tasks & Calendar
+// Tasks
 const TasksPage = lazy(() => import("./pages/tasks/TasksPage"));
-const CalendarPage = lazy(() => import("./pages/calendar/CalendarPage"));
 
 // Students / Programs
 const EnrollmentsPage = lazy(() => import("./pages/enrollments/EnrollmentsPage"));
@@ -108,9 +107,8 @@ export default function App() {
           <Route path="/meetings" element={<MeetingsPage />} />
           <Route path="/meetings/:id" element={<MeetingDetailPage />} />
 
-          {/* Tasks & Calendar */}
+          {/* Tasks */}
           <Route path="/tasks" element={<TasksPage />} />
-          <Route path="/calendar" element={<CalendarPage />} />
 
           {/* Students / Programs */}
           <Route path="/enrollments" element={<EnrollmentsPage />} />
