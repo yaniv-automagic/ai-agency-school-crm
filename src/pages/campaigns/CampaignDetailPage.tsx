@@ -162,11 +162,11 @@ export default function CampaignDetailPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
-                <th className="text-right px-4 py-2 font-medium text-muted-foreground">שם</th>
-                <th className="text-right px-4 py-2 font-medium text-muted-foreground">מייל</th>
-                <th className="text-right px-4 py-2 font-medium text-muted-foreground">סטטוס</th>
-                <th className="text-right px-4 py-2 font-medium text-muted-foreground">נפתח</th>
-                <th className="text-right px-4 py-2 font-medium text-muted-foreground">לחץ</th>
+                <th className="text-center px-4 py-2 font-medium text-muted-foreground">שם</th>
+                <th className="text-center px-4 py-2 font-medium text-muted-foreground">מייל</th>
+                <th className="text-center px-4 py-2 font-medium text-muted-foreground">סטטוס</th>
+                <th className="text-center px-4 py-2 font-medium text-muted-foreground">נפתח</th>
+                <th className="text-center px-4 py-2 font-medium text-muted-foreground">לחץ</th>
               </tr>
             </thead>
             <tbody>

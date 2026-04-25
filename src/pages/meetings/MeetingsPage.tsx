@@ -278,22 +278,22 @@ export default function MeetingsPage() {
                   <input type="checkbox" className="rounded accent-primary" checked={filteredMeetings?.length ? selectedIds.length === filteredMeetings.length : false} onChange={toggleAll} />
                 </th>
                 <th className="text-center px-4 py-3 font-medium text-muted-foreground">
-                  <SortableHeader sortKey="title" align="right" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>כותרת</SortableHeader>
+                  <SortableHeader sortKey="title" align="center" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>כותרת</SortableHeader>
                 </th>
                 <th className="text-center px-4 py-3 font-medium text-muted-foreground">
-                  <SortableHeader sortKey="scheduled_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>תאריך</SortableHeader>
+                  <SortableHeader sortKey="scheduled_at" align="center" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>תאריך</SortableHeader>
                 </th>
                 <th className="text-center px-4 py-3 font-medium text-muted-foreground">
-                  <SortableHeader sortKey="assigned" align="right" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>אחראי</SortableHeader>
+                  <SortableHeader sortKey="assigned" align="center" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>אחראי</SortableHeader>
                 </th>
                 <th className="text-center px-4 py-3 font-medium text-muted-foreground">
-                  <SortableHeader sortKey="type" align="right" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>סוג</SortableHeader>
+                  <SortableHeader sortKey="type" align="center" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>סוג</SortableHeader>
                 </th>
                 <th className="text-center px-4 py-3 font-medium text-muted-foreground">
-                  <SortableHeader sortKey="contact" align="right" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>ליד / תלמיד</SortableHeader>
+                  <SortableHeader sortKey="contact" align="center" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>ליד / תלמיד</SortableHeader>
                 </th>
                 <th className="text-center px-4 py-3 font-medium text-muted-foreground">
-                  <SortableHeader sortKey="status" align="right" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>סטטוס</SortableHeader>
+                  <SortableHeader sortKey="status" align="center" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>סטטוס</SortableHeader>
                 </th>
                 <th className="px-4 py-3 w-10"></th>
               </tr>

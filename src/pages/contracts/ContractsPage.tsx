@@ -93,12 +93,12 @@ export default function ContractsPage() {
                     checked={sortedContracts.length > 0 && selectedIds.length === sortedContracts.length}
                     onChange={toggleAll} />
                 </th>
-                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="title" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>כותרת</SortableHeader></th>
-                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="contact" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>ליד</SortableHeader></th>
-                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="status" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>סטטוס</SortableHeader></th>
-                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="sent_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>נשלח</SortableHeader></th>
-                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="signed_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>נחתם</SortableHeader></th>
-                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="created_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>תאריך יצירה</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="title" align="center" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>כותרת</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="contact" align="center" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>ליד</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="status" align="center" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>סטטוס</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="sent_at" align="center" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>נשלח</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="signed_at" align="center" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>נחתם</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="created_at" align="center" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>תאריך יצירה</SortableHeader></th>
               </tr>
             </thead>
             <tbody>

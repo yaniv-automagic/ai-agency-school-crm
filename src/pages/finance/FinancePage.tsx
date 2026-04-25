@@ -187,11 +187,11 @@ export default function FinancePage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
-                <th className="text-right px-4 py-2 font-medium text-muted-foreground">עסקה</th>
-                <th className="text-right px-4 py-2 font-medium text-muted-foreground">לקוח</th>
-                <th className="text-right px-4 py-2 font-medium text-muted-foreground">מוצר</th>
-                <th className="text-right px-4 py-2 font-medium text-muted-foreground">סכום</th>
-                <th className="text-right px-4 py-2 font-medium text-muted-foreground">תאריך</th>
+                <th className="text-center px-4 py-2 font-medium text-muted-foreground">עסקה</th>
+                <th className="text-center px-4 py-2 font-medium text-muted-foreground">לקוח</th>
+                <th className="text-center px-4 py-2 font-medium text-muted-foreground">מוצר</th>
+                <th className="text-center px-4 py-2 font-medium text-muted-foreground">סכום</th>
+                <th className="text-center px-4 py-2 font-medium text-muted-foreground">תאריך</th>
               </tr>
             </thead>
             <tbody>

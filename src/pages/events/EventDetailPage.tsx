@@ -215,12 +215,12 @@ function RegistrantTable({ registrations }: { registrations: RegistrationRow[] }
       <table className="w-full text-sm">
         <thead className="text-xs text-muted-foreground">
           <tr className="border-b border-border">
-            <th className="text-right py-2 font-medium"><SortableHeader sortKey="name" align="right" isSorted={isSorted} onSort={k => toggleSort(k, get(k))}>שם</SortableHeader></th>
-            <th className="text-right py-2 font-medium"><SortableHeader sortKey="email" align="right" isSorted={isSorted} onSort={k => toggleSort(k, get(k))}>מייל</SortableHeader></th>
-            <th className="text-right py-2 font-medium"><SortableHeader sortKey="phone" align="right" isSorted={isSorted} onSort={k => toggleSort(k, get(k))}>טלפון</SortableHeader></th>
-            <th className="text-right py-2 font-medium"><SortableHeader sortKey="status" align="right" isSorted={isSorted} onSort={k => toggleSort(k, get(k))}>סטטוס</SortableHeader></th>
-            <th className="text-right py-2 font-medium"><SortableHeader sortKey="utm" align="right" isSorted={isSorted} onSort={k => toggleSort(k, get(k))}>UTM</SortableHeader></th>
-            <th className="text-right py-2 font-medium"><SortableHeader sortKey="registered_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k, get(k))}>תאריך הרשמה</SortableHeader></th>
+            <th className="text-center py-2 font-medium"><SortableHeader sortKey="name" align="center" isSorted={isSorted} onSort={k => toggleSort(k, get(k))}>שם</SortableHeader></th>
+            <th className="text-center py-2 font-medium"><SortableHeader sortKey="email" align="center" isSorted={isSorted} onSort={k => toggleSort(k, get(k))}>מייל</SortableHeader></th>
+            <th className="text-center py-2 font-medium"><SortableHeader sortKey="phone" align="center" isSorted={isSorted} onSort={k => toggleSort(k, get(k))}>טלפון</SortableHeader></th>
+            <th className="text-center py-2 font-medium"><SortableHeader sortKey="status" align="center" isSorted={isSorted} onSort={k => toggleSort(k, get(k))}>סטטוס</SortableHeader></th>
+            <th className="text-center py-2 font-medium"><SortableHeader sortKey="utm" align="center" isSorted={isSorted} onSort={k => toggleSort(k, get(k))}>UTM</SortableHeader></th>
+            <th className="text-center py-2 font-medium"><SortableHeader sortKey="registered_at" align="center" isSorted={isSorted} onSort={k => toggleSort(k, get(k))}>תאריך הרשמה</SortableHeader></th>
           </tr>
         </thead>
         <tbody>

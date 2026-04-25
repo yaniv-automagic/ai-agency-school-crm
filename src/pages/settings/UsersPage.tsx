@@ -236,11 +236,11 @@ export default function UsersPage() {
         <table className="w-full">
           <thead className="bg-muted/50">
             <tr>
-              <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground"><SortableHeader sortKey="display_name" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>שם</SortableHeader></th>
-              <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground"><SortableHeader sortKey="email" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>אימייל</SortableHeader></th>
-              <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground"><SortableHeader sortKey="phone" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>טלפון</SortableHeader></th>
-              <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground"><SortableHeader sortKey="role" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>תפקיד</SortableHeader></th>
-              <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground"><SortableHeader sortKey="is_active" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>סטטוס</SortableHeader></th>
+              <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground"><SortableHeader sortKey="display_name" align="center" isSorted={isSorted} onSort={k => toggleSort(k)}>שם</SortableHeader></th>
+              <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground"><SortableHeader sortKey="email" align="center" isSorted={isSorted} onSort={k => toggleSort(k)}>אימייל</SortableHeader></th>
+              <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground"><SortableHeader sortKey="phone" align="center" isSorted={isSorted} onSort={k => toggleSort(k)}>טלפון</SortableHeader></th>
+              <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground"><SortableHeader sortKey="role" align="center" isSorted={isSorted} onSort={k => toggleSort(k)}>תפקיד</SortableHeader></th>
+              <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground"><SortableHeader sortKey="is_active" align="center" isSorted={isSorted} onSort={k => toggleSort(k)}>סטטוס</SortableHeader></th>
               <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground">פעולות</th>
             </tr>
           </thead>

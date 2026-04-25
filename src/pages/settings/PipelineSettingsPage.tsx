@@ -296,9 +296,9 @@ export default function PipelineSettingsPage() {
                   <thead>
                     <tr className="border-b border-border bg-muted/50">
                       <th className="w-8 px-2 py-2.5"></th>
-                      <th className="w-10 px-2 py-2.5 text-right font-medium text-muted-foreground">צבע</th>
-                      <th className="px-3 py-2.5 text-right font-medium text-muted-foreground">שם השלב</th>
-                      <th className="w-24 px-3 py-2.5 text-right font-medium text-muted-foreground">הסתברות</th>
+                      <th className="w-10 px-2 py-2.5 text-center font-medium text-muted-foreground">צבע</th>
+                      <th className="px-3 py-2.5 text-center font-medium text-muted-foreground">שם השלב</th>
+                      <th className="w-24 px-3 py-2.5 text-center font-medium text-muted-foreground">הסתברות</th>
                       <th className="w-20 px-3 py-2.5 text-center font-medium text-muted-foreground">נסגר</th>
                       <th className="w-20 px-3 py-2.5 text-center font-medium text-muted-foreground">אבוד</th>
                       <th className="w-16 px-2 py-2.5"></th>

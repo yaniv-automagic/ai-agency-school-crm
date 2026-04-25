@@ -210,7 +210,7 @@ export function ImportButton() {
                 <thead>
                   <tr className="bg-muted/50">
                     {Object.keys(preview[0] || {}).slice(0, 5).map(col => (
-                      <th key={col} className="text-right px-3 py-2 font-medium">{col}</th>
+                      <th key={col} className="text-center px-3 py-2 font-medium">{col}</th>
                     ))}
                   </tr>
                 </thead>

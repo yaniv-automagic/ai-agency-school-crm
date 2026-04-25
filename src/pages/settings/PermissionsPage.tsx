@@ -224,7 +224,7 @@ export default function PermissionsPage() {
           <table className="w-full">
             <thead className="bg-muted/50">
               <tr>
-                <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground w-1/3">
+                <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground w-1/3">
                   אובייקט
                 </th>
                 {actionKeys.map((key) => (

@@ -111,12 +111,12 @@ export default function AccountsPage() {
                     checked={sortedAccounts.length > 0 && selectedIds.length === sortedAccounts.length}
                     onChange={toggleAll} />
                 </th>
-                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="name" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>שם</SortableHeader></th>
-                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="industry" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>תעשייה</SortableHeader></th>
-                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="phone" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>טלפון</SortableHeader></th>
-                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="email" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>מייל</SortableHeader></th>
-                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="billing_city" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>עיר</SortableHeader></th>
-                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="created_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>נוצר</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="name" align="center" isSorted={isSorted} onSort={k => toggleSort(k)}>שם</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="industry" align="center" isSorted={isSorted} onSort={k => toggleSort(k)}>תעשייה</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="phone" align="center" isSorted={isSorted} onSort={k => toggleSort(k)}>טלפון</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="email" align="center" isSorted={isSorted} onSort={k => toggleSort(k)}>מייל</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="billing_city" align="center" isSorted={isSorted} onSort={k => toggleSort(k)}>עיר</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="created_at" align="center" isSorted={isSorted} onSort={k => toggleSort(k)}>נוצר</SortableHeader></th>
               </tr>
             </thead>
             <tbody>
