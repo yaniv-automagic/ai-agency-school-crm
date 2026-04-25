@@ -196,19 +196,49 @@ export function useMeetingStats(meetingType?: MeetingType) {
   return useQuery({
     queryKey: [...KEY, "stats", meetingType],
     queryFn: async () => {
-      let q = supabase.from("crm_meetings").select("status, outcome, meeting_type");
-      if (meetingType) q = q.eq("meeting_type", meetingType);
-      const { data: all } = await q;
-      if (!all) return { scheduled: 0, cancelled: 0, completed: 0, showRate: 0 };
+      // Paginate — PostgREST caps at 1000.
+      const PAGE = 1000;
+      const all: Array<{ status: string; outcome: string | null; scheduled_at: string }> = [];
+      for (let p = 0; p < 20; p++) {
+        let q = supabase
+          .from("crm_meetings")
+          .select("status, outcome, scheduled_at, meeting_type")
+          .range(p * PAGE, (p + 1) * PAGE - 1);
+        if (meetingType) q = q.eq("meeting_type", meetingType);
+        const { data, error } = await q;
+        if (error) throw error;
+        if (!data || !data.length) break;
+        all.push(...(data as any));
+        if (data.length < PAGE) break;
+      }
 
-      const scheduled = all.filter(m => m.status === "scheduled" || m.status === "confirmed").length;
+      const now = Date.now();
+      const isUpcoming = (m: typeof all[0]) =>
+        (m.status === "scheduled" || m.status === "confirmed") && new Date(m.scheduled_at).getTime() >= now;
+      const isPastUnresolved = (m: typeof all[0]) =>
+        (m.status === "scheduled" || m.status === "confirmed") && new Date(m.scheduled_at).getTime() < now;
+
+      const upcoming = all.filter(isUpcoming).length;
+      const pastUnresolved = all.filter(isPastUnresolved).length;
       const cancelled = all.filter(m => m.status === "cancelled").length;
       const completed = all.filter(m => m.status === "completed").length;
       const noShow = all.filter(m => m.status === "no_show").length;
+      const rescheduled = all.filter(m => m.status === "rescheduled").length;
+      // Show rate: of meetings that actually concluded (completed or no-show)
       const decidedTotal = completed + noShow;
       const showRate = decidedTotal > 0 ? Math.round((completed / decidedTotal) * 100) : 0;
 
-      return { scheduled, cancelled, completed, showRate };
+      return {
+        total: all.length,
+        scheduled: upcoming, // legacy field — now means "future scheduled"
+        upcoming,
+        pastUnresolved,
+        cancelled,
+        completed,
+        noShow,
+        rescheduled,
+        showRate,
+      };
     },
   });
 }

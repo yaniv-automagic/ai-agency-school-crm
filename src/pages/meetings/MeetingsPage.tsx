@@ -175,30 +175,40 @@ export default function MeetingsPage() {
           <div className="bg-card border border-border rounded-xl p-4">
             <div className="flex items-center gap-2 text-muted-foreground mb-1">
               <Calendar size={14} />
-              <span className="text-xs">פגישות שנקבעו</span>
+              <span className="text-xs">עתידיות</span>
             </div>
-            <p className="text-2xl font-bold">{stats.scheduled}</p>
-          </div>
-          <div className="bg-card border border-border rounded-xl p-4">
-            <div className="flex items-center gap-2 text-muted-foreground mb-1">
-              <Ban size={14} />
-              <span className="text-xs">פגישות שבוטלו</span>
-            </div>
-            <p className="text-2xl font-bold">{stats.cancelled}</p>
+            <p className="text-2xl font-bold">{stats.upcoming}</p>
+            {stats.pastUnresolved > 0 && (
+              <p className="text-[10px] text-amber-600 mt-1">+{stats.pastUnresolved} ישנות לא עודכנו</p>
+            )}
           </div>
           <div className="bg-card border border-border rounded-xl p-4">
             <div className="flex items-center gap-2 text-muted-foreground mb-1">
               <CheckCircle2 size={14} />
-              <span className="text-xs">פגישות שהתבצעו</span>
+              <span className="text-xs">התקיימו</span>
             </div>
             <p className="text-2xl font-bold">{stats.completed}</p>
+            {stats.noShow > 0 && (
+              <p className="text-[10px] text-muted-foreground mt-1">{stats.noShow} לקוח לא הגיע</p>
+            )}
+          </div>
+          <div className="bg-card border border-border rounded-xl p-4">
+            <div className="flex items-center gap-2 text-muted-foreground mb-1">
+              <Ban size={14} />
+              <span className="text-xs">בוטלו / נדחו</span>
+            </div>
+            <p className="text-2xl font-bold">{stats.cancelled + stats.rescheduled}</p>
+            {stats.rescheduled > 0 && (
+              <p className="text-[10px] text-muted-foreground mt-1">מתוכן {stats.rescheduled} נדחו</p>
+            )}
           </div>
           <div className="bg-card border border-border rounded-xl p-4">
             <div className="flex items-center gap-2 text-muted-foreground mb-1">
               <BarChart3 size={14} />
-              <span className="text-xs">אחוזי הגעה</span>
+              <span className="text-xs">אחוז הגעה</span>
             </div>
             <p className="text-2xl font-bold">{stats.showRate}%</p>
+            <p className="text-[10px] text-muted-foreground mt-1">מתוך {stats.completed + stats.noShow} שהוכרעו</p>
           </div>
         </div>
       )}
