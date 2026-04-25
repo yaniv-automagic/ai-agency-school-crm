@@ -377,7 +377,7 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
                           {meta.contract_id && (
                             <Link
                               to={`/contracts/${meta.contract_id}`}
-                              className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-green-50 hover:bg-green-100 text-green-700 border border-green-200/60 transition-colors"
+                              className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-colors"
                               title="פתח רשומת חוזה"
                             >
                               <ExternalLink size={11} />
@@ -389,7 +389,7 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
                               href={meta.signed_pdf_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-green-50 hover:bg-green-100 text-green-700 border border-green-200/60 transition-colors"
+                              className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-colors"
                               title="צפייה / הורדה של החוזה החתום"
                             >
                               <Download size={11} />
