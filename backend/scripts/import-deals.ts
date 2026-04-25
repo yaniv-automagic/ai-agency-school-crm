@@ -139,12 +139,16 @@ function num(v: any): number | null {
     const productId = pickProduct(d.productname);
     const installDate = dateOnly(d.installdate) || dateOnly(d.pcfsystemfield129) || dateOnly(d.createdon);
 
+    // value = actual cash received (excluded for cancelled deals).
+    // The original agreed price is preserved in custom_fields.deal_amount.
+    const actualPaid = num(d.pcfsystemfield160) || 0;
+    const dealValueForCash = status === "lost" ? 0 : actualPaid;
     rows.push({
       contact_id: contact.id,
       pipeline_id: pipelineId,
       stage_id: stageId,
       title: [d.productname, d.accountname].filter(Boolean).join(" — ") || "עסקה",
-      value: num(d.price) || 0,
+      value: dealValueForCash,
       currency: "ILS",
       status,
       product_id: productId,
@@ -161,6 +165,8 @@ function num(v: any): number | null {
         fireberry_opportunity_id: d.pcfsystemfield196 || null,
         fireberry_linked_webinar: d.pcfsystemfield197name || null,
         payment_status: d.pcfsystemfield56name || null,
+        deal_amount: num(d.price) || 0,         // original agreed price
+        actual_paid: actualPaid,                 // what came in
         total_paid: num(d.pcfsystemfield160),
         balance_due: num(d.pcfsystemfield162),
         payment_count: num(d.pcfsystemfield198),

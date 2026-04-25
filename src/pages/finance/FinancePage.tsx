@@ -15,7 +15,8 @@ const MONTHS = ["ינו", "פבר", "מרץ", "אפר", "מאי", "יונ", "י�
 export default function FinancePage() {
   const [year, setYear] = useState(new Date().getFullYear());
 
-  // Fetch won deals (= revenue)
+  // Fetch won deals (= revenue). value is the cash actually received;
+  // custom_fields.deal_amount holds the original agreed price (booked).
   const { data: wonDeals } = useQuery({
     queryKey: ["finance-deals", year],
     queryFn: async () => {
@@ -23,10 +24,24 @@ export default function FinancePage() {
       const end = `${year}-12-31`;
       const { data, error } = await supabase
         .from("crm_deals")
-        .select("id, title, value, currency, actual_close, updated_at, contact:crm_contacts(first_name, last_name), product:crm_products(name)")
+        .select("id, title, value, currency, actual_close, updated_at, custom_fields, contact:crm_contacts(first_name, last_name), product:crm_products(name)")
         .eq("status", "won")
         .gte("updated_at", start)
         .lte("updated_at", end + "T23:59:59")
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Cancelled deals (status=lost) — surfaced separately so the user can see them
+  const { data: cancelledDeals } = useQuery({
+    queryKey: ["finance-cancelled", year],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("crm_deals")
+        .select("id, title, value, custom_fields, updated_at")
+        .eq("status", "lost")
         .order("updated_at", { ascending: false });
       if (error) throw error;
       return data || [];
@@ -60,13 +75,25 @@ export default function FinancePage() {
     },
   });
 
+  // Total cash received from won deals
   const totalRevenue = wonDeals?.reduce((sum, d) => sum + (Number(d.value) || 0), 0) || 0;
+  // Total amount BOOKED (deal price) — what should arrive when all installments paid
+  const totalBooked = wonDeals?.reduce(
+    (sum, d) => sum + Number((d.custom_fields as any)?.deal_amount || d.value || 0),
+    0,
+  ) || 0;
+  const balanceDue = Math.max(totalBooked - totalRevenue, 0);
   const totalDeals = wonDeals?.length || 0;
   const avgDealValue = totalDeals > 0 ? totalRevenue / totalDeals : 0;
   const pipelineValue = openDeals?.reduce((sum, d) => sum + (Number(d.value) || 0), 0) || 0;
   const totalAdSpend = adSpend?.reduce((sum, s) => sum + (Number(s.spend) || 0), 0) || 0;
   const roas = totalAdSpend > 0 ? totalRevenue / totalAdSpend : 0;
   const profit = totalRevenue - totalAdSpend;
+  const cancelledCount = cancelledDeals?.length || 0;
+  const cancelledBookedSum = cancelledDeals?.reduce(
+    (sum, d) => sum + Number((d.custom_fields as any)?.deal_amount || d.value || 0),
+    0,
+  ) || 0;
 
   // Monthly revenue chart
   const monthlyRevenue = useMemo(() => {
@@ -125,7 +152,11 @@ export default function FinancePage() {
             <span className="text-xs text-muted-foreground">הכנסות {year}</span>
           </div>
           <p className="text-2xl font-bold text-green-600">{formatCurrency(totalRevenue)}</p>
-          <p className="text-xs text-muted-foreground mt-1">{totalDeals} עסקאות נסגרו</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {totalDeals} עסקאות
+            {balanceDue > 0 && <> · יתרה לגבייה: <span className="text-amber-600 font-medium">{formatCurrency(balanceDue)}</span></>}
+            {cancelledCount > 0 && <> · {cancelledCount} בוטלו ({formatCurrency(cancelledBookedSum)})</>}
+          </p>
         </div>
 
         <div className="bg-card border border-border rounded-xl p-5">
