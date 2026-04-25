@@ -18,6 +18,8 @@ import { useCreateEnrollment, useUpdateEnrollment } from "@/hooks/useEnrollments
 import { useTeamMembers } from "@/hooks/useTeamMembers";
 import { useEventRegistrationsByContact, type ContactEventRegistration } from "@/hooks/useEventRegistrations";
 import { Link } from "react-router-dom";
+import { useSortable, type SortValueGetter } from "@/hooks/useSortable";
+import { SortableHeader } from "@/components/ui/sortable-header";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { CONTACT_SOURCES } from "@/lib/constants";
@@ -37,6 +39,8 @@ interface ColumnDef {
   label: string;
   defaultVisible: boolean;
   render: (contact: Contact, helpers: RenderHelpers) => React.ReactNode;
+  /** Optional value extractor for sorting (default: contact[key]) */
+  sortValue?: SortValueGetter<Contact>;
 }
 interface RenderHelpers {
   getStage: (c: Contact) => PipelineStage | undefined;
@@ -49,10 +53,12 @@ interface RenderHelpers {
 const ALL_COLUMNS: ColumnDef[] = [
   { key: "name", label: "שם", defaultVisible: true,
     render: (c) => <span className="font-medium">{c.first_name} {c.last_name}</span>,
+    sortValue: (c) => `${c.first_name || ""} ${c.last_name || ""}`.trim(),
   },
   { key: "email", label: "מייל", defaultVisible: true, render: (c) => <span className="text-muted-foreground">{c.email || "—"}</span> },
   { key: "phone", label: "טלפון", defaultVisible: true, render: (c) => <span className="text-muted-foreground" dir="ltr">{formatPhone(c.phone || "") || "—"}</span> },
   { key: "stage", label: "שלב", defaultVisible: true,
+    sortValue: undefined, // set at runtime via sortGetters below
     render: (c, { getStage, openStagePicker }) => {
       const stage = getStage(c);
       const color = stage?.color || "#6b7280";
@@ -66,6 +72,7 @@ const ALL_COLUMNS: ColumnDef[] = [
     },
   },
   { key: "assigned", label: "אחראי", defaultVisible: true,
+    sortValue: undefined, // set at runtime
     render: (c, { getAssignee, openAssigneePicker }) => {
       const a = getAssignee(c);
       return (
@@ -138,6 +145,7 @@ const ALL_COLUMNS: ColumnDef[] = [
       : <span className="text-muted-foreground">—</span>
   },
   { key: "webinar_registered", label: "נרשם לוובינר", defaultVisible: false,
+    sortValue: undefined, // set at runtime
     render: (c, { getEventRegistrations }) => {
       const regs = getEventRegistrations(c).filter(r => r.registered);
       if (!regs.length) return <span className="text-muted-foreground">—</span>;
@@ -155,6 +163,7 @@ const ALL_COLUMNS: ColumnDef[] = [
     },
   },
   { key: "webinar_attended", label: "נכח בוובינר", defaultVisible: false,
+    sortValue: undefined, // set at runtime
     render: (c, { getEventRegistrations }) => {
       const regs = getEventRegistrations(c).filter(r => r.attended);
       if (!regs.length) return <span className="text-muted-foreground">—</span>;
@@ -399,6 +408,28 @@ export default function ContactsPage() {
     }
   };
   const activeColumns = visibleColumns.map(k => ALL_COLUMNS.find(c => c.key === k)!).filter(Boolean);
+
+  // ── Sorting ──
+  const sortGetters = useMemo<Record<string, SortValueGetter<Contact>>>(() => ({
+    stage: (c) => getStage(c)?.name || "",
+    assigned: (c) => getAssignee(c)?.display_name || "",
+    webinar_registered: (c) => getEventRegistrations(c).find(r => r.registered)?.event_title || "",
+    webinar_attended: (c) => getEventRegistrations(c).find(r => r.attended)?.event_title || "",
+    tags: (c) => (c.tags || []).join(", "),
+    community_groups: (c) => (c.community_groups || []).join(", "),
+    address: (c) => c.address || c.city || "",
+    landing_page: (c) => c.landing_page_url || "",
+    sales_call: (c) => !!c.sales_call_completed,
+    created: (c) => c.created_at || "",
+  }), [getStage, getAssignee, getEventRegistrations]);
+
+  const { sorted: sortedContacts, isSorted, toggleSort } = useSortable<Contact>(filteredContacts, {
+    defaultGetter: (row, key) => (row as any)[key],
+  });
+  const handleColumnSort = useCallback((col: ColumnDef) => {
+    const getter = sortGetters[col.key] || col.sortValue;
+    toggleSort(col.key, getter);
+  }, [sortGetters, toggleSort]);
 
   // ── Filter groups ──
   const addGroup = () => setFilterGroups(prev => [...prev, { id: `g-${Date.now()}`, logic: "and", conditions: [{ id: `c-${Date.now()}`, field: "first_name", operator: "contains", value: "" }] }]);
@@ -651,11 +682,17 @@ export default function ContactsPage() {
                 <th className="w-10 px-3 py-3 text-center">
                   <input type="checkbox" className="rounded accent-primary" checked={filteredContacts?.length ? selectedIds.length === filteredContacts.length : false} onChange={toggleAll} />
                 </th>
-                {activeColumns.map(col => <th key={col.key} className="px-4 py-3 font-medium text-muted-foreground text-center text-xs">{col.label}</th>)}
+                {activeColumns.map(col => (
+                  <th key={col.key} className="px-4 py-3 font-medium text-muted-foreground text-center text-xs">
+                    <SortableHeader sortKey={col.key} isSorted={isSorted} onSort={() => handleColumnSort(col)}>
+                      {col.label}
+                    </SortableHeader>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {filteredContacts && filteredContacts.length > 0 ? filteredContacts.map(contact => (
+              {sortedContacts && sortedContacts.length > 0 ? sortedContacts.map(contact => (
                 <tr key={contact.id} onClick={() => navigate(`/contacts/${contact.id}`)}
                   className={cn("border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer transition-colors", selectedIds.includes(contact.id) && "bg-primary/5")}>
                   <td className="px-3 py-3 text-center" onClick={e => e.stopPropagation()}>

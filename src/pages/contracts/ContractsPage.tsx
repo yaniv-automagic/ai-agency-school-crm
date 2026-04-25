@@ -5,6 +5,8 @@ import { useContracts } from "@/hooks/useContracts";
 import { CONTRACT_STATUSES } from "@/lib/constants";
 import { cn, formatDateTime } from "@/lib/utils";
 import type { ContractStatus } from "@/types/crm";
+import { useSortable } from "@/hooks/useSortable";
+import { SortableHeader } from "@/components/ui/sortable-header";
 
 const FILTER_TABS = [
   { value: "", label: "הכל" },
@@ -20,6 +22,20 @@ export default function ContractsPage() {
   const { data: contracts, isLoading } = useContracts(
     statusFilter ? { status: statusFilter as ContractStatus } : undefined
   );
+  const { sorted: sortedContracts, isSorted, toggleSort } = useSortable<any>(contracts || [], {
+    initialKey: "created_at", initialDir: "desc",
+  });
+  const contractGetter = (k: string) => {
+    switch (k) {
+      case "contact":   return (c: any) => `${c.contact?.first_name || ""} ${c.contact?.last_name || ""}`.trim();
+      case "title":     return (c: any) => c.title;
+      case "status":    return (c: any) => c.status;
+      case "sent_at":   return (c: any) => c.sent_at;
+      case "signed_at": return (c: any) => c.signed_at;
+      case "created_at":return (c: any) => c.created_at;
+      default: return (c: any) => c[k];
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -68,17 +84,17 @@ export default function ContractsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">כותרת</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">ליד</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">סטטוס</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">נשלח</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">נחתם</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">תאריך יצירה</th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="title" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>כותרת</SortableHeader></th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="contact" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>ליד</SortableHeader></th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="status" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>סטטוס</SortableHeader></th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="sent_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>נשלח</SortableHeader></th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="signed_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>נחתם</SortableHeader></th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="created_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>תאריך יצירה</SortableHeader></th>
               </tr>
             </thead>
             <tbody>
-              {contracts && contracts.length > 0 ? (
-                contracts.map((contract) => {
+              {sortedContracts && sortedContracts.length > 0 ? (
+                sortedContracts.map((contract: any) => {
                   const status = CONTRACT_STATUSES.find(
                     (s) => s.value === contract.status
                   );

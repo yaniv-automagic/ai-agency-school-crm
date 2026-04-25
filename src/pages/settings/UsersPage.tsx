@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
+import { useSortable } from "@/hooks/useSortable";
+import { SortableHeader } from "@/components/ui/sortable-header";
 
 const roleLabels: Record<TeamRole, string> = {
   owner: "בעלים",
@@ -37,6 +39,7 @@ export default function UsersPage() {
   const { can } = usePermissions();
   const navigate = useNavigate();
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const { sorted: sortedMembers, isSorted, toggleSort } = useSortable<TeamMember>(members);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
@@ -233,16 +236,16 @@ export default function UsersPage() {
         <table className="w-full">
           <thead className="bg-muted/50">
             <tr>
-              <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground">שם</th>
-              <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground">אימייל</th>
-              <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground">טלפון</th>
-              <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground">תפקיד</th>
-              <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground">סטטוס</th>
+              <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground"><SortableHeader sortKey="display_name" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>שם</SortableHeader></th>
+              <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground"><SortableHeader sortKey="email" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>אימייל</SortableHeader></th>
+              <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground"><SortableHeader sortKey="phone" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>טלפון</SortableHeader></th>
+              <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground"><SortableHeader sortKey="role" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>תפקיד</SortableHeader></th>
+              <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground"><SortableHeader sortKey="is_active" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>סטטוס</SortableHeader></th>
               <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground">פעולות</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {members.map((member) => (
+            {sortedMembers.map((member) => (
               <tr key={member.id} className="hover:bg-muted/30 transition-colors">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">

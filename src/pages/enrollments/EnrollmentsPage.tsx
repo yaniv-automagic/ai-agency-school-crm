@@ -18,6 +18,8 @@ import { useUserPreference } from "@/hooks/useUserPreferences";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
 import type { ProgramEnrollment, EnrollmentStatus } from "@/types/crm";
+import { useSortable as useTableSort } from "@/hooks/useSortable";
+import { SortableHeader } from "@/components/ui/sortable-header";
 
 // ── Column definitions ──
 interface ColumnDef {
@@ -245,6 +247,20 @@ export default function EnrollmentsPage() {
     }
   };
   const activeColumns = visibleColumns.map(k => ALL_COLUMNS.find(c => c.key === k)!).filter(Boolean);
+
+  const { sorted: sortedEnrollments, isSorted, toggleSort } = useTableSort<any>(filteredEnrollments || [], {
+    initialKey: "start_date", initialDir: "desc",
+  });
+  const enrollSortGetter = (key: string) => {
+    switch (key) {
+      case "contact": return (e: any) => `${e.contact?.first_name || ""} ${e.contact?.last_name || ""}`.trim();
+      case "program": return (e: any) => e.program_name || e.product?.name || "";
+      case "mentor":  return (e: any) => e.mentor_name || "";
+      case "assigned": return (e: any) => e.assigned_member?.display_name || "";
+      case "status":   return (e: any) => e.status;
+      default:         return (e: any) => e[key];
+    }
+  };
 
   // ── Filter groups ──
   const addGroup = () => setFilterGroups(prev => [...prev, { id: `g-${Date.now()}`, logic: "and", conditions: [{ id: `c-${Date.now()}`, field: "contact_name", operator: "contains", value: "" }] }]);
@@ -478,11 +494,15 @@ export default function EnrollmentsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
-                {activeColumns.map(col => <th key={col.key} className="px-4 py-3 font-medium text-muted-foreground text-center text-xs">{col.label}</th>)}
+                {activeColumns.map(col => (
+                  <th key={col.key} className="px-4 py-3 font-medium text-muted-foreground text-center text-xs">
+                    <SortableHeader sortKey={col.key} isSorted={isSorted} onSort={k => toggleSort(k, enrollSortGetter(k))}>{col.label}</SortableHeader>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {filteredEnrollments && filteredEnrollments.length > 0 ? filteredEnrollments.map(enrollment => (
+              {sortedEnrollments && sortedEnrollments.length > 0 ? sortedEnrollments.map((enrollment: any) => (
                 <tr key={enrollment.id} onClick={() => navigate(`/enrollments/${enrollment.id}`)}
                   className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer transition-colors">
                   {activeColumns.map(col => (

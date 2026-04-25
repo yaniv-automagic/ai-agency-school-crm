@@ -13,6 +13,8 @@ import { MEETING_TYPES, MEETING_STATUSES, CONTACT_STATUSES } from "@/lib/constan
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useSortable } from "@/hooks/useSortable";
+import { SortableHeader } from "@/components/ui/sortable-header";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import type { MeetingType, MeetingStatus, Meeting } from "@/types/crm";
@@ -88,6 +90,21 @@ export default function MeetingsPage() {
         m.contact?.phone?.includes(q)
     );
   }, [meetings, search]);
+
+  const { sorted: sortedMeetings, isSorted, toggleSort } = useSortable<any>(filteredMeetings, {
+    initialKey: "scheduled_at", initialDir: "desc",
+  });
+  const sortGetter = (key: string): ((m: any) => any) => {
+    switch (key) {
+      case "title":      return m => m.title;
+      case "scheduled_at": return m => m.scheduled_at;
+      case "assigned":   return m => m.assigned_member?.display_name || "";
+      case "type":       return m => m.meeting_type;
+      case "contact":    return m => `${m.contact?.first_name || ""} ${m.contact?.last_name || ""}`.trim();
+      case "status":     return m => m.status;
+      default:           return m => m[key];
+    }
+  };
 
   const handleQuickUpdate = (meetingId: string, updates: Partial<Meeting>) => {
     updateMeeting.mutate({ id: meetingId, ...updates, _tenantId: teamMember?.tenant_id } as any);
@@ -225,18 +242,30 @@ export default function MeetingsPage() {
                 <th className="w-10 px-3 py-3 text-center">
                   <input type="checkbox" className="rounded accent-primary" checked={filteredMeetings?.length ? selectedIds.length === filteredMeetings.length : false} onChange={toggleAll} />
                 </th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">כותרת</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">תאריך</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">אחראי</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">סוג</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">ליד / תלמיד</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">סטטוס</th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                  <SortableHeader sortKey="title" align="right" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>כותרת</SortableHeader>
+                </th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                  <SortableHeader sortKey="scheduled_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>תאריך</SortableHeader>
+                </th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                  <SortableHeader sortKey="assigned" align="right" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>אחראי</SortableHeader>
+                </th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                  <SortableHeader sortKey="type" align="right" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>סוג</SortableHeader>
+                </th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                  <SortableHeader sortKey="contact" align="right" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>ליד / תלמיד</SortableHeader>
+                </th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                  <SortableHeader sortKey="status" align="right" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>סטטוס</SortableHeader>
+                </th>
                 <th className="px-4 py-3 w-10"></th>
               </tr>
             </thead>
             <tbody>
-              {filteredMeetings && filteredMeetings.length > 0 ? (
-                filteredMeetings.map((meeting) => {
+              {sortedMeetings && sortedMeetings.length > 0 ? (
+                sortedMeetings.map((meeting) => {
                   const status = MEETING_STATUSES.find((s) => s.value === meeting.status);
                   const type = MEETING_TYPES.find((t) => t.value === meeting.meeting_type);
 

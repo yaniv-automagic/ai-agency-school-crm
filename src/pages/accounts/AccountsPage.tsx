@@ -6,6 +6,8 @@ import { supabase } from "@/lib/supabase";
 import type { Account } from "@/types/crm";
 import { timeAgo } from "@/lib/utils";
 import { toast } from "sonner";
+import { useSortable } from "@/hooks/useSortable";
+import { SortableHeader } from "@/components/ui/sortable-header";
 
 function useAccounts(search?: string) {
   return useQuery({
@@ -31,6 +33,7 @@ export default function AccountsPage() {
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const { data: accounts, isLoading } = useAccounts(search || undefined);
+  const { sorted: sortedAccounts, isSorted, toggleSort } = useSortable<Account>(accounts);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -99,17 +102,17 @@ export default function AccountsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">שם</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">תעשייה</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">טלפון</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">מייל</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">עיר</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">נוצר</th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="name" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>שם</SortableHeader></th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="industry" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>תעשייה</SortableHeader></th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="phone" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>טלפון</SortableHeader></th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="email" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>מייל</SortableHeader></th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="billing_city" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>עיר</SortableHeader></th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="created_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>נוצר</SortableHeader></th>
               </tr>
             </thead>
             <tbody>
-              {accounts && accounts.length > 0 ? (
-                accounts.map(account => (
+              {sortedAccounts && sortedAccounts.length > 0 ? (
+                sortedAccounts.map(account => (
                   <tr
                     key={account.id}
                     className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer transition-colors"

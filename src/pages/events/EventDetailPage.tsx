@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { ArrowRight, Calendar, ExternalLink, Users, BadgeCheck, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSortable } from "@/hooks/useSortable";
+import { SortableHeader } from "@/components/ui/sortable-header";
 
 interface EventRow {
   id: string;
@@ -196,21 +198,33 @@ export default function EventDetailPage() {
 }
 
 function RegistrantTable({ registrations }: { registrations: RegistrationRow[] }) {
+  const { sorted, isSorted, toggleSort } = useSortable<RegistrationRow>(registrations);
+  const get = (k: string) => {
+    switch (k) {
+      case "name":   return (r: RegistrationRow) => `${r.contact?.first_name || ""} ${r.contact?.last_name || ""}`.trim();
+      case "email":  return (r: RegistrationRow) => r.contact?.email || "";
+      case "phone":  return (r: RegistrationRow) => r.contact?.phone || "";
+      case "status": return (r: RegistrationRow) => r.contact?.status || "";
+      case "utm":    return (r: RegistrationRow) => `${r.utm_source || ""}/${r.utm_medium || ""}`;
+      case "registered_at": return (r: RegistrationRow) => r.registered_at || "";
+    }
+    return undefined;
+  };
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead className="text-xs text-muted-foreground">
           <tr className="border-b border-border">
-            <th className="text-right py-2 font-medium">שם</th>
-            <th className="text-right py-2 font-medium">מייל</th>
-            <th className="text-right py-2 font-medium">טלפון</th>
-            <th className="text-right py-2 font-medium">סטטוס</th>
-            <th className="text-right py-2 font-medium">UTM</th>
-            <th className="text-right py-2 font-medium">תאריך הרשמה</th>
+            <th className="text-right py-2 font-medium"><SortableHeader sortKey="name" align="right" isSorted={isSorted} onSort={k => toggleSort(k, get(k))}>שם</SortableHeader></th>
+            <th className="text-right py-2 font-medium"><SortableHeader sortKey="email" align="right" isSorted={isSorted} onSort={k => toggleSort(k, get(k))}>מייל</SortableHeader></th>
+            <th className="text-right py-2 font-medium"><SortableHeader sortKey="phone" align="right" isSorted={isSorted} onSort={k => toggleSort(k, get(k))}>טלפון</SortableHeader></th>
+            <th className="text-right py-2 font-medium"><SortableHeader sortKey="status" align="right" isSorted={isSorted} onSort={k => toggleSort(k, get(k))}>סטטוס</SortableHeader></th>
+            <th className="text-right py-2 font-medium"><SortableHeader sortKey="utm" align="right" isSorted={isSorted} onSort={k => toggleSort(k, get(k))}>UTM</SortableHeader></th>
+            <th className="text-right py-2 font-medium"><SortableHeader sortKey="registered_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k, get(k))}>תאריך הרשמה</SortableHeader></th>
           </tr>
         </thead>
         <tbody>
-          {registrations.map(r => (
+          {sorted.map(r => (
             <tr key={r.id} className="border-b border-border/50 hover:bg-secondary/30">
               <td className="py-2">
                 {r.contact ? (
