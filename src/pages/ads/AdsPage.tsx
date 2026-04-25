@@ -133,14 +133,14 @@ export default function AdsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/50">
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">שם קמפיין</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">סטטוס</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">הוצאות</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">חשיפות</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">קליקים</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">CPL</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">CPA</th>
-              <th className="text-right px-4 py-3 font-medium text-muted-foreground">לידים</th>
+              <th className="text-center px-4 py-3 font-medium text-muted-foreground">שם קמפיין</th>
+              <th className="text-center px-4 py-3 font-medium text-muted-foreground">סטטוס</th>
+              <th className="text-center px-4 py-3 font-medium text-muted-foreground">הוצאות</th>
+              <th className="text-center px-4 py-3 font-medium text-muted-foreground">חשיפות</th>
+              <th className="text-center px-4 py-3 font-medium text-muted-foreground">קליקים</th>
+              <th className="text-center px-4 py-3 font-medium text-muted-foreground">CPL</th>
+              <th className="text-center px-4 py-3 font-medium text-muted-foreground">CPA</th>
+              <th className="text-center px-4 py-3 font-medium text-muted-foreground">לידים</th>
             </tr>
           </thead>
           <tbody>

@@ -247,11 +247,11 @@ function AttributionTab() {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border bg-muted/50">
-            <th className="text-right px-4 py-3 font-medium text-muted-foreground">מקור</th>
-            <th className="text-right px-4 py-3 font-medium text-muted-foreground">לידים</th>
-            <th className="text-right px-4 py-3 font-medium text-muted-foreground">עסקאות שנסגרו</th>
-            <th className="text-right px-4 py-3 font-medium text-muted-foreground">הכנסה</th>
-            <th className="text-right px-4 py-3 font-medium text-muted-foreground">ROAS</th>
+            <th className="text-center px-4 py-3 font-medium text-muted-foreground">מקור</th>
+            <th className="text-center px-4 py-3 font-medium text-muted-foreground">לידים</th>
+            <th className="text-center px-4 py-3 font-medium text-muted-foreground">עסקאות שנסגרו</th>
+            <th className="text-center px-4 py-3 font-medium text-muted-foreground">הכנסה</th>
+            <th className="text-center px-4 py-3 font-medium text-muted-foreground">ROAS</th>
           </tr>
         </thead>
         <tbody>

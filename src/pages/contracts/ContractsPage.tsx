@@ -7,6 +7,7 @@ import { cn, formatDateTime } from "@/lib/utils";
 import type { ContractStatus } from "@/types/crm";
 import { useSortable } from "@/hooks/useSortable";
 import { SortableHeader } from "@/components/ui/sortable-header";
+import { BulkActionBar, BulkDeleteButton } from "@/components/ui/bulk-action-bar";
 
 const FILTER_TABS = [
   { value: "", label: "הכל" },
@@ -25,6 +26,9 @@ export default function ContractsPage() {
   const { sorted: sortedContracts, isSorted, toggleSort } = useSortable<any>(contracts || [], {
     initialKey: "created_at", initialDir: "desc",
   });
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const toggleSelect = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const toggleAll = () => setSelectedIds(prev => prev.length === sortedContracts.length ? [] : sortedContracts.map((c: any) => c.id));
   const contractGetter = (k: string) => {
     switch (k) {
       case "contact":   return (c: any) => `${c.contact?.first_name || ""} ${c.contact?.last_name || ""}`.trim();
@@ -84,12 +88,17 @@ export default function ContractsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="title" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>כותרת</SortableHeader></th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="contact" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>ליד</SortableHeader></th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="status" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>סטטוס</SortableHeader></th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="sent_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>נשלח</SortableHeader></th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="signed_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>נחתם</SortableHeader></th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="created_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>תאריך יצירה</SortableHeader></th>
+                <th className="w-10 px-3 py-3 text-center">
+                  <input type="checkbox" className="rounded accent-primary"
+                    checked={sortedContracts.length > 0 && selectedIds.length === sortedContracts.length}
+                    onChange={toggleAll} />
+                </th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="title" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>כותרת</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="contact" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>ליד</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="status" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>סטטוס</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="sent_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>נשלח</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="signed_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>נחתם</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="created_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k, contractGetter(k))}>תאריך יצירה</SortableHeader></th>
               </tr>
             </thead>
             <tbody>
@@ -102,8 +111,13 @@ export default function ContractsPage() {
                     <tr
                       key={contract.id}
                       onClick={() => navigate(`/contracts/${contract.id}`)}
-                      className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer transition-colors"
+                      className={cn("border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer transition-colors", selectedIds.includes(contract.id) && "bg-primary/5")}
                     >
+                      <td className="px-3 py-3 text-center" onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" className="rounded accent-primary"
+                          checked={selectedIds.includes(contract.id)}
+                          onChange={() => toggleSelect(contract.id)} />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <FileText size={16} className="text-muted-foreground shrink-0" />
@@ -139,7 +153,7 @@ export default function ContractsPage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-4 py-16 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-16 text-center text-muted-foreground">
                     <FileText size={40} className="mx-auto mb-3 opacity-30" />
                     <p className="text-lg font-medium mb-1">אין חוזים</p>
                     <p className="text-sm">צור חוזה חדש כדי להתחיל</p>
@@ -150,6 +164,10 @@ export default function ContractsPage() {
           </table>
         </div>
       )}
+
+      <BulkActionBar selectedIds={selectedIds} onClear={() => setSelectedIds([])} entityLabel="חוזים">
+        <BulkDeleteButton selectedIds={selectedIds} onCleared={() => setSelectedIds([])} tableName="crm_contracts" entityLabel="חוזים" invalidateKeys={[["contracts"]]} />
+      </BulkActionBar>
     </div>
   );
 }

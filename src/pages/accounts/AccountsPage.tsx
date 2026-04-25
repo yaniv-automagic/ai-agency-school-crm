@@ -8,6 +8,7 @@ import { timeAgo } from "@/lib/utils";
 import { toast } from "sonner";
 import { useSortable } from "@/hooks/useSortable";
 import { SortableHeader } from "@/components/ui/sortable-header";
+import { BulkActionBar, BulkDeleteButton } from "@/components/ui/bulk-action-bar";
 
 function useAccounts(search?: string) {
   return useQuery({
@@ -34,6 +35,9 @@ export default function AccountsPage() {
   const [showForm, setShowForm] = useState(false);
   const { data: accounts, isLoading } = useAccounts(search || undefined);
   const { sorted: sortedAccounts, isSorted, toggleSort } = useSortable<Account>(accounts);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const toggleSelect = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const toggleAll = () => setSelectedIds(prev => prev.length === sortedAccounts.length ? [] : sortedAccounts.map(a => a.id));
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -102,12 +106,17 @@ export default function AccountsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="name" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>שם</SortableHeader></th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="industry" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>תעשייה</SortableHeader></th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="phone" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>טלפון</SortableHeader></th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="email" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>מייל</SortableHeader></th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="billing_city" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>עיר</SortableHeader></th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="created_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>נוצר</SortableHeader></th>
+                <th className="w-10 px-3 py-3 text-center">
+                  <input type="checkbox" className="rounded accent-primary"
+                    checked={sortedAccounts.length > 0 && selectedIds.length === sortedAccounts.length}
+                    onChange={toggleAll} />
+                </th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="name" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>שם</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="industry" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>תעשייה</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="phone" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>טלפון</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="email" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>מייל</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="billing_city" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>עיר</SortableHeader></th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground"><SortableHeader sortKey="created_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k)}>נוצר</SortableHeader></th>
               </tr>
             </thead>
             <tbody>
@@ -115,8 +124,13 @@ export default function AccountsPage() {
                 sortedAccounts.map(account => (
                   <tr
                     key={account.id}
-                    className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer transition-colors"
+                    className={"border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer transition-colors " + (selectedIds.includes(account.id) ? "bg-primary/5" : "")}
                   >
+                    <td className="px-3 py-3 text-center" onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" className="rounded accent-primary"
+                        checked={selectedIds.includes(account.id)}
+                        onChange={() => toggleSelect(account.id)} />
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
@@ -134,7 +148,7 @@ export default function AccountsPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-4 py-16 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-16 text-center text-muted-foreground">
                     <Building2 size={48} className="mx-auto mb-3 opacity-20" />
                     <p className="text-lg font-medium mb-1">אין חשבונות</p>
                     <p className="text-sm">הוסף ארגונים וחברות</p>
@@ -225,6 +239,10 @@ export default function AccountsPage() {
           </div>
         </div>
       )}
+
+      <BulkActionBar selectedIds={selectedIds} onClear={() => setSelectedIds([])} entityLabel="חשבונות">
+        <BulkDeleteButton selectedIds={selectedIds} onCleared={() => setSelectedIds([])} tableName="crm_accounts" entityLabel="חשבונות" invalidateKeys={[["accounts"]]} />
+      </BulkActionBar>
     </div>
   );
 }

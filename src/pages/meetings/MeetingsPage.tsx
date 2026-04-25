@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSortable } from "@/hooks/useSortable";
 import { SortableHeader } from "@/components/ui/sortable-header";
+import { BulkActionBar, BulkActionButton } from "@/components/ui/bulk-action-bar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import type { MeetingType, MeetingStatus, Meeting } from "@/types/crm";
@@ -24,6 +25,26 @@ const TABS = [
   { value: "sales_consultation", label: "שיחות מכירה" },
   { value: "mentoring_1on1", label: "ליווי אישי" },
 ] as const;
+
+// Inline bulk button with status dropdown — meetings-specific
+function MeetingStatusBulkButton({ selectedIds, onApply }: { selectedIds: string[]; onApply: (s: MeetingStatus) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <BulkActionButton icon={CheckCircle2} label="שנה סטטוס" onClick={() => setOpen(o => !o)} active={open} />
+      {open && selectedIds.length > 0 && (
+        <div className="absolute bottom-full mb-2 right-0 bg-card border border-border rounded-xl shadow-xl py-1 w-48 z-50" dir="rtl">
+          {MEETING_STATUSES.map(s => (
+            <button key={s.value} onClick={() => { onApply(s.value as MeetingStatus); setOpen(false); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary/70 text-right">
+              <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium", s.color)}>{s.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Picker portal helper ──
 
@@ -242,22 +263,22 @@ export default function MeetingsPage() {
                 <th className="w-10 px-3 py-3 text-center">
                   <input type="checkbox" className="rounded accent-primary" checked={filteredMeetings?.length ? selectedIds.length === filteredMeetings.length : false} onChange={toggleAll} />
                 </th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground">
                   <SortableHeader sortKey="title" align="right" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>כותרת</SortableHeader>
                 </th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground">
                   <SortableHeader sortKey="scheduled_at" align="right" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>תאריך</SortableHeader>
                 </th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground">
                   <SortableHeader sortKey="assigned" align="right" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>אחראי</SortableHeader>
                 </th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground">
                   <SortableHeader sortKey="type" align="right" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>סוג</SortableHeader>
                 </th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground">
                   <SortableHeader sortKey="contact" align="right" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>ליד / תלמיד</SortableHeader>
                 </th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground">
                   <SortableHeader sortKey="status" align="right" isSorted={isSorted} onSort={k => toggleSort(k, sortGetter(k))}>סטטוס</SortableHeader>
                 </th>
                 <th className="px-4 py-3 w-10"></th>
@@ -442,62 +463,36 @@ export default function MeetingsPage() {
 
       {/* Create/Edit Meeting Slide-over Form */}
       {/* Bulk Actions */}
-      {selectedIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 animate-in slide-in-from-bottom-4 duration-300">
-          <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white rounded-2xl shadow-2xl">
-            <div className="flex items-center gap-2 pr-3 border-r border-white/20">
-              <Users size={15} />
-              <span className="text-sm font-semibold">{selectedIds.length}</span>
-              <span className="text-xs text-white/60">נבחרו</span>
-            </div>
-
-            {/* Change status */}
-            <div className="relative group">
-              <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-white/10 transition-colors">
-                <CheckCircle2 size={13} />
-                שנה סטטוס
-              </button>
-              <div className="absolute bottom-full mb-2 right-0 bg-white text-gray-900 rounded-xl shadow-xl border border-gray-200 py-1 w-40 hidden group-hover:block" dir="rtl">
-                {MEETING_STATUSES.map(s => (
-                  <button key={s.value} onClick={async () => {
-                    for (const id of selectedIds) {
-                      await updateMeeting.mutateAsync({ id, status: s.value as MeetingStatus, _tenantId: teamMember?.tenant_id } as any);
-                    }
-                    setSelectedIds([]);
-                  }} className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 text-right">
-                    <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium", s.color)}>{s.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Delete */}
-            <button
-              onClick={async () => {
-                const ok = await confirmDialog({
-                  title: "מחיקת פגישות",
-                  description: `למחוק ${selectedIds.length} פגישות? פעולה זו לא ניתנת לביטול.`,
-                  confirmText: "מחק",
-                  cancelText: "ביטול",
-                  variant: "destructive",
-                });
-                if (!ok) return;
-                await deleteMeetings.mutateAsync(selectedIds);
-                toast.success(`${selectedIds.length} פגישות נמחקו`);
-                setSelectedIds([]);
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg hover:bg-red-500/20 text-red-300 transition-colors"
-            >
-              <Trash2 size={13} />
-              מחק
-            </button>
-
-            <button onClick={() => setSelectedIds([])} className="p-1.5 rounded-full hover:bg-white/10 transition-colors mr-1">
-              <X size={14} />
-            </button>
-          </div>
-        </div>
-      )}
+      <BulkActionBar selectedIds={selectedIds} onClear={() => setSelectedIds([])} entityLabel="פגישות">
+        <MeetingStatusBulkButton
+          selectedIds={selectedIds}
+          onApply={async (status) => {
+            for (const id of selectedIds) {
+              await updateMeeting.mutateAsync({ id, status, _tenantId: teamMember?.tenant_id } as any);
+            }
+            toast.success(`${selectedIds.length} פגישות עודכנו`);
+            setSelectedIds([]);
+          }}
+        />
+        <BulkActionButton
+          icon={Trash2}
+          label="מחק"
+          destructive
+          onClick={async () => {
+            const ok = await confirmDialog({
+              title: "מחיקת פגישות",
+              description: `למחוק ${selectedIds.length} פגישות? פעולה זו לא ניתנת לביטול.`,
+              confirmText: "מחק",
+              cancelText: "ביטול",
+              variant: "destructive",
+            });
+            if (!ok) return;
+            await deleteMeetings.mutateAsync(selectedIds);
+            toast.success(`${selectedIds.length} פגישות נמחקו`);
+            setSelectedIds([]);
+          }}
+        />
+      </BulkActionBar>
 
       {showForm && <MeetingForm onClose={() => { setShowForm(false); setEditingMeeting(null); }} editMeeting={editingMeeting} />}
     </div>

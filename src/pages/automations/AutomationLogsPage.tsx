@@ -60,12 +60,12 @@ export default function AutomationLogsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">סטטוס</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">אוטומציה</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">סוג</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">זמן ריצה</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">בוצע</th>
-                <th className="text-right px-4 py-3 font-medium text-muted-foreground">שגיאה</th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground">סטטוס</th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground">אוטומציה</th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground">סוג</th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground">זמן ריצה</th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground">בוצע</th>
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground">שגיאה</th>
               </tr>
             </thead>
             <tbody>

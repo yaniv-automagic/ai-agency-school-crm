@@ -20,6 +20,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import type { ProgramEnrollment, EnrollmentStatus } from "@/types/crm";
 import { useSortable as useTableSort } from "@/hooks/useSortable";
 import { SortableHeader } from "@/components/ui/sortable-header";
+import { BulkActionBar, BulkDeleteButton } from "@/components/ui/bulk-action-bar";
 
 // ── Column definitions ──
 interface ColumnDef {
@@ -251,6 +252,9 @@ export default function EnrollmentsPage() {
   const { sorted: sortedEnrollments, isSorted, toggleSort } = useTableSort<any>(filteredEnrollments || [], {
     initialKey: "start_date", initialDir: "desc",
   });
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const toggleSelect = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const toggleAll = () => setSelectedIds(prev => prev.length === sortedEnrollments.length ? [] : sortedEnrollments.map((e: any) => e.id));
   const enrollSortGetter = (key: string) => {
     switch (key) {
       case "contact": return (e: any) => `${e.contact?.first_name || ""} ${e.contact?.last_name || ""}`.trim();
@@ -494,6 +498,11 @@ export default function EnrollmentsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
+                <th className="w-10 px-3 py-3 text-center">
+                  <input type="checkbox" className="rounded accent-primary"
+                    checked={sortedEnrollments.length > 0 && selectedIds.length === sortedEnrollments.length}
+                    onChange={toggleAll} />
+                </th>
                 {activeColumns.map(col => (
                   <th key={col.key} className="px-4 py-3 font-medium text-muted-foreground text-center text-xs">
                     <SortableHeader sortKey={col.key} isSorted={isSorted} onSort={k => toggleSort(k, enrollSortGetter(k))}>{col.label}</SortableHeader>
@@ -504,7 +513,12 @@ export default function EnrollmentsPage() {
             <tbody>
               {sortedEnrollments && sortedEnrollments.length > 0 ? sortedEnrollments.map((enrollment: any) => (
                 <tr key={enrollment.id} onClick={() => navigate(`/enrollments/${enrollment.id}`)}
-                  className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer transition-colors">
+                  className={cn("border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer transition-colors", selectedIds.includes(enrollment.id) && "bg-primary/5")}>
+                  <td className="px-3 py-3 text-center" onClick={e => e.stopPropagation()}>
+                    <input type="checkbox" className="rounded accent-primary"
+                      checked={selectedIds.includes(enrollment.id)}
+                      onChange={() => toggleSelect(enrollment.id)} />
+                  </td>
                   {activeColumns.map(col => (
                     <td key={col.key} className="px-4 py-3 text-center">
                       {col.render(enrollment)}
@@ -512,7 +526,7 @@ export default function EnrollmentsPage() {
                   ))}
                 </tr>
               )) : (
-                <tr><td colSpan={activeColumns.length} className="px-4 py-16 text-center text-muted-foreground">
+                <tr><td colSpan={activeColumns.length + 1} className="px-4 py-16 text-center text-muted-foreground">
                   <GraduationCap size={48} className="text-muted-foreground/30 mx-auto mb-4" />
                   <p className="text-lg font-medium mb-1">אין הרשמות</p><p className="text-sm">צור הרשמה חדשה כדי להתחיל</p>
                 </td></tr>
@@ -524,6 +538,10 @@ export default function EnrollmentsPage() {
 
       {/* Create Enrollment Form */}
       {showForm && <EnrollmentForm onClose={() => setShowForm(false)} />}
+
+      <BulkActionBar selectedIds={selectedIds} onClear={() => setSelectedIds([])} entityLabel="הרשמות">
+        <BulkDeleteButton selectedIds={selectedIds} onCleared={() => setSelectedIds([])} tableName="crm_program_enrollments" entityLabel="הרשמות" invalidateKeys={[["enrollments"]]} />
+      </BulkActionBar>
     </div>
   );
 }
