@@ -502,6 +502,24 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
     const questions = submission.questions || submission.answers || submission.fields || [];
     const urlParams = submission.urlParameters || payload.urlParameters || {};
 
+    // Validators — guard against form questions whose names trick the auto-mapper
+    // (e.g. an age-range answer landing in first_name, or a freeform answer in email).
+    const looksLikeName = (v: string) => {
+      if (!v) return false;
+      if (/^\d{1,3}\s*[\-–]\s*\d{1,3}$/.test(v)) return false; // age range "25-35"
+      if (/@/.test(v)) return false; // email-as-name
+      if (v.length > 60) return false; // sentence-as-name
+      if (/^\d+$/.test(v)) return false; // digits-only
+      return true;
+    };
+    const looksLikeEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v || "");
+    const looksLikePhone = (v: string) => {
+      const d = (v || "").replace(/\D/g, "");
+      return d.length >= 7 && d.length <= 15;
+    };
+
+    const questionnaireAnswers: Record<string, string> = {};
+
     const contact: Record<string, any> = {
       source: mapping?.source_tag || "website",
       status: "new",
@@ -516,13 +534,24 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
 
     for (const q of questions) {
       const name = (q.name || q.key || q.label || "").toLowerCase();
+      const label = q.name || q.key || q.label || "";
       const val = q.value ?? q.answer ?? q.text ?? "";
       if (!val) continue;
-      if (name.includes("שם פרטי") || name.includes("first") || name === "name") contact.first_name = val;
-      else if (name.includes("שם משפחה") || name.includes("last")) contact.last_name = val;
-      else if (name.includes("מייל") || name.includes("email")) contact.email = val;
-      else if (name.includes("טלפון") || name.includes("phone") || name.includes("נייד")) { contact.phone = val; contact.whatsapp_phone = val; }
-      else if (name.includes("חברה") || name.includes("company")) contact.company = val;
+      const sval = String(val);
+      let mapped = false;
+      if (name.includes("שם פרטי") || name.includes("first") || name === "name") {
+        if (looksLikeName(sval)) { contact.first_name = sval; mapped = true; }
+      } else if (name.includes("שם משפחה") || name.includes("last")) {
+        if (looksLikeName(sval)) { contact.last_name = sval; mapped = true; }
+      } else if (name.includes("מייל") || name.includes("email")) {
+        if (looksLikeEmail(sval)) { contact.email = sval; mapped = true; }
+      } else if (name.includes("טלפון") || name.includes("phone") || name.includes("נייד")) {
+        if (looksLikePhone(sval)) { contact.phone = sval; contact.whatsapp_phone = sval; mapped = true; }
+      } else if (name.includes("חברה") || name.includes("company")) {
+        contact.company = sval; mapped = true;
+      }
+      // Anything not mapped → keep as questionnaire answer (saved to custom_fields)
+      if (!mapped) questionnaireAnswers[label] = sval;
 
       // Detect meeting/scheduling fields
       if (name.includes("פגישה") || name.includes("meeting") || name.includes("תאריך") || name.includes("date") || name.includes("schedule") || name.includes("מועד") || name.includes("זמן") || name.includes("time")) {
@@ -569,6 +598,39 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
     contact.entry_type = mapping?.entry_type || urlParams.entry_type || urlParams.ref || null;
     contact.landing_page_url = urlParams.page_url || urlParams.referrer || null;
     contact.referrer_url = urlParams.referrer || null;
+
+    // Fallback: phone may arrive as a URL parameter on the landing page
+    // (e.g. ?phone=0507573326) when the visitor was passed in from a webinar/CTA.
+    // Use it if the form itself didn't capture a valid phone.
+    if (!looksLikePhone(contact.phone || "")) {
+      const urlPhone = urlParams.phone || urlParams.tel || urlParams.mobile;
+      if (urlPhone && looksLikePhone(String(urlPhone))) {
+        contact.phone = String(urlPhone);
+        contact.whatsapp_phone = String(urlPhone);
+      } else if (contact.landing_page_url) {
+        const m = contact.landing_page_url.match(/[?&](?:phone|tel|mobile)=(\d{7,15})/);
+        if (m) { contact.phone = m[1]; contact.whatsapp_phone = m[1]; }
+      }
+    }
+
+    // Fillout meeting host email → assign to that team member
+    const hostEmail =
+      urlParams.host_email || urlParams.assignee || urlParams.host || urlParams.scheduled_with ||
+      submission.host?.email || submission.scheduling?.host?.email || submission.calendar?.host_email ||
+      questions.find((q: any) => /host|מארח|נציג/.test(q.name || q.key || q.label || ""))?.value;
+    let hostAssignedTo: string | null = null;
+    if (hostEmail && /@/.test(String(hostEmail))) {
+      const { data: tm } = await supabase
+        .from("crm_team_members")
+        .select("id")
+        .eq("email", String(hostEmail).toLowerCase())
+        .eq("is_active", true)
+        .maybeSingle();
+      if (tm?.id) {
+        hostAssignedTo = tm.id;
+        contact.assigned_to = tm.id;
+      }
+    }
 
     if (!contact.first_name) contact.first_name = "ליד";
     if (!contact.last_name) contact.last_name = "חדש";
@@ -647,6 +709,19 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
       if (contact.whatsapp_phone) updates.whatsapp_phone = contact.whatsapp_phone;
       if (contact.company) updates.company = contact.company;
 
+      // Host-based assignment from Fillout — always overwrite (latest meeting host owns the contact)
+      if (hostAssignedTo) updates.assigned_to = hostAssignedTo;
+      else if (!existingContact.assigned_to && contact.assigned_to) updates.assigned_to = contact.assigned_to;
+
+      // Merge questionnaire answers into custom_fields
+      if (Object.keys(questionnaireAnswers).length) {
+        updates.custom_fields = {
+          ...(existingContact.custom_fields || {}),
+          ...questionnaireAnswers,
+          last_form_submission: { form_id: formId, submitted_at: new Date().toISOString() },
+        };
+      }
+
       // First-touch attribution: only set if not already set
       if (!existingContact.utm_source && contact.utm_source) updates.utm_source = contact.utm_source;
       if (!existingContact.utm_medium && contact.utm_medium) updates.utm_medium = contact.utm_medium;
@@ -675,6 +750,12 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
       console.log(`[Fillout] Updated existing contact ${contactId}`);
     } else {
       // NEW contact
+      if (Object.keys(questionnaireAnswers).length) {
+        contact.custom_fields = {
+          ...questionnaireAnswers,
+          last_form_submission: { form_id: formId, submitted_at: new Date().toISOString() },
+        };
+      }
       const { data: nc } = await supabase.from("crm_contacts").insert(contact).select("id").single();
       contactId = nc?.id || null;
       console.log(`[Fillout] Created new contact ${contactId}`);
@@ -763,8 +844,9 @@ webhookRouter.post("/fillout/:formId", async (req, res) => {
         scheduled_at: scheduledAt,
         duration_minutes: 30,
         fillout_submission_id: formId,
+        assigned_to: hostAssignedTo, // null is fine — column is nullable
       });
-      console.log(`[Fillout] Created meeting for contact ${contactId}`);
+      console.log(`[Fillout] Created meeting for contact ${contactId}${hostAssignedTo ? ` assigned to ${hostEmail}` : " (no host)"}`);
     }
 
     console.log(`[Fillout] Contact ${contactId} (${existingContact ? 'updated' : 'new'}) ${isMeetingForm ? '[MEETING]' : '[FORM]'} from ${formId}`);
