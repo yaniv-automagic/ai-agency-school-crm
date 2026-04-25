@@ -231,8 +231,8 @@ export default function MeetingDetailPage() {
           )}
 
           {/* Mini Video Player (Fireflies) */}
-          {meeting.recording_url && meeting.fireflies_meeting_id && (
-            <div className="bg-card border border-border rounded-xl overflow-hidden">
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            {meeting.recording_url ? (
               <div className="relative bg-black">
                 <video
                   src={meeting.recording_url}
@@ -243,41 +243,50 @@ export default function MeetingDetailPage() {
                   playsInline
                 />
               </div>
-              <div className="px-4 py-2.5 flex items-center justify-between bg-purple-50/50 border-t border-border">
-                <div className="flex items-center gap-2">
-                  <Video size={14} className="text-purple-500" />
-                  <span className="text-xs font-medium text-purple-700">הקלטת פגישה</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-600 font-medium">Fireflies</span>
-                </div>
+            ) : (
+              <div className="bg-muted/30 aspect-video flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                <Video size={32} className="opacity-30" />
+                <p className="text-sm">אין הקלטה זמינה</p>
+              </div>
+            )}
+            <div className="px-4 py-2.5 flex items-center justify-between bg-purple-50/50 border-t border-border">
+              <div className="flex items-center gap-2">
+                <Video size={14} className="text-purple-500" />
+                <span className="text-xs font-medium text-purple-700">הקלטת פגישה</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-600 font-medium">Fireflies</span>
+              </div>
+              {meeting.recording_url && (
                 <a href={meeting.recording_url} target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-1 text-[11px] text-purple-600 hover:underline">
                   <ExternalLink size={11} /> פתח בחלון חדש
                 </a>
-              </div>
+              )}
             </div>
-          )}
+          </div>
 
           {/* AI Summary (Fireflies) */}
-          {meeting.ai_summary && (
-            <div className="bg-card border border-border rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Video size={16} className="text-purple-500" />
-                <h3 className="font-semibold">סיכום AI</h3>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-medium">Fireflies</span>
-              </div>
+          <div className="bg-card border border-border rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Video size={16} className="text-purple-500" />
+              <h3 className="font-semibold">סיכום AI</h3>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-medium">Fireflies</span>
+            </div>
+            {meeting.ai_summary ? (
               <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
                 {meeting.ai_summary}
               </p>
-            </div>
-          )}
+            ) : (
+              <p className="text-sm text-muted-foreground/60 italic">סיכום AI יופיע כאן לאחר שהפגישה תתבצע ותתומלל.</p>
+            )}
+          </div>
 
           {/* Action Items (Fireflies) */}
-          {meeting.ai_action_items && meeting.ai_action_items.length > 0 && (
-            <div className="bg-card border border-border rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <CheckCircle size={16} className="text-purple-500" />
-                <h3 className="font-semibold">פריטי פעולה</h3>
-              </div>
+          <div className="bg-card border border-border rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <CheckCircle size={16} className="text-purple-500" />
+              <h3 className="font-semibold">פריטי פעולה</h3>
+            </div>
+            {meeting.ai_action_items && meeting.ai_action_items.length > 0 ? (
               <ul className="space-y-2">
                 {meeting.ai_action_items.map((item, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm">
@@ -286,41 +295,47 @@ export default function MeetingDetailPage() {
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
+            ) : (
+              <p className="text-sm text-muted-foreground/60 italic">פריטי פעולה יופקו אוטומטית מהפגישה.</p>
+            )}
+          </div>
 
           {/* Transcript (Fireflies) */}
-          {meeting.transcript_text && (
-            <div className="bg-card border border-border rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <FileText size={16} className="text-purple-500" />
-                  <h3 className="font-semibold">תמלול פגישה</h3>
-                </div>
-                {meeting.transcript_url && (
-                  <a href={meeting.transcript_url} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-xs text-purple-600 hover:underline">
-                    <ExternalLink size={12} /> פתח ב-Fireflies
-                  </a>
-                )}
+          <div className="bg-card border border-border rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <FileText size={16} className="text-purple-500" />
+                <h3 className="font-semibold">תמלול פגישה</h3>
               </div>
-              <div className={cn("text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed font-mono", !showFullTranscript && "max-h-64 overflow-hidden relative")}>
-                {meeting.transcript_text}
-                {!showFullTranscript && meeting.transcript_text.length > 500 && (
-                  <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-card to-transparent" />
-                )}
-              </div>
-              {meeting.transcript_text.length > 500 && (
-                <button
-                  onClick={() => setShowFullTranscript(!showFullTranscript)}
-                  className="flex items-center gap-1.5 mt-3 text-xs font-medium text-purple-600 hover:text-purple-700"
-                >
-                  <ChevronDown size={14} className={cn("transition-transform", showFullTranscript && "rotate-180")} />
-                  {showFullTranscript ? "הצג פחות" : "הצג תמלול מלא"}
-                </button>
+              {meeting.transcript_url && (
+                <a href={meeting.transcript_url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-xs text-purple-600 hover:underline">
+                  <ExternalLink size={12} /> פתח ב-Fireflies
+                </a>
               )}
             </div>
-          )}
+            {meeting.transcript_text ? (
+              <>
+                <div className={cn("text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed font-mono", !showFullTranscript && "max-h-64 overflow-hidden relative")}>
+                  {meeting.transcript_text}
+                  {!showFullTranscript && meeting.transcript_text.length > 500 && (
+                    <div className="absolute bottom-0 inset-x-0 h-16 bg-gradient-to-t from-card to-transparent" />
+                  )}
+                </div>
+                {meeting.transcript_text.length > 500 && (
+                  <button
+                    onClick={() => setShowFullTranscript(!showFullTranscript)}
+                    className="flex items-center gap-1.5 mt-3 text-xs font-medium text-purple-600 hover:text-purple-700"
+                  >
+                    <ChevronDown size={14} className={cn("transition-transform", showFullTranscript && "rotate-180")} />
+                    {showFullTranscript ? "הצג פחות" : "הצג תמלול מלא"}
+                  </button>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground/60 italic">תמלול הפגישה יופיע כאן לאחר שהפגישה תתבצע ותתומלל.</p>
+            )}
+          </div>
 
         </div>
 
