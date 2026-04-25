@@ -73,18 +73,26 @@ export function useContacts(filters?: {
         return query;
       };
 
-      // Supabase PostgREST caps each response at 1000 rows.
-      // Fetch pages in parallel (up to 10k rows) instead of sequentially.
+      // Supabase PostgREST caps each response at 1000 rows. Fetch the first
+      // page first; only spend bandwidth on more pages if it actually came
+      // back full. Keeps small/medium tenants from doing 10× redundant
+      // requests for a few hundred rows.
       const PAGE_SIZE = 1000;
       const MAX_PAGES = 10;
-      const pagePromises = Array.from({ length: MAX_PAGES }, (_, i) =>
-        buildQuery().range(i * PAGE_SIZE, (i + 1) * PAGE_SIZE - 1)
-      );
-      const pageResults = await Promise.all(pagePromises);
-      const all: Contact[] = [];
-      for (const { data, error } of pageResults) {
-        if (error) throw error;
-        if (data && data.length) all.push(...(data as Contact[]));
+      const first = await buildQuery().range(0, PAGE_SIZE - 1);
+      if (first.error) throw first.error;
+      const all: Contact[] = [...((first.data as Contact[]) || [])];
+      if (all.length === PAGE_SIZE) {
+        const restPromises = Array.from({ length: MAX_PAGES - 1 }, (_, i) =>
+          buildQuery().range((i + 1) * PAGE_SIZE, (i + 2) * PAGE_SIZE - 1)
+        );
+        const restResults = await Promise.all(restPromises);
+        for (const { data, error } of restResults) {
+          if (error) throw error;
+          if (data && data.length) all.push(...(data as Contact[]));
+          // No need to keep paging once we get a non-full response.
+          if (!data || data.length < PAGE_SIZE) break;
+        }
       }
       return all;
     },

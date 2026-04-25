@@ -192,24 +192,55 @@ export function useDeleteMeetings() {
   });
 }
 
+export function useBulkUpdateMeetings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ids, updates }: { ids: string[]; updates: Partial<Meeting> }) => {
+      if (!ids.length) return;
+      const { error } = await supabase
+        .from("crm_meetings")
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .in("id", ids);
+      if (error) throw error;
+    },
+    // One invalidation for the whole batch — vs N invalidations from looping
+    // useUpdateMeeting per row, which previously refetched the table N times.
+    onSuccess: () => { qc.invalidateQueries({ queryKey: KEY }); },
+    onError: (e: Error) => toast.error(`שגיאה: ${e.message}`),
+  });
+}
+
 export function useMeetingStats(meetingType?: MeetingType) {
   return useQuery({
     queryKey: [...KEY, "stats", meetingType],
     queryFn: async () => {
-      // Paginate — PostgREST caps at 1000.
+      // Fetch the first page first; only spend additional round trips if it
+      // came back full. The remaining pages then go out in parallel — vs the
+      // old loop that paid 20 sequential RTTs even for tiny tenants.
       const PAGE = 1000;
-      const all: Array<{ status: string; outcome: string | null; scheduled_at: string }> = [];
-      for (let p = 0; p < 20; p++) {
+      const MAX_PAGES = 20;
+      const buildPage = (p: number) => {
         let q = supabase
           .from("crm_meetings")
           .select("status, outcome, scheduled_at, meeting_type")
           .range(p * PAGE, (p + 1) * PAGE - 1);
         if (meetingType) q = q.eq("meeting_type", meetingType);
-        const { data, error } = await q;
-        if (error) throw error;
-        if (!data || !data.length) break;
-        all.push(...(data as any));
-        if (data.length < PAGE) break;
+        return q;
+      };
+
+      const all: Array<{ status: string; outcome: string | null; scheduled_at: string }> = [];
+      const first = await buildPage(0);
+      if (first.error) throw first.error;
+      if (first.data?.length) all.push(...(first.data as any));
+      if ((first.data?.length || 0) === PAGE) {
+        const restResults = await Promise.all(
+          Array.from({ length: MAX_PAGES - 1 }, (_, i) => buildPage(i + 1)),
+        );
+        for (const { data, error } of restResults) {
+          if (error) throw error;
+          if (data && data.length) all.push(...(data as any));
+          if (!data || data.length < PAGE) break;
+        }
       }
 
       const now = Date.now();

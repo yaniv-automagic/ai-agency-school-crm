@@ -2,13 +2,14 @@ import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { Plus, X, Calendar, Ban, CheckCircle2, Search, Check, ChevronsUpDown, Pencil, Link, BarChart3, Trash2, Users } from "lucide-react";
-import { useMeetings, useMeetingStats, useCreateMeeting, useUpdateMeeting, useDeleteMeetings } from "@/hooks/useMeetings";
+import { useMeetings, useMeetingStats, useCreateMeeting, useUpdateMeeting, useDeleteMeetings, useBulkUpdateMeetings } from "@/hooks/useMeetings";
 import { useContacts } from "@/hooks/useContacts";
 import { useEnrollments } from "@/hooks/useEnrollments";
 import { useAuth } from "@/contexts/AuthContext";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { MEETING_TYPES, MEETING_STATUSES, CONTACT_STATUSES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -78,6 +79,7 @@ export default function MeetingsPage() {
   const { members } = useTeamMembers();
   const { teamMember } = useAuth();
   const updateMeeting = useUpdateMeeting();
+  const bulkUpdateMeetings = useBulkUpdateMeetings();
   const deleteMeetings = useDeleteMeetings();
   const confirmDialog = useConfirm();
   const [picker, setPicker] = useState<PickerState>(null);
@@ -85,15 +87,17 @@ export default function MeetingsPage() {
   const toggleSelect = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   const toggleAll = () => { if (!filteredMeetings) return; setSelectedIds(prev => prev.length === filteredMeetings.length ? [] : filteredMeetings.map(m => m.id)); };
 
+  const debouncedSearch = useDebouncedValue(search, 300);
+
   // Build filters for the hook
   const hookFilters = useMemo(() => {
     const f: Record<string, any> = {};
     if (activeTab) f.meeting_type = activeTab;
     if (statusFilter !== "__all__") f.status = statusFilter;
     if (assigneeFilter !== "__all__") f.assigned_to = assigneeFilter;
-    if (search.trim()) f.search = search.trim();
+    if (debouncedSearch.trim()) f.search = debouncedSearch.trim();
     return Object.keys(f).length > 0 ? f : undefined;
-  }, [activeTab, statusFilter, assigneeFilter, search]);
+  }, [activeTab, statusFilter, assigneeFilter, debouncedSearch]);
 
   const { data: meetings, isLoading } = useMeetings(hookFilters);
   const { data: stats } = useMeetingStats(activeTab ? activeTab as MeetingType : undefined);
@@ -101,8 +105,8 @@ export default function MeetingsPage() {
   // Client-side filter for contact name
   const filteredMeetings = useMemo(() => {
     if (!meetings) return meetings;
-    if (!search.trim()) return meetings;
-    const q = search.trim().toLowerCase();
+    if (!debouncedSearch.trim()) return meetings;
+    const q = debouncedSearch.trim().toLowerCase();
     return meetings.filter(
       (m) =>
         m.title?.toLowerCase().includes(q) ||
@@ -110,7 +114,7 @@ export default function MeetingsPage() {
         m.contact?.last_name?.toLowerCase().includes(q) ||
         m.contact?.phone?.includes(q)
     );
-  }, [meetings, search]);
+  }, [meetings, debouncedSearch]);
 
   const { sorted: sortedMeetings, isSorted, toggleSort } = useSortable<any>(filteredMeetings, {
     initialKey: "scheduled_at", initialDir: "desc",
@@ -477,10 +481,9 @@ export default function MeetingsPage() {
         <MeetingStatusBulkButton
           selectedIds={selectedIds}
           onApply={async (status) => {
-            for (const id of selectedIds) {
-              await updateMeeting.mutateAsync({ id, status, _tenantId: teamMember?.tenant_id } as any);
-            }
-            toast.success(`${selectedIds.length} פגישות עודכנו`);
+            const count = selectedIds.length;
+            await bulkUpdateMeetings.mutateAsync({ ids: selectedIds, updates: { status } as any });
+            toast.success(`${count} פגישות עודכנו`);
             setSelectedIds([]);
           }}
         />

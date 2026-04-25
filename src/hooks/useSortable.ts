@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 
 export type SortDir = "asc" | "desc";
 export type SortValueGetter<T> = (row: T) => string | number | boolean | Date | null | undefined;
@@ -42,10 +42,19 @@ export function useSortable<T extends Record<string, any>>(
     });
   }, []);
 
+  // Callers pass `options` as an inline object on every render. Pin the only
+  // field we actually care about into a stable ref so the sort doesn't recompute
+  // on every parent render — recomputing a 1000+ row sort each render is what
+  // was making the Contacts table feel laggy on filter/search.
+  const defaultGetter = options?.defaultGetter;
+  const defaultGetterRef = useRef(defaultGetter);
+  useEffect(() => { defaultGetterRef.current = defaultGetter; }, [defaultGetter]);
+
   const sorted = useMemo(() => {
     if (!data) return [];
     if (!config) return data;
-    const get = config.getValue || ((row: T) => options?.defaultGetter ? options.defaultGetter(row, config.key) : row[config.key]);
+    const dg = defaultGetterRef.current;
+    const get = config.getValue || ((row: T) => dg ? dg(row, config.key) : row[config.key]);
     const cmp = (a: T, b: T): number => {
       const av = get(a); const bv = get(b);
       // null/undefined go last regardless of direction
@@ -66,7 +75,7 @@ export function useSortable<T extends Record<string, any>>(
     };
     const arr = [...data].sort(cmp);
     return config.dir === "desc" ? arr.reverse() : arr;
-  }, [data, config, options]);
+  }, [data, config]);
 
   const isSorted = useCallback((key: string): SortDir | null => {
     return config?.key === key ? config.dir : null;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -25,6 +25,7 @@ import { supabase } from "@/lib/supabase";
 import { CONTACT_SOURCES } from "@/lib/constants";
 import { cn, formatPhone, formatDateTime, formatCurrency } from "@/lib/utils";
 import { useUserPreference } from "@/hooks/useUserPreferences";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import ContactForm from "@/components/contacts/ContactForm";
 import { ExportButton, ImportButton } from "@/components/contacts/ImportExportContacts";
@@ -229,6 +230,50 @@ function matchCondition(c: Contact, cond: FilterCondition, meId?: string): boole
   }
 }
 
+// Memoized row — re-renders only when its contact, the active column list, the
+// helpers bag, or its own selected state actually changes. With 1000+ rows this
+// is what stops every keystroke / picker open / sort flip from re-rendering
+// the entire table.
+interface ContactRowProps {
+  contact: Contact;
+  activeColumns: ColumnDef[];
+  helpers: RenderHelpers;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
+  onNavigate: (id: string) => void;
+}
+const ContactRow = memo(function ContactRow({
+  contact, activeColumns, helpers, selected, onToggleSelect, onNavigate,
+}: ContactRowProps) {
+  return (
+    <tr
+      onClick={() => onNavigate(contact.id)}
+      className={cn(
+        "border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer transition-colors",
+        selected && "bg-primary/5",
+      )}
+    >
+      <td className="px-3 py-3 text-center" onClick={e => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          className="rounded accent-primary"
+          checked={selected}
+          onChange={() => onToggleSelect(contact.id)}
+        />
+      </td>
+      {activeColumns.map(col => (
+        <td
+          key={col.key}
+          className="px-4 py-3 text-center"
+          onClick={(col.key === "stage" || col.key === "assigned") ? e => e.stopPropagation() : undefined}
+        >
+          {col.render(contact, helpers)}
+        </td>
+      ))}
+    </tr>
+  );
+});
+
 export default function ContactsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
@@ -283,15 +328,35 @@ export default function ContactsPage() {
     },
   });
 
-  const activePipeline = selectedPipelineId && selectedPipelineId !== "__all__" ? pipelines?.find(p => p.id === selectedPipelineId) : null;
-  const stages = activePipeline ? activePipeline.stages || [] : pipelines?.flatMap(p => p.stages || []) || [];
-  const allStages = pipelines?.flatMap(p => p.stages || []) || [];
+  const activePipeline = useMemo(
+    () => (selectedPipelineId && selectedPipelineId !== "__all__" ? pipelines?.find(p => p.id === selectedPipelineId) : null) ?? null,
+    [pipelines, selectedPipelineId],
+  );
+  const allStages = useMemo<PipelineStage[]>(() => pipelines?.flatMap(p => p.stages || []) || [], [pipelines]);
+  const stages = useMemo<PipelineStage[]>(
+    () => (activePipeline ? activePipeline.stages || [] : allStages),
+    [activePipeline, allStages],
+  );
+  const stagesById = useMemo(() => {
+    const m = new Map<string, PipelineStage>();
+    for (const s of allStages) m.set(s.id, s);
+    return m;
+  }, [allStages]);
 
-  const toggleSelect = (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const toggleSelect = useCallback(
+    (id: string) => setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]),
+    [],
+  );
+  const navigateToContact = useCallback((id: string) => navigate(`/contacts/${id}`), [navigate]);
   const toggleAll = () => { if (!contacts) return; setSelectedIds(prev => prev.length === contacts.length ? [] : contacts.map(c => c.id)); };
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
-  const { data: contacts, isLoading } = useContacts({ search: search || undefined, stage_id: stageFilter === "__all__" ? undefined : stageFilter });
-  const getStage = useCallback((c: Contact) => c.stage || allStages.find(s => s.id === c.stage_id), [allStages]);
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const { data: contacts, isLoading } = useContacts({ search: debouncedSearch || undefined, stage_id: stageFilter === "__all__" ? undefined : stageFilter });
+  const getStage = useCallback(
+    (c: Contact) => c.stage || (c.stage_id ? stagesById.get(c.stage_id) : undefined),
+    [stagesById],
+  );
   const membersById = useMemo(() => {
     const m = new Map<string, { id: string; display_name: string | null; avatar_url: string | null }>();
     for (const t of members || []) m.set(t.id, { id: t.id, display_name: t.display_name, avatar_url: t.avatar_url });
@@ -407,7 +472,10 @@ export default function ContactsPage() {
       updateColumns(arrayMove(visibleColumns, oldIdx, newIdx));
     }
   };
-  const activeColumns = visibleColumns.map(k => ALL_COLUMNS.find(c => c.key === k)!).filter(Boolean);
+  const activeColumns = useMemo(
+    () => visibleColumns.map(k => ALL_COLUMNS.find(c => c.key === k)!).filter(Boolean),
+    [visibleColumns],
+  );
 
   // ── Sorting ──
   const sortGetters = useMemo<Record<string, SortValueGetter<Contact>>>(() => ({
@@ -471,22 +539,29 @@ export default function ContactsPage() {
     }
   };
 
-  const openStagePicker = (contactId: string, e: React.MouseEvent) => {
-    if (statusPickerId === contactId) { setStatusPickerId(null); setPickerPos(null); return; }
-    const rect = (e.target as HTMLElement).getBoundingClientRect();
-    setPickerPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
-    setStatusPickerId(contactId);
-  };
+  const openStagePicker = useCallback((contactId: string, e: React.MouseEvent) => {
+    setStatusPickerId(prev => {
+      if (prev === contactId) { setPickerPos(null); return null; }
+      const rect = (e.target as HTMLElement).getBoundingClientRect();
+      setPickerPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+      return contactId;
+    });
+  }, []);
 
-  const openAssigneePicker = (contactId: string, e: React.MouseEvent) => {
-    if (assigneePickerId === contactId) { setAssigneePickerId(null); setAssigneePickerPos(null); return; }
-    const rect = (e.target as HTMLElement).getBoundingClientRect();
-    setAssigneePickerPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
-    setAssigneePickerId(contactId);
-    setStatusPickerId(null); setPickerPos(null);
-  };
+  const openAssigneePicker = useCallback((contactId: string, e: React.MouseEvent) => {
+    setAssigneePickerId(prev => {
+      if (prev === contactId) { setAssigneePickerPos(null); return null; }
+      const rect = (e.target as HTMLElement).getBoundingClientRect();
+      setAssigneePickerPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+      setStatusPickerId(null); setPickerPos(null);
+      return contactId;
+    });
+  }, []);
 
-  const helpers: RenderHelpers = { getStage, getAssignee, getEventRegistrations, openStagePicker, openAssigneePicker };
+  const helpers = useMemo<RenderHelpers>(
+    () => ({ getStage, getAssignee, getEventRegistrations, openStagePicker, openAssigneePicker }),
+    [getStage, getAssignee, getEventRegistrations, openStagePicker, openAssigneePicker],
+  );
 
   return (
     <div className="space-y-4">
@@ -693,17 +768,15 @@ export default function ContactsPage() {
             </thead>
             <tbody>
               {sortedContacts && sortedContacts.length > 0 ? sortedContacts.map(contact => (
-                <tr key={contact.id} onClick={() => navigate(`/contacts/${contact.id}`)}
-                  className={cn("border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer transition-colors", selectedIds.includes(contact.id) && "bg-primary/5")}>
-                  <td className="px-3 py-3 text-center" onClick={e => e.stopPropagation()}>
-                    <input type="checkbox" className="rounded accent-primary" checked={selectedIds.includes(contact.id)} onChange={() => toggleSelect(contact.id)} />
-                  </td>
-                  {activeColumns.map(col => (
-                    <td key={col.key} className="px-4 py-3 text-center" onClick={(col.key === "stage" || col.key === "assigned") ? e => e.stopPropagation() : undefined}>
-                      {col.render(contact, helpers)}
-                    </td>
-                  ))}
-                </tr>
+                <ContactRow
+                  key={contact.id}
+                  contact={contact}
+                  activeColumns={activeColumns}
+                  helpers={helpers}
+                  selected={selectedSet.has(contact.id)}
+                  onToggleSelect={toggleSelect}
+                  onNavigate={navigateToContact}
+                />
               )) : (
                 <tr><td colSpan={activeColumns.length + 1} className="px-4 py-16 text-center text-muted-foreground">
                   <p className="text-lg font-medium mb-1">אין לידים</p><p className="text-sm">התחל להוסיף לידים למערכת</p>
