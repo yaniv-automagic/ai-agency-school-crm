@@ -16,14 +16,29 @@ interface BulkActionBarProps {
 }
 
 // Floating bottom bar shell. Renders only when selection is non-empty.
+// Matches the leads bar exactly: same animation, shadow, count pill, layout.
 export function BulkActionBar({ selectedIds, onClear, entityLabel, children }: BulkActionBarProps) {
   if (selectedIds.length === 0) return null;
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 animate-in fade-in slide-in-from-bottom-2 duration-200" dir="rtl">
-      <div className="bg-card border border-border rounded-2xl shadow-2xl shadow-black/10 px-2 py-1.5 flex items-center gap-1">
-        <div className="flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-xl text-sm font-medium text-primary">
-          <span className="text-base font-bold">{selectedIds.length}</span>
-          <span className="text-xs">{entityLabel} נבחרו</span>
+    <div
+      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50"
+      style={{ animation: "bulkBarIn 200ms cubic-bezier(0.16, 1, 0.3, 1)" }}
+      dir="rtl"
+    >
+      <style>{`
+        @keyframes bulkBarIn {
+          from { opacity: 0; transform: translate(-50%, 12px); }
+          to { opacity: 1; transform: translate(-50%, 0); }
+        }
+      `}</style>
+
+      <div className="flex items-center gap-1 p-1.5 bg-card border border-border rounded-2xl shadow-[0_8px_32px_-12px_rgba(0,0,0,0.18)]">
+        {/* Count */}
+        <div className="flex items-center gap-2 pr-3 pl-2 h-9">
+          <span className="inline-flex items-center justify-center h-6 min-w-6 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-semibold">
+            {selectedIds.length}
+          </span>
+          <span className="text-sm text-muted-foreground">נבחרו</span>
         </div>
 
         <div className="w-px h-6 bg-border" />
@@ -40,6 +55,10 @@ export function BulkActionBar({ selectedIds, onClear, entityLabel, children }: B
       </div>
     </div>
   );
+}
+
+export function BulkActionSeparator() {
+  return <div className="w-px h-6 bg-border" />;
 }
 
 // ── Reusable action buttons (used inside BulkActionBar children) ──

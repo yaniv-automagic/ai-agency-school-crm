@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSortable } from "@/hooks/useSortable";
 import { SortableHeader } from "@/components/ui/sortable-header";
-import { BulkActionBar, BulkActionButton } from "@/components/ui/bulk-action-bar";
+import { BulkActionBar, BulkActionButton, BulkActionSeparator } from "@/components/ui/bulk-action-bar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import type { MeetingType, MeetingStatus, Meeting } from "@/types/crm";
@@ -474,6 +474,7 @@ export default function MeetingsPage() {
             setSelectedIds([]);
           }}
         />
+        <BulkActionSeparator />
         <BulkActionButton
           icon={Trash2}
           label="מחק"
