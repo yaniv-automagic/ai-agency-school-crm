@@ -1,8 +1,9 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Phone, Mail, MessageCircle, Calendar, StickyNote, ArrowLeftRight,
   Settings, MessageSquare, Plus, Send, ChevronDown, CheckSquare, X,
-  Video, ExternalLink, FileText, Sparkles, Download, Copy,
+  Video, ExternalLink, FileText, Sparkles, Download, Copy, FileSignature,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -322,9 +323,18 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
           <div className="space-y-4">
             {displayed.map(activity => {
               const isFireflies = activity.metadata?.source === "fireflies";
-              const Icon = isFireflies ? Video : (ICON_MAP[activity.type] || Settings);
-              const colorCls = isFireflies ? "bg-purple-100 text-purple-600" : (COLOR_MAP[activity.type] || COLOR_MAP.system);
-              const actLabel = isFireflies ? "הקלטת פגישה" : ACTIVITY_TYPES.find(t => t.value === activity.type)?.label;
+              const isContractSigned = activity.metadata?.event === "contract_signed";
+              const Icon = isFireflies ? Video : isContractSigned ? FileSignature : (ICON_MAP[activity.type] || Settings);
+              const colorCls = isFireflies
+                ? "bg-purple-100 text-purple-600"
+                : isContractSigned
+                  ? "bg-green-100 text-green-600"
+                  : (COLOR_MAP[activity.type] || COLOR_MAP.system);
+              const actLabel = isFireflies
+                ? "הקלטת פגישה"
+                : isContractSigned
+                  ? "חוזה"
+                  : ACTIVITY_TYPES.find(t => t.value === activity.type)?.label;
               const meta = activity.metadata || {};
               return (
                 <div key={activity.id} className="flex gap-3 relative">
@@ -362,6 +372,32 @@ export default function ActivityTimeline({ contactId, dealId }: ActivityTimeline
                         )}
                         {formatDateTime(activity.performed_at)}
                       </span>
+                      {isContractSigned && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          {meta.contract_id && (
+                            <Link
+                              to={`/contracts/${meta.contract_id}`}
+                              className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-green-50 hover:bg-green-100 text-green-700 border border-green-200/60 transition-colors"
+                              title="פתח רשומת חוזה"
+                            >
+                              <ExternalLink size={11} />
+                              חוזה
+                            </Link>
+                          )}
+                          {meta.signed_pdf_url && (
+                            <a
+                              href={meta.signed_pdf_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-green-50 hover:bg-green-100 text-green-700 border border-green-200/60 transition-colors"
+                              title="צפייה / הורדה של החוזה החתום"
+                            >
+                              <Download size={11} />
+                              PDF
+                            </a>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Fireflies — full card with mini player, summary, transcript */}
