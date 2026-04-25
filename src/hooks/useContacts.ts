@@ -36,9 +36,39 @@ export function useContacts(filters?: {
         if (filters?.source) query = query.eq("source", filters.source);
         if (filters?.assigned_to) query = query.eq("assigned_to", filters.assigned_to);
         if (filters?.search) {
-          query = query.or(
-            `first_name.ilike.%${filters.search}%,last_name.ilike.%${filters.search}%,email.ilike.%${filters.search}%,phone.ilike.%${filters.search}%`
-          );
+          const raw = filters.search.trim();
+          // Phone search: normalize the query so "0507573326", "+972507573326",
+          // "972507573326", "050-757-3326" all hit the same record.
+          const phoneDigits = raw.replace(/\D/g, "");
+          const phoneVariants: string[] = [];
+          if (phoneDigits.length >= 7) {
+            phoneVariants.push(phoneDigits);
+            if (phoneDigits.startsWith("972")) phoneVariants.push("0" + phoneDigits.slice(3));
+            else if (phoneDigits.startsWith("0")) phoneVariants.push("+972" + phoneDigits.slice(1), "972" + phoneDigits.slice(1));
+          }
+
+          // Multi-word name search: each token must hit at least one of
+          // first_name/last_name/email. PostgREST: and=(or(...),or(...))
+          const tokens = raw.split(/\s+/).filter(Boolean);
+          const tokenClauses = tokens.map(t => {
+            const e = t.replace(/[(),%]/g, ""); // strip filter syntax chars
+            return `or(first_name.ilike.%${e}%,last_name.ilike.%${e}%,email.ilike.%${e}%)`;
+          });
+
+          const phoneOr = phoneVariants.length
+            ? phoneVariants.map(p => `phone.ilike.%${p}%`).join(",")
+            : `phone.ilike.%${raw}%`;
+
+          if (tokens.length > 1) {
+            // Match (all tokens AND-ed in name/email) OR phone match
+            // PostgREST: or=(and(or(t1...),or(t2...)),phone.ilike.x,phone.ilike.y)
+            query = query.or(`and(${tokenClauses.join(",")}),${phoneOr}`);
+          } else {
+            const t = (tokens[0] || raw).replace(/[(),%]/g, "");
+            query = query.or(
+              `first_name.ilike.%${t}%,last_name.ilike.%${t}%,email.ilike.%${t}%,${phoneOr}`
+            );
+          }
         }
         return query;
       };
