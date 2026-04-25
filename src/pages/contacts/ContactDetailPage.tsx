@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Link as RouterLink } from "react-router-dom";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { ArrowRight, Mail, Phone, MessageCircle, MapPin, Edit, Trash2, Video, Calendar, UserCircle, Kanban, FileSignature, Send, Hash, Link } from "lucide-react";
+import { ArrowRight, Mail, Phone, MessageCircle, MapPin, Edit, Trash2, Video, Calendar, UserCircle, Kanban, FileSignature, Send, Hash, Link, X } from "lucide-react";
 import { useContact, useDeleteContact, useUpdateContact } from "@/hooks/useContacts";
 import { useActivities, useCreateActivity } from "@/hooks/useActivities";
 import { useQuery } from "@tanstack/react-query";
@@ -677,6 +677,33 @@ export default function ContactDetailPage() {
             <InlineField label="ת.ז." value={contact.id_number} icon={<Hash size={13} />}
               onSave={v => updateContact.mutate({ id: contact.id, id_number: v || null } as any)} dir="ltr" />
           </div>
+
+          {/* Loss / Disqualification (only when status is inactive or qualified-as-lost) */}
+          {(contact.loss_reason || contact.disqualification_reason || contact.loss_notes) && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 space-y-2">
+              <h3 className="font-semibold text-sm text-red-900 flex items-center gap-1.5">
+                <X size={14} /> סגירה / פסילה
+              </h3>
+              {contact.loss_reason && (
+                <div className="text-xs">
+                  <span className="text-red-700 font-medium">סיבת אובדן: </span>
+                  <span className="text-red-900">{contact.loss_reason}</span>
+                </div>
+              )}
+              {contact.disqualification_reason && contact.disqualification_reason !== contact.loss_reason && (
+                <div className="text-xs">
+                  <span className="text-red-700 font-medium">סיבת פסילה: </span>
+                  <span className="text-red-900">{contact.disqualification_reason}</span>
+                </div>
+              )}
+              {contact.loss_notes && (
+                <div className="text-xs">
+                  <span className="text-red-700 font-medium">הערות: </span>
+                  <span className="text-red-900 whitespace-pre-wrap">{contact.loss_notes}</span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Lead Tracking */}
           <div className="bg-card border border-border rounded-xl p-4 space-y-3">

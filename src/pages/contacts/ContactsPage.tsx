@@ -122,6 +122,21 @@ const ALL_COLUMNS: ColumnDef[] = [
       {c.community_groups.length > 2 && <span className="text-[10px] text-muted-foreground">+{c.community_groups.length - 2}</span>}
     </div>
   ) : <span className="text-[10px] text-amber-600">לא צורף</span> },
+  { key: "loss_reason", label: "סיבת אובדן", defaultVisible: false,
+    render: (c) => c.loss_reason
+      ? <span className="text-xs px-2 py-0.5 rounded bg-red-50 text-red-700 truncate max-w-[180px] inline-block" title={c.loss_reason}>{c.loss_reason}</span>
+      : <span className="text-muted-foreground">—</span>
+  },
+  { key: "disqualification_reason", label: "סיבת פסילה", defaultVisible: false,
+    render: (c) => c.disqualification_reason
+      ? <span className="text-xs px-2 py-0.5 rounded bg-amber-50 text-amber-700 truncate max-w-[180px] inline-block" title={c.disqualification_reason}>{c.disqualification_reason}</span>
+      : <span className="text-muted-foreground">—</span>
+  },
+  { key: "loss_notes", label: "הערות סגירה", defaultVisible: false,
+    render: (c) => c.loss_notes
+      ? <span className="text-xs text-muted-foreground truncate max-w-[200px] inline-block" title={c.loss_notes}>{c.loss_notes}</span>
+      : <span className="text-muted-foreground">—</span>
+  },
   { key: "webinar_registered", label: "נרשם לוובינר", defaultVisible: false,
     render: (c, { getEventRegistrations }) => {
       const regs = getEventRegistrations(c).filter(r => r.registered);

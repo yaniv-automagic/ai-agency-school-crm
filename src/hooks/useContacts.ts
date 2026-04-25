@@ -24,7 +24,7 @@ export function useContacts(filters?: {
             "id,first_name,last_name,email,phone,whatsapp_phone,avatar_url," +
               "company,job_title,address,city,id_number," +
               "status,source,tags,stage_id,assigned_to,account_id,entry_type,ad_platform," +
-              "loss_reason,disqualification_reason,next_followup_at," +
+              "loss_reason,disqualification_reason,loss_notes,next_followup_at," +
               "marketing_consent,marketing_consent_at," +
               "webinar_registered,webinar_attended,sales_call_completed,community_groups," +
               "utm_source,utm_medium,utm_campaign,utm_content,utm_term," +
