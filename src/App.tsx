@@ -37,6 +37,7 @@ const SignContractPage = lazy(() => import("./pages/contracts/SignContractPage")
 
 // Events & Finance
 const EventsPage = lazy(() => import("./pages/events/EventsPage"));
+const EventDetailPage = lazy(() => import("./pages/events/EventDetailPage"));
 const FinancePage = lazy(() => import("./pages/finance/FinancePage"));
 
 // Campaigns (includes paid ads)
@@ -125,6 +126,7 @@ export default function App() {
 
           {/* Events & Finance */}
           <Route path="/events" element={<EventsPage />} />
+          <Route path="/events/:id" element={<EventDetailPage />} />
           <Route path="/finance" element={<FinancePage />} />
 
           {/* Campaigns (messaging + paid ads) */}

@@ -16,6 +16,8 @@ import { useCreateActivity } from "@/hooks/useActivities";
 import { useCreateTask } from "@/hooks/useTasks";
 import { useCreateEnrollment, useUpdateEnrollment } from "@/hooks/useEnrollments";
 import { useTeamMembers } from "@/hooks/useTeamMembers";
+import { useEventRegistrationsByContact, type ContactEventRegistration } from "@/hooks/useEventRegistrations";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { CONTACT_SOURCES } from "@/lib/constants";
@@ -39,6 +41,7 @@ interface ColumnDef {
 interface RenderHelpers {
   getStage: (c: Contact) => PipelineStage | undefined;
   getAssignee: (c: Contact) => { id: string; display_name: string | null; avatar_url: string | null } | undefined;
+  getEventRegistrations: (c: Contact) => ContactEventRegistration[];
   openStagePicker: (contactId: string, e: React.MouseEvent) => void;
   openAssigneePicker: (contactId: string, e: React.MouseEvent) => void;
 }
@@ -119,8 +122,40 @@ const ALL_COLUMNS: ColumnDef[] = [
       {c.community_groups.length > 2 && <span className="text-[10px] text-muted-foreground">+{c.community_groups.length - 2}</span>}
     </div>
   ) : <span className="text-[10px] text-amber-600">לא צורף</span> },
-  { key: "webinar_registered", label: "נרשם לוובינר", defaultVisible: false, render: (c) => <span className="text-muted-foreground text-xs">{c.webinar_registered || "—"}</span> },
-  { key: "webinar_attended", label: "נכח בוובינר", defaultVisible: false, render: (c) => <span className="text-muted-foreground text-xs">{c.webinar_attended || "—"}</span> },
+  { key: "webinar_registered", label: "נרשם לוובינר", defaultVisible: false,
+    render: (c, { getEventRegistrations }) => {
+      const regs = getEventRegistrations(c).filter(r => r.registered);
+      if (!regs.length) return <span className="text-muted-foreground">—</span>;
+      return (
+        <div className="flex flex-col gap-0.5 items-end">
+          {regs.slice(0, 2).map(r => (
+            <Link key={r.event_id} to={`/events/${r.event_id}`} onClick={e => e.stopPropagation()}
+              className="text-xs text-primary hover:underline truncate max-w-[180px]" title={r.event_title}>
+              {r.event_title}
+            </Link>
+          ))}
+          {regs.length > 2 && <span className="text-[10px] text-muted-foreground">+{regs.length - 2} עוד</span>}
+        </div>
+      );
+    },
+  },
+  { key: "webinar_attended", label: "נכח בוובינר", defaultVisible: false,
+    render: (c, { getEventRegistrations }) => {
+      const regs = getEventRegistrations(c).filter(r => r.attended);
+      if (!regs.length) return <span className="text-muted-foreground">—</span>;
+      return (
+        <div className="flex flex-col gap-0.5 items-end">
+          {regs.slice(0, 2).map(r => (
+            <Link key={r.event_id} to={`/events/${r.event_id}`} onClick={e => e.stopPropagation()}
+              className="text-xs text-primary hover:underline truncate max-w-[180px]" title={r.event_title}>
+              {r.event_title}
+            </Link>
+          ))}
+          {regs.length > 2 && <span className="text-[10px] text-muted-foreground">+{regs.length - 2} עוד</span>}
+        </div>
+      );
+    },
+  },
 ];
 
 // ── Filter types ──
@@ -241,6 +276,11 @@ export default function ContactsPage() {
   const getAssignee = useCallback(
     (c: Contact) => c.assigned_member || (c.assigned_to ? membersById.get(c.assigned_to) : undefined),
     [membersById]
+  );
+  const { data: eventRegsByContact } = useEventRegistrationsByContact();
+  const getEventRegistrations = useCallback(
+    (c: Contact) => eventRegsByContact?.get(c.id) || [],
+    [eventRegsByContact]
   );
 
   // ── Stage change with popups (same logic as ContactDetailPage) ──
@@ -400,7 +440,7 @@ export default function ContactsPage() {
     setStatusPickerId(null); setPickerPos(null);
   };
 
-  const helpers: RenderHelpers = { getStage, getAssignee, openStagePicker, openAssigneePicker };
+  const helpers: RenderHelpers = { getStage, getAssignee, getEventRegistrations, openStagePicker, openAssigneePicker };
 
   return (
     <div className="space-y-4">

@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link as RouterLink } from "react-router-dom";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ArrowRight, Mail, Phone, MessageCircle, MapPin, Edit, Trash2, Video, Calendar, UserCircle, Kanban, FileSignature, Send, Hash, Link } from "lucide-react";
 import { useContact, useDeleteContact, useUpdateContact } from "@/hooks/useContacts";
@@ -105,6 +105,27 @@ export default function ContactDetailPage() {
 
   const allStages = pipelines?.flatMap(p => p.stages || []) || [];
 
+  // Event registrations for this contact (linked webinars)
+  const { data: eventRegs } = useQuery({
+    queryKey: ["contact_event_regs", id],
+    queryFn: async () => {
+      if (!id) return [];
+      const { data, error } = await supabase
+        .from("crm_event_registrations")
+        .select("event_id,registered,attended,event:crm_events(id,title,scheduled_at)")
+        .eq("contact_id", id);
+      if (error) throw error;
+      return (data || []).map((r: any) => ({
+        event_id: r.event_id,
+        event_title: r.event?.title || "אירוע",
+        event_scheduled_at: r.event?.scheduled_at,
+        registered: r.registered,
+        attended: r.attended,
+      }));
+    },
+    enabled: !!id,
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -127,6 +148,9 @@ export default function ContactDetailPage() {
   const stage = contact.stage || allStages.find(s => s.id === contact.stage_id);
   const source = CONTACT_SOURCES.find(s => s.value === contact.source);
   const contactPipeline = stage ? pipelines?.find(p => p.stages?.some(s => s.id === stage.id)) : null;
+
+  // Webinar registrations linked to this contact
+  const contactEventRegs = (eventRegs || []) as Array<{ event_id: string; event_title: string; registered: boolean; attended: boolean }>;
 
   const handleAddNote = async () => {
     if (!noteText.trim()) return;
@@ -658,13 +682,27 @@ export default function ContactDetailPage() {
           <div className="bg-card border border-border rounded-xl p-4 space-y-3">
             <h3 className="font-semibold text-sm">מעקב ליד</h3>
 
-            {/* Webinar fields - only for webinar pipeline */}
-            {contactPipeline?.name?.includes("וובינר") && (
+            {/* Webinar fields - linked from crm_event_registrations */}
+            {contactPipeline?.name?.includes("וובינר") && contactEventRegs && contactEventRegs.length > 0 && (
               <>
-                <InlineField label="נרשם לוובינר" value={contact.webinar_registered} icon={<Calendar size={13} />}
-                  onSave={v => updateContact.mutate({ id: contact.id, webinar_registered: v || null } as any)} />
-                <InlineField label="נכח בוובינר" value={contact.webinar_attended} icon={<Video size={13} />}
-                  onSave={v => updateContact.mutate({ id: contact.id, webinar_attended: v || null } as any)} />
+                {contactEventRegs.filter(r => r.registered).slice(0, 3).map(r => (
+                  <div key={`reg-${r.event_id}`} className="flex items-center gap-2 text-xs py-0.5">
+                    <Calendar size={13} className="text-blue-500 shrink-0" />
+                    <span className="text-muted-foreground">נרשם:</span>
+                    <RouterLink to={`/events/${r.event_id}`} className="text-primary hover:underline truncate">
+                      {r.event_title}
+                    </RouterLink>
+                  </div>
+                ))}
+                {contactEventRegs.filter(r => r.attended).slice(0, 3).map(r => (
+                  <div key={`att-${r.event_id}`} className="flex items-center gap-2 text-xs py-0.5">
+                    <Video size={13} className="text-green-600 shrink-0" />
+                    <span className="text-muted-foreground">נכח:</span>
+                    <RouterLink to={`/events/${r.event_id}`} className="text-primary hover:underline truncate">
+                      {r.event_title}
+                    </RouterLink>
+                  </div>
+                ))}
               </>
             )}
 
