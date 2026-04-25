@@ -125,29 +125,61 @@ async function zoomGETAll<T = any>(apiBase: string, token: string, path: string,
   const { token, apiBase } = await getZoomToken(zoomCfg);
   console.log(`OAuth token acquired (api_base=${apiBase})`);
 
-  // 2. Decide which sessions to sync
-  type Target = { kind: "webinar" | "meeting"; uuid: string; numericId?: string };
-  const targets: Target[] = [];
+  // 2. Discover sessions from the recordings listing.
+  // Zoom does not expose a /past_webinars/{uuid} endpoint, and /past_meetings/{uuid} requires
+  // an extra scope we don't have. The recordings list response already includes everything
+  // we need: uuid, id, topic, start_time, duration, type, host_id, share_url, recording_files,
+  // and recording_play_passcode. So we use it as the single source of truth.
+  type Target = {
+    kind: "webinar" | "meeting";
+    uuid: string;
+    id: string;
+    topic: string;
+    startTime: string;
+    durationMin: number;
+    hostId: string | null;
+    shareUrl: string | null;
+    password: string | null;
+    recordingFiles: any[];
+  };
 
-  if (ONE_WEBINAR) targets.push({ kind: "webinar", uuid: ONE_WEBINAR });
-  if (ONE_MEETING) targets.push({ kind: "meeting", uuid: ONE_MEETING });
+  const from = new Date(Date.now() - DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const to = new Date().toISOString().slice(0, 10);
+  console.log(`Discovery: /users/me/recordings ${from} → ${to}`);
+  const recs = await zoomGETAll<any>(apiBase, token, `/users/me/recordings?from=${from}&to=${to}`, "meetings");
+  console.log(`Found ${recs.length} recorded sessions in window`);
 
-  if (AUTO || (!ONE_WEBINAR && !ONE_MEETING)) {
-    const from = new Date(Date.now() - DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const to = new Date().toISOString().slice(0, 10);
-    console.log(`Auto-discovery: recordings ${from} → ${to} for host /users/me`);
-    const recs = await zoomGETAll<any>(apiBase, token, `/users/me/recordings?from=${from}&to=${to}`, "meetings");
-    for (const r of recs) {
-      // Zoom recording type: 9 = webinar, 1/2/3/4/8 etc. = various meeting types
-      const kind: "webinar" | "meeting" = r.type === 9 ? "webinar" : "meeting";
-      targets.push({ kind, uuid: r.uuid, numericId: String(r.id) });
-    }
-    console.log(`Found ${recs.length} sessions in window\n`);
-  }
+  let allTargets: Target[] = recs.map(r => ({
+    kind: r.type === 9 ? "webinar" : "meeting",
+    uuid: r.uuid,
+    id: String(r.id),
+    topic: r.topic,
+    startTime: r.start_time,
+    durationMin: r.duration,
+    hostId: r.host_id || null,
+    shareUrl: r.share_url || null,
+    password: r.recording_play_passcode || null,
+    recordingFiles: r.recording_files || [],
+  }));
 
-  // De-duplicate targets by uuid
+  if (ONE_WEBINAR) allTargets = allTargets.filter(t => t.uuid === ONE_WEBINAR && t.kind === "webinar");
+  if (ONE_MEETING) allTargets = allTargets.filter(t => t.uuid === ONE_MEETING && t.kind === "meeting");
+
+  // De-duplicate by uuid
   const seen = new Set<string>();
-  const uniqueTargets = targets.filter(t => (seen.has(t.uuid) ? false : (seen.add(t.uuid), true)));
+  const uniqueTargets = allTargets.filter(t => (seen.has(t.uuid) ? false : (seen.add(t.uuid), true)));
+  console.log(`Targets after filter: ${uniqueTargets.length}\n`);
+
+  // Resolve host emails (cached by host_id)
+  const hostEmailById = new Map<string, string>();
+  for (const t of uniqueTargets) {
+    if (t.hostId && !hostEmailById.has(t.hostId)) {
+      try {
+        const u: any = await zoomGET(apiBase, token, `/users/${t.hostId}`);
+        if (u.email) hostEmailById.set(t.hostId, u.email);
+      } catch { /* host fetch is best-effort */ }
+    }
+  }
 
   // 3. Process each target
   let synced = 0;
@@ -158,64 +190,38 @@ async function zoomGETAll<T = any>(apiBase: string, token: string, path: string,
   for (const t of uniqueTargets) {
     try {
       const enc = encodeZoomUUID(t.uuid);
-      console.log(`\n=== ${t.kind} uuid=${t.uuid.slice(0, 24)}... ===`);
+      console.log(`\n=== ${t.kind} uuid=${t.uuid.slice(0, 24)}... id=${t.id} ===`);
 
-      // 3a. Fetch session metadata
-      const metaPath = t.kind === "webinar" ? `/past_webinars/${enc}` : `/past_meetings/${enc}`;
-      let meta: any;
-      try {
-        meta = await zoomGET(apiBase, token, metaPath);
-      } catch (e: any) {
-        console.log(`  ! metadata fetch failed: ${e.message}`);
-        continue;
-      }
-
-      const startAt = meta.start_time;
-      const endAt = meta.end_time;
-      const durationMin = meta.duration || (startAt && endAt ? Math.round((+new Date(endAt) - +new Date(startAt)) / 60000) : 60);
+      const startAt = t.startTime;
+      const endMs = +new Date(startAt) + t.durationMin * 60_000;
+      const endAt = new Date(endMs).toISOString();
       const eventTypeForCrm = t.kind === "webinar" ? "webinar" : "live_community";
+      const hostEmail = t.hostId ? hostEmailById.get(t.hostId) || null : null;
 
-      console.log(`  topic: ${(meta.topic || "").slice(0, 60)}`);
-      console.log(`  start: ${startAt}  duration: ${durationMin}m  host: ${meta.host_email || "?"}`);
+      console.log(`  topic: ${(t.topic || "").slice(0, 60)}`);
+      console.log(`  start: ${startAt}  duration: ${t.durationMin}m  host: ${hostEmail || "?"}`);
+      console.log(`  recording files: ${t.recordingFiles.length}${t.shareUrl ? " (has share_url)" : ""}`);
 
-      // 3b. Fetch recording files (best effort)
-      let recordingFiles: any[] = [];
-      let recordingPlayUrl: string | null = null;
-      let recordingPassword: string | null = null;
-      try {
-        const numId = t.numericId || meta.id || meta.uuid;
-        const recPath = `/meetings/${encodeZoomUUID(t.uuid)}/recordings`;
-        const recData: any = await zoomGET(apiBase, token, recPath);
-        recordingFiles = recData.recording_files || [];
-        recordingPassword = recData.password || null;
-        const mp4 = recordingFiles.find(f => f.file_type === "MP4" && f.recording_type === "shared_screen_with_speaker_view")
-                  || recordingFiles.find(f => f.file_type === "MP4");
-        recordingPlayUrl = recData.share_url || mp4?.play_url || null;
-      } catch {
-        // Some sessions don't have recordings
-      }
-      console.log(`  recording files: ${recordingFiles.length}${recordingPlayUrl ? " (has share_url)" : ""}`);
-
-      // 3c. Upsert crm_events (idempotent via external_source + external_id = uuid)
+      // 3a. Upsert crm_events (idempotent via external_source + external_id = uuid)
       const eventRow = {
         event_type: eventTypeForCrm,
-        title: meta.topic || (t.kind === "webinar" ? "וובינר" : "לייב"),
+        title: t.topic || (t.kind === "webinar" ? "וובינר" : "לייב"),
         scheduled_at: startAt,
         end_at: endAt,
-        duration_minutes: durationMin,
-        meeting_url: meta.join_url || null,
-        recording_url: recordingPlayUrl,
-        recording_files: recordingFiles.length ? recordingFiles : null,
-        recording_password: recordingPassword,
-        host_email: meta.host_email || null,
+        duration_minutes: t.durationMin,
+        meeting_url: null as string | null,
+        recording_url: t.shareUrl,
+        recording_files: t.recordingFiles.length ? t.recordingFiles : null,
+        recording_password: t.password,
+        host_email: hostEmail,
         status: "completed",
         external_source: "zoom",
         external_id: t.uuid,
         external_metadata: {
           zoom_uuid: t.uuid,
-          zoom_id: meta.id ? String(meta.id) : t.numericId || null,
-          host_id: meta.host_id || null,
-          type: meta.type || null,
+          zoom_id: t.id,
+          host_id: t.hostId,
+          type: t.kind === "webinar" ? 9 : 8,
         },
         last_synced_at: new Date().toISOString(),
       };
@@ -332,18 +338,25 @@ async function zoomGETAll<T = any>(apiBase: string, token: string, path: string,
         raw: s.raw,
       }));
 
-      // Use upsert on the unique index to be re-runnable
-      const { error: sessErr } = await sb
+      // Delete-then-insert: re-running the sync replaces all sessions for this event.
+      // (The partial unique index can't be used with PostgREST's onConflict.)
+      const { error: delErr } = await sb
         .from("crm_event_attendance_sessions")
-        .upsert(finalSessions, { onConflict: "event_id,participant_external_id,joined_at", ignoreDuplicates: true });
-      if (sessErr) console.log(`  ! sessions upsert failed: ${sessErr.message}`);
+        .delete()
+        .eq("event_id", eventId);
+      if (delErr) console.log(`  ! sessions delete failed: ${delErr.message}`);
+      if (finalSessions.length) {
+        const { error: insErr } = await sb
+          .from("crm_event_attendance_sessions")
+          .insert(finalSessions);
+        if (insErr) console.log(`  ! sessions insert failed: ${insErr.message}`);
+      }
 
       // 3h. Update aggregate counts on crm_events
       const { error: updErr } = await sb
         .from("crm_events")
         .update({
           attended_count: matchedContactIds.size + unmatchedCount,
-          registered_count: Math.max(matchedContactIds.size + unmatchedCount, eventRow.external_metadata.zoom_id ? 0 : 0),
         })
         .eq("id", eventId);
       if (updErr) console.log(`  ! event count update failed: ${updErr.message}`);
