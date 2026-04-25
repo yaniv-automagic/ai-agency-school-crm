@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Plus, Video, Radio, Users, Calendar, ExternalLink } from "lucide-react";
+import { Plus, Video, Radio, Users, Calendar, ExternalLink, ChevronLeft } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
@@ -41,6 +42,7 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 
 export default function EventsPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<string>("all");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
@@ -161,7 +163,14 @@ export default function EventsPage() {
             const statusInfo = STATUS_MAP[event.status];
             const Icon = typeInfo?.icon || Video;
             return (
-              <div key={event.id} className="bg-card border border-border rounded-xl p-5 hover:shadow-sm transition-shadow">
+              <div
+                key={event.id}
+                onClick={() => navigate(`/events/${event.id}`)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === "Enter") navigate(`/events/${event.id}`); }}
+                className="bg-card border border-border rounded-xl p-5 hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group"
+              >
                 <div className="flex items-start gap-4">
                   <div className={cn("p-2.5 rounded-xl shrink-0", typeInfo?.color)}>
                     <Icon size={20} />
@@ -196,12 +205,14 @@ export default function EventsPage() {
                       <div className="flex items-center gap-3 mt-2">
                         {event.meeting_url && (
                           <a href={event.meeting_url} target="_blank" rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
                             className="text-xs text-primary hover:underline flex items-center gap-1">
                             <ExternalLink size={12} /> קישור לאירוע
                           </a>
                         )}
                         {event.recording_url && (
                           <a href={event.recording_url} target="_blank" rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
                             className="text-xs text-primary hover:underline flex items-center gap-1">
                             <ExternalLink size={12} /> הקלטה
                           </a>
@@ -209,6 +220,7 @@ export default function EventsPage() {
                       </div>
                     )}
                   </div>
+                  <ChevronLeft size={18} className="text-muted-foreground/40 group-hover:text-primary shrink-0 mt-1 transition-colors" />
                 </div>
               </div>
             );

@@ -11,6 +11,7 @@ import { healthRouter } from "./routes/health.js";
 import { contractRouter } from "./routes/contracts.js";
 import { googleCalendarRouter } from "./routes/google-calendar.js";
 import { usersRouter } from "./routes/users.js";
+import { zoomRouter } from "./routes/zoom.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -38,6 +39,7 @@ app.use("/api/webhooks", webhookRouter);
 app.use("/api/contracts", contractRouter);
 app.use("/api/integrations/google-calendar", googleCalendarRouter);
 app.use("/api/users", usersRouter);
+app.use("/api/zoom", zoomRouter);
 
 // ── Automation Queue Processor ──
 // Polls crm_automation_queue every 30 seconds for new events
