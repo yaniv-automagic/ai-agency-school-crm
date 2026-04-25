@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowRight, ExternalLink, Calendar, Clock, Video, User, FileText, CheckCircle, ChevronDown, Download } from "lucide-react";
+import { ArrowRight, ExternalLink, Calendar, Clock, Video, FileText, CheckCircle, ChevronDown, Download, Edit, Link as LinkIcon } from "lucide-react";
 import { useMeeting, useUpdateMeeting } from "@/hooks/useMeetings";
 import { useAuth } from "@/contexts/AuthContext";
 import { MEETING_TYPES, MEETING_STATUSES, MEETING_OUTCOMES } from "@/lib/constants";
 import { cn, formatCurrency } from "@/lib/utils";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
+import type { Meeting } from "@/types/crm";
 
 export default function MeetingDetailPage() {
   const { id } = useParams();
@@ -14,6 +16,16 @@ export default function MeetingDetailPage() {
   const updateMeeting = useUpdateMeeting();
 
   const [showFullTranscript, setShowFullTranscript] = useState(false);
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
+  const [showTypePicker, setShowTypePicker] = useState(false);
+  const [showSidebarTypePicker, setShowSidebarTypePicker] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [editingDateTime, setEditingDateTime] = useState(false);
+  const [editingDuration, setEditingDuration] = useState(false);
+  const [durationDraft, setDurationDraft] = useState("");
+  const [editingUrl, setEditingUrl] = useState(false);
+  const [urlDraft, setUrlDraft] = useState("");
 
   if (isLoading) {
     return (
@@ -38,12 +50,32 @@ export default function MeetingDetailPage() {
   const type = MEETING_TYPES.find((t) => t.value === meeting.meeting_type);
   const outcome = meeting.outcome ? MEETING_OUTCOMES.find((o) => o.value === meeting.outcome) : null;
 
-  const handleStatusChange = async (newStatus: string) => {
-    await updateMeeting.mutateAsync({
-      id: meeting.id,
-      status: newStatus as any,
-      _tenantId: teamMember?.tenant_id,
-    } as any);
+  const update = (patch: Partial<Meeting>) => {
+    updateMeeting.mutate({ id: meeting.id, ...patch, _tenantId: teamMember?.tenant_id } as any);
+  };
+
+  const isoToLocalInput = (iso: string) => {
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const commitTitle = () => {
+    const v = titleDraft.trim();
+    if (v && v !== meeting.title) update({ title: v });
+    setEditingTitle(false);
+  };
+
+  const commitDuration = () => {
+    const n = parseInt(durationDraft, 10);
+    if (Number.isFinite(n) && n > 0 && n !== meeting.duration_minutes) update({ duration_minutes: n });
+    setEditingDuration(false);
+  };
+
+  const commitUrl = () => {
+    const v = urlDraft.trim();
+    if (v !== (meeting.meeting_url || "")) update({ meeting_url: v || null });
+    setEditingUrl(false);
   };
 
   return (
@@ -59,15 +91,95 @@ export default function MeetingDetailPage() {
 
       {/* Header */}
       <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">{meeting.title}</h1>
-          <div className="flex items-center gap-2 mt-2">
-            <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary", type?.color)}>
-              {type?.label}
-            </span>
-            <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium", status?.color)}>
-              {status?.label}
-            </span>
+        <div className="flex-1 min-w-0">
+          {editingTitle ? (
+            <input
+              value={titleDraft}
+              onChange={e => setTitleDraft(e.target.value)}
+              autoFocus
+              onBlur={commitTitle}
+              onKeyDown={e => {
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                if (e.key === "Escape") setEditingTitle(false);
+              }}
+              className="text-2xl font-bold w-full px-2 py-1 border border-input rounded bg-background outline-none focus:ring-1 focus:ring-ring"
+            />
+          ) : (
+            <h1
+              onClick={() => { setTitleDraft(meeting.title); setEditingTitle(true); }}
+              className="text-2xl font-bold cursor-pointer rounded px-1 -mx-1 hover:bg-secondary/40 inline-flex items-center gap-2 group"
+            >
+              {meeting.title}
+              <Edit size={14} className="text-muted-foreground opacity-0 group-hover:opacity-100" />
+            </h1>
+          )}
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            {/* Type picker */}
+            <div className="relative">
+              <button
+                onClick={() => setShowTypePicker(!showTypePicker)}
+                className={cn(
+                  "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary cursor-pointer hover:bg-secondary/80 transition-colors",
+                  type?.color
+                )}
+              >
+                {type?.label}
+              </button>
+              {showTypePicker && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowTypePicker(false)} />
+                  <div className="absolute top-full mt-1 right-0 bg-card border border-border rounded-xl shadow-xl py-1 w-48 z-50" dir="rtl">
+                    {MEETING_TYPES.map(t => (
+                      <button
+                        key={t.value}
+                        onClick={() => { update({ meeting_type: t.value as any }); setShowTypePicker(false); }}
+                        className={cn(
+                          "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary text-right",
+                          t.value === meeting.meeting_type && "bg-secondary/50 font-medium"
+                        )}
+                      >
+                        <span className={t.color}>{t.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Status picker */}
+            <div className="relative">
+              <button
+                onClick={() => setShowStatusPicker(!showStatusPicker)}
+                className={cn(
+                  "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity",
+                  status?.color
+                )}
+              >
+                {status?.label}
+              </button>
+              {showStatusPicker && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowStatusPicker(false)} />
+                  <div className="absolute top-full mt-1 right-0 bg-card border border-border rounded-xl shadow-xl py-1 w-48 z-50" dir="rtl">
+                    {MEETING_STATUSES.map(s => (
+                      <button
+                        key={s.value}
+                        onClick={() => { update({ status: s.value as any }); setShowStatusPicker(false); }}
+                        className={cn(
+                          "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary text-right",
+                          s.value === meeting.status && "bg-secondary/50 font-medium"
+                        )}
+                      >
+                        <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium", s.color)}>
+                          {s.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
             {outcome && (
               <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-secondary", outcome.color)}>
                 {outcome.label}
@@ -75,36 +187,6 @@ export default function MeetingDetailPage() {
             )}
           </div>
         </div>
-
-        {/* Status actions */}
-        {(meeting.status === "scheduled" || meeting.status === "confirmed") && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleStatusChange("completed")}
-              className="px-3 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/90 transition-colors"
-            >
-              סמן התקיימה
-            </button>
-            <button
-              onClick={() => handleStatusChange("rescheduled")}
-              className="px-3 py-2 text-sm border border-input rounded-lg hover:bg-secondary transition-colors"
-            >
-              נדחתה
-            </button>
-            <button
-              onClick={() => handleStatusChange("cancelled")}
-              className="px-3 py-2 text-sm text-destructive border border-input rounded-lg hover:bg-destructive/10 transition-colors"
-            >
-              בוטלה
-            </button>
-            <button
-              onClick={() => handleStatusChange("no_show")}
-              className="px-3 py-2 text-sm border border-input rounded-lg hover:bg-secondary transition-colors"
-            >
-              לא הגיע
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Content */}
@@ -118,23 +200,6 @@ export default function MeetingDetailPage() {
               <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                 {meeting.description}
               </p>
-            </div>
-          )}
-
-          {/* Meeting URL */}
-          {meeting.meeting_url && (
-            <div className="bg-card border border-border rounded-xl p-4">
-              <h3 className="font-semibold mb-3">קישור לפגישה</h3>
-              <a
-                href={meeting.meeting_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-sm text-primary hover:underline"
-                dir="ltr"
-              >
-                <ExternalLink size={14} />
-                {meeting.meeting_url}
-              </a>
             </div>
           )}
 
@@ -265,38 +330,164 @@ export default function MeetingDetailPage() {
           <div className="bg-card border border-border rounded-xl p-4 space-y-3">
             <h3 className="font-semibold text-sm">פרטי פגישה</h3>
             <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <Calendar size={14} className="text-muted-foreground shrink-0" />
-                <span className="text-muted-foreground">תאריך:</span>
-                <span>
-                  {new Date(meeting.scheduled_at).toLocaleDateString("he-IL", {
-                    weekday: "long",
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock size={14} className="text-muted-foreground shrink-0" />
-                <span className="text-muted-foreground">שעה:</span>
-                <span>
-                  {new Date(meeting.scheduled_at).toLocaleTimeString("he-IL", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
+              {editingDateTime ? (
+                <div className="flex items-center gap-2">
+                  <Calendar size={14} className="text-muted-foreground shrink-0" />
+                  <div className="flex-1">
+                    <DateTimePicker
+                      value={isoToLocalInput(meeting.scheduled_at)}
+                      onChange={v => {
+                        if (v) {
+                          const iso = new Date(v).toISOString();
+                          if (iso !== meeting.scheduled_at) update({ scheduled_at: iso });
+                        }
+                        setEditingDateTime(false);
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div
+                    onClick={() => setEditingDateTime(true)}
+                    className="flex items-center gap-2 group cursor-pointer rounded -mx-1 px-1 hover:bg-secondary/40"
+                  >
+                    <Calendar size={14} className="text-muted-foreground shrink-0" />
+                    <span className="text-muted-foreground">תאריך:</span>
+                    <span className="flex-1">
+                      {new Date(meeting.scheduled_at).toLocaleDateString("he-IL", {
+                        weekday: "long",
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </span>
+                    <Edit size={10} className="text-muted-foreground opacity-0 group-hover:opacity-100" />
+                  </div>
+                  <div
+                    onClick={() => setEditingDateTime(true)}
+                    className="flex items-center gap-2 group cursor-pointer rounded -mx-1 px-1 hover:bg-secondary/40"
+                  >
+                    <Clock size={14} className="text-muted-foreground shrink-0" />
+                    <span className="text-muted-foreground">שעה:</span>
+                    <span className="flex-1">
+                      {new Date(meeting.scheduled_at).toLocaleTimeString("he-IL", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                    <Edit size={10} className="text-muted-foreground opacity-0 group-hover:opacity-100" />
+                  </div>
+                </>
+              )}
+
+              {/* Duration */}
+              <div className="flex items-center gap-2 group min-h-[24px]">
                 <Clock size={14} className="text-muted-foreground shrink-0" />
                 <span className="text-muted-foreground">משך:</span>
-                <span>{meeting.duration_minutes} דקות</span>
+                {editingDuration ? (
+                  <input
+                    type="number"
+                    min={1}
+                    value={durationDraft}
+                    onChange={e => setDurationDraft(e.target.value)}
+                    autoFocus
+                    onBlur={commitDuration}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                      if (e.key === "Escape") setEditingDuration(false);
+                    }}
+                    className="flex-1 px-2 py-0.5 text-sm border border-input rounded bg-background outline-none focus:ring-1 focus:ring-ring"
+                  />
+                ) : (
+                  <div
+                    onClick={() => { setDurationDraft(String(meeting.duration_minutes)); setEditingDuration(true); }}
+                    className="flex-1 flex items-center gap-1 cursor-pointer rounded -mx-1 px-1 hover:bg-secondary/40"
+                  >
+                    <span className="flex-1">{meeting.duration_minutes} דקות</span>
+                    <Edit size={10} className="text-muted-foreground opacity-0 group-hover:opacity-100" />
+                  </div>
+                )}
               </div>
+
+              {/* Type */}
               <div className="flex items-center gap-2">
                 <Video size={14} className="text-muted-foreground shrink-0" />
                 <span className="text-muted-foreground">סוג:</span>
-                <span>{type?.label}</span>
+                <div className="relative flex-1">
+                  <button
+                    onClick={() => setShowSidebarTypePicker(!showSidebarTypePicker)}
+                    className="text-right hover:bg-secondary/40 rounded -mx-1 px-1 w-full flex items-center justify-between gap-1 group"
+                  >
+                    <span>{type?.label}</span>
+                    <Edit size={10} className="text-muted-foreground opacity-0 group-hover:opacity-100" />
+                  </button>
+                  {showSidebarTypePicker && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowSidebarTypePicker(false)} />
+                      <div className="absolute top-full mt-1 right-0 bg-card border border-border rounded-xl shadow-xl py-1 w-48 z-50" dir="rtl">
+                        {MEETING_TYPES.map(t => (
+                          <button
+                            key={t.value}
+                            onClick={() => { update({ meeting_type: t.value as any }); setShowSidebarTypePicker(false); }}
+                            className={cn(
+                              "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary text-right",
+                              t.value === meeting.meeting_type && "bg-secondary/50 font-medium"
+                            )}
+                          >
+                            <span className={t.color}>{t.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
+
+              {/* Meeting Link */}
+              <div className="flex items-center gap-2 group min-h-[24px]">
+                <LinkIcon size={14} className="text-muted-foreground shrink-0" />
+                <span className="text-muted-foreground">קישור:</span>
+                {editingUrl ? (
+                  <input
+                    value={urlDraft}
+                    onChange={e => setUrlDraft(e.target.value)}
+                    placeholder="https://..."
+                    autoFocus
+                    onBlur={commitUrl}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                      if (e.key === "Escape") setEditingUrl(false);
+                    }}
+                    dir="ltr"
+                    className="flex-1 px-2 py-0.5 text-sm border border-input rounded bg-background outline-none focus:ring-1 focus:ring-ring"
+                  />
+                ) : (
+                  <div
+                    onClick={() => { setUrlDraft(meeting.meeting_url || ""); setEditingUrl(true); }}
+                    className="flex-1 flex items-center gap-1 min-w-0 cursor-pointer rounded -mx-1 px-1 hover:bg-secondary/40"
+                  >
+                    {meeting.meeting_url ? (
+                      <a
+                        href={meeting.meeting_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        className="flex items-center gap-1 text-primary hover:underline truncate min-w-0 flex-1"
+                        dir="ltr"
+                      >
+                        <ExternalLink size={11} className="shrink-0" />
+                        <span className="truncate">{meeting.meeting_url}</span>
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground/50 flex-1">—</span>
+                    )}
+                    <Edit size={10} className="text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
+                  </div>
+                )}
+              </div>
+
+              {/* Created (read-only) */}
               <div className="flex items-center gap-2">
                 <Calendar size={14} className="text-muted-foreground shrink-0" />
                 <span className="text-muted-foreground">נוצר:</span>
